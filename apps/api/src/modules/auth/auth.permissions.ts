@@ -1,0 +1,105 @@
+import type { AdminRole } from '@prisma/client'
+
+export const adminPermissions = [
+  'dashboard:view',
+  'orders:view',
+  'orders:create',
+  'orders:update',
+  'dining:view',
+  'dining:update',
+  'kitchen:view',
+  'kitchen:update',
+  'drivers:view',
+  'catalog:categories:view',
+  'catalog:categories:manage',
+  'catalog:products:view',
+  'catalog:products:manage',
+  'catalog:promotions:view',
+  'catalog:promotions:manage',
+  'catalog:coupons:view',
+  'catalog:coupons:manage',
+  'catalog:preview:view',
+  'cash:view',
+  'cash:manage',
+  'history:view',
+  'reports:view',
+  'settings:store:view',
+  'settings:store:manage',
+  'settings:delivery:view',
+  'settings:delivery:manage',
+  'settings:preferences:view',
+  'settings:preferences:manage',
+  'users:view',
+  'users:manage',
+] as const
+
+export type AdminPermission = (typeof adminPermissions)[number]
+
+const allPermissions = [...adminPermissions]
+
+const rolePermissions: Record<AdminRole, AdminPermission[]> = {
+  owner: allPermissions,
+  manager: allPermissions.filter(
+    (permission) =>
+      !['settings:store:manage', 'users:manage'].includes(permission),
+  ),
+  attendant: [
+    'dashboard:view',
+    'orders:view',
+    'orders:create',
+    'orders:update',
+    'dining:view',
+    'catalog:categories:view',
+    'catalog:products:view',
+    'catalog:preview:view',
+    'history:view',
+  ],
+  cashier: [
+    'dashboard:view',
+    'orders:view',
+    'orders:create',
+    'cash:view',
+    'cash:manage',
+    'history:view',
+    'catalog:preview:view',
+  ],
+  kitchen: ['orders:view', 'orders:update', 'kitchen:view', 'kitchen:update'],
+  waiter: [
+    'orders:view',
+    'orders:create',
+    'orders:update',
+    'dining:view',
+    'dining:update',
+    'catalog:categories:view',
+    'catalog:products:view',
+    'catalog:preview:view',
+    'history:view',
+  ],
+  driver: ['drivers:view'],
+  supervisor: [
+    'dashboard:view',
+    'orders:view',
+    'orders:create',
+    'orders:update',
+    'dining:view',
+    'dining:update',
+    'kitchen:view',
+    'drivers:view',
+    'catalog:categories:view',
+    'catalog:products:view',
+    'catalog:promotions:view',
+    'catalog:coupons:view',
+    'catalog:preview:view',
+    'cash:view',
+    'history:view',
+    'reports:view',
+    'settings:store:view',
+    'settings:delivery:view',
+    'settings:preferences:view',
+    'users:view',
+  ],
+}
+
+export function getPermissionsForRole(role: AdminRole): AdminPermission[] {
+  return rolePermissions[role] ?? []
+}

@@ -1,0 +1,526 @@
+export type UserRole =
+  | 'owner'
+  | 'manager'
+  | 'attendant'
+  | 'cashier'
+  | 'kitchen'
+  | 'waiter'
+  | 'driver'
+  | 'supervisor'
+
+export type UserStatus = 'active' | 'inactive'
+
+export type AdminPermission =
+  | 'dashboard:view'
+  | 'orders:view'
+  | 'orders:create'
+  | 'orders:update'
+  | 'dining:view'
+  | 'dining:update'
+  | 'kitchen:view'
+  | 'kitchen:update'
+  | 'drivers:view'
+  | 'catalog:categories:view'
+  | 'catalog:categories:manage'
+  | 'catalog:products:view'
+  | 'catalog:products:manage'
+  | 'catalog:promotions:view'
+  | 'catalog:promotions:manage'
+  | 'catalog:coupons:view'
+  | 'catalog:coupons:manage'
+  | 'catalog:preview:view'
+  | 'cash:view'
+  | 'cash:manage'
+  | 'history:view'
+  | 'reports:view'
+  | 'settings:store:view'
+  | 'settings:store:manage'
+  | 'settings:delivery:view'
+  | 'settings:delivery:manage'
+  | 'settings:preferences:view'
+  | 'settings:preferences:manage'
+  | 'users:view'
+  | 'users:manage'
+
+export type OrderStatus =
+  | 'in_analysis'
+  | 'in_preparation'
+  | 'ready'
+  | 'out_for_delivery'
+  | 'completed'
+  | 'cancelled'
+
+export type OrderChannel =
+  | 'delivery'
+  | 'dine_in'
+  | 'counter'
+  | 'pickup'
+  | 'digital_menu'
+  | 'whatsapp'
+
+export type PaymentMethod =
+  | 'pix'
+  | 'credit_card'
+  | 'debit_card'
+  | 'cash'
+  | 'meal_voucher'
+  | 'payment_link'
+
+export type PaymentStatus = 'paid' | 'pending' | 'refunded'
+export type PriorityLevel = 'normal' | 'priority' | 'vip'
+export type TableStatus = 'free' | 'occupied' | 'reserved' | 'closing' | 'closed'
+export type ProductChannel = 'dine_in' | 'delivery' | 'digital_menu' | 'counter'
+export type DriverConnectionStatus = 'online' | 'offline'
+export type DriverAvailabilityStatus = 'available' | 'delivering' | 'paused'
+export type WaiterStatus = 'available' | 'serving' | 'paused'
+export type CashMovementType = 'sale' | 'withdrawal' | 'supply' | 'adjustment' | 'refund'
+
+export interface StoreProfile {
+  id: string
+  name: string
+  tradeName: string
+  timezone: string
+  city: string
+  state: string
+  brandAccent: string
+  autoAcceptEnabled: boolean
+  estimatedPrepTimeMinutes?: number
+  estimatedDeliveryTimeMinutes?: number
+  estimatedDineInTimeMinutes?: number
+  estimatedCounterTimeMinutes?: number
+  estimatedPickupTimeMinutes?: number
+}
+
+export interface AppUser {
+  id: string
+  name: string
+  role: UserRole
+  initials: string
+  online: boolean
+}
+
+export interface AuthenticatedAdminUser {
+  id: string
+  email: string
+  name: string
+  role: UserRole
+  status: UserStatus
+  initials: string
+  permissions: AdminPermission[]
+  store: Pick<StoreProfile, 'id' | 'name' | 'tradeName'>
+}
+
+export interface CustomerAddress {
+  id: string
+  label: string
+  street: string
+  number: string
+  district: string
+  complement?: string
+  city: string
+  state: string
+  reference?: string
+}
+
+export interface Customer {
+  id: string
+  name: string
+  phone: string
+  tags: string[]
+  addresses: CustomerAddress[]
+}
+
+export interface OrderItemOption {
+  id: string
+  name: string
+  quantity: number
+  price: number
+}
+
+export interface OrderItem {
+  id: string
+  productId: string
+  name: string
+  quantity: number
+  unitPrice: number
+  notes?: string
+  options: OrderItemOption[]
+}
+
+export interface TimelineEntry {
+  id: string
+  label: string
+  at: string
+  actor: string
+}
+
+export interface OrderDriverSummary {
+  id: string
+  name: string
+  phone: string
+}
+
+export interface Order {
+  id: string
+  number: string
+  customerId: string
+  customerName: string
+  customerPhone: string
+  source: OrderChannel
+  serviceType: OrderChannel
+  status: OrderStatus
+  paymentMethod: PaymentMethod
+  paymentStatus: PaymentStatus
+  total: number
+  subtotal: number
+  deliveryFee: number
+  discount: number
+  createdAt: string
+  dueAt: string
+  estimatedPrepTimeMinutes?: number
+  estimatedDeliveryTimeMinutes?: number
+  estimatedTotalTimeMinutes?: number
+  priority: PriorityLevel
+  delayed: boolean
+  tags: string[]
+  addressLabel?: string
+  addressText?: string
+  tableCode?: string
+  notes?: string
+  driverId?: string
+  driver?: OrderDriverSummary
+  items: OrderItem[]
+  timeline: TimelineEntry[]
+}
+
+export interface DiningArea {
+  id: string
+  name: string
+  color: string
+  sortOrder?: number
+}
+
+export interface DiningTable {
+  id: string
+  code: string
+  areaId: string
+  areaName?: string
+  capacity: number
+  status: TableStatus
+  guests?: number
+  waiterId?: string
+  waiterName?: string
+  currentSessionId?: string
+  notes?: string
+}
+
+export interface TableSessionItem {
+  id: string
+  productId: string
+  name: string
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+  notes?: string
+}
+
+export interface TableSession {
+  id: string
+  tableId: string
+  tableCode?: string
+  waiterId?: string
+  waiterName?: string
+  openedAt: string
+  closedAt?: string
+  guestCount: number
+  subtotal: number
+  discount: number
+  serviceFee: number
+  total: number
+  paymentMethod?: PaymentMethod
+  status: 'open' | 'awaiting_close' | 'closed'
+  notes?: string
+  items: TableSessionItem[]
+  timeline: TimelineEntry[]
+}
+
+export interface ChannelAvailability {
+  channel: ProductChannel
+  available: boolean
+  visible: boolean
+  soldOut: boolean
+  priceOverride?: number
+}
+
+export interface Product {
+  id: string
+  categoryId: string
+  name: string
+  description: string
+  price: number
+  image: string
+  featured: boolean
+  active: boolean
+  preparationStation: string
+  availability: ChannelAvailability[]
+  tags: string[]
+}
+
+export interface Category {
+  id: string
+  name: string
+  description: string
+  sortOrder: number
+}
+
+export interface Promotion {
+  id: string
+  name: string
+  label: string
+  type: 'automatic' | 'combo' | 'happy_hour'
+  channel: ProductChannel | 'all'
+  startsAt: string
+  endsAt: string
+  status: 'active' | 'scheduled'
+}
+
+export interface Coupon {
+  id: string
+  code: string
+  type: 'percent' | 'fixed'
+  value: number
+  minOrderAmount: number
+  channel: ProductChannel | 'all'
+  validUntil: string
+  uses: number
+  status: 'active' | 'scheduled' | 'expired'
+}
+
+export interface DeliveryStop {
+  id?: string
+  orderId: string
+  orderNumber: string
+  customerName: string
+  addressLabel: string
+  plannedSequence: number
+  finalSequence: number
+  actualSequence?: number
+  etaMinutes: number
+  distanceMeters?: number
+  latitude?: number
+  longitude?: number
+  status?: OrderStatus
+}
+
+export interface Driver {
+  id: string
+  name: string
+  email?: string
+  phone: string
+  vehicle: string
+  active?: boolean
+  connectionStatus: DriverConnectionStatus
+  availability: DriverAvailabilityStatus
+  currentOrderId?: string
+  averageDeliveryMinutes: number
+  distanceKmToday: number
+  totalDeliveries?: number
+  completedOrders?: number
+  cancelledOrders?: number
+  totalAssignedRevenue?: number
+  lastActivityAt?: string
+  queue: DeliveryStop[]
+  history?: Array<{
+    id: string
+    orderNumber: string
+    status: OrderStatus
+    total: number
+    createdAt: string
+  }>
+}
+
+export interface Waiter {
+  id: string
+  name: string
+  email?: string
+  phone: string
+  active: boolean
+  status: WaiterStatus
+  totalOrders: number
+  totalSales: number
+  tablesServed: number
+  cancellations: number
+  averageTicket: number
+  lastActivityAt?: string
+  history: Array<{
+    id: string
+    label: string
+    createdAt: string
+    value?: number
+  }>
+}
+
+export interface DriverLocation {
+  id: string
+  driverId: string
+  orderId?: string
+  assignmentId?: string
+  x: number
+  y: number
+  longitude?: number
+  latitude?: number
+  accuracyMeters?: number
+  heading: number
+  speedKmh: number
+  capturedAt: string
+  source?: 'gps' | 'app' | 'admin' | 'simulator' | 'fallback'
+  isActive?: boolean
+}
+
+export interface GeoCoordinate {
+  longitude: number
+  latitude: number
+}
+
+export interface DriverRoute {
+  driverId: string
+  driverName: string
+  storeLocation: GeoCoordinate
+  currentLocation: DriverLocation | null
+  stops: DeliveryStop[]
+  geometry: GeoCoordinate[]
+  etaMinutes: number
+  durationSeconds: number
+  distanceMeters: number
+  provider: 'osrm' | 'valhalla' | 'fallback'
+  updatedAt: string
+}
+
+export interface OrderTracking {
+  orderId: string
+  orderNumber: string
+  status: OrderStatus
+  message: string
+  etaMinutes: number
+  provider: 'osrm' | 'valhalla' | 'fallback'
+  driver: OrderDriverSummary | null
+  driverLocation: {
+    latitude: number
+    longitude: number
+    capturedAt: string
+    speedKmh: number
+  } | null
+  updatedAt: string
+}
+
+export interface CashMovement {
+  id: string
+  type: CashMovementType
+  method: PaymentMethod | 'internal'
+  amount: number
+  label: string
+  createdAt: string
+  userName: string
+}
+
+export interface CashRegister {
+  id: string
+  status: 'open' | 'closing' | 'closed'
+  openedAt: string
+  operatorName: string
+  openingAmount: number
+  expectedAmount: number
+  countedAmount: number
+  differenceAmount: number
+  entriesByMethod: Record<PaymentMethod, number>
+  movements: CashMovement[]
+}
+
+export interface MetricCardData {
+  id: string
+  label: string
+  value: string
+  trendLabel: string
+  trendDirection: 'up' | 'down' | 'neutral'
+}
+
+export interface ReportPoint {
+  label: string
+  revenue: number
+  orders: number
+  averageTicket: number
+}
+
+export interface ChannelBreakdown {
+  label: string
+  revenue: number
+  orders: number
+}
+
+export interface ReportTableRow {
+  id: string
+  label: string
+  revenue: number
+  orders: number
+  share: number
+}
+
+export interface PaymentBreakdownRow {
+  label: string
+  revenue: number
+  orders: number
+}
+
+export interface OrdersByStatusRow {
+  id: string
+  label: string
+  orders: number
+}
+
+export interface CancellationSummaryRow {
+  id: string
+  orderNumber: string
+  customerName: string
+  note: string
+  value: number
+}
+
+export interface PerformanceSummaryRow {
+  id: string
+  name: string
+  primary: string
+  secondary: string
+  value: number
+}
+
+export interface TablesSummary {
+  free: number
+  occupied: number
+  reserved: number
+  closing: number
+  openSessions: number
+  closedSessions: number
+  diningRevenue: number
+}
+
+export interface ReportsSnapshot {
+  metrics: MetricCardData[]
+  revenueSeries: ReportPoint[]
+  byChannel: ChannelBreakdown[]
+  byPayment: PaymentBreakdownRow[]
+  ordersByStatus: OrdersByStatusRow[]
+  topProducts: ReportTableRow[]
+  topCategories: ReportTableRow[]
+  cancellations: CancellationSummaryRow[]
+  driverSummaries: PerformanceSummaryRow[]
+  waiterSummaries: PerformanceSummaryRow[]
+  tablesSummary: TablesSummary
+}
+
+export interface PreviewCartItem {
+  id: string
+  productId: string
+  name: string
+  quantity: number
+  price: number
+}

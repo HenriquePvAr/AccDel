@@ -1,0 +1,57 @@
+import type { Waiter } from '@/types'
+
+export const waitersMock: Waiter[] = [
+  {
+    id: 'wtr_1',
+    name: 'Sara Vale',
+    email: 'waiter@cain.local',
+    phone: '(92) 99901-4400',
+    active: true,
+    status: 'serving',
+    totalOrders: 42,
+    totalSales: 3940,
+    tablesServed: 28,
+    cancellations: 2,
+    averageTicket: 93.8,
+    lastActivityAt: '2026-04-23T18:44:00-04:00',
+    history: [
+      { id: 'wh_1', label: 'Mesa 08 atendida', createdAt: '2026-04-23T18:44:00-04:00', value: 186.4 },
+      { id: 'wh_2', label: 'Pedido lancado no salao', createdAt: '2026-04-23T18:18:00-04:00', value: 122.4 },
+    ],
+  },
+  {
+    id: 'wtr_2',
+    name: 'Bruno Melo',
+    email: 'bruno.waiter@cain.local',
+    phone: '(92) 99141-5510',
+    active: true,
+    status: 'available',
+    totalOrders: 31,
+    totalSales: 2520,
+    tablesServed: 21,
+    cancellations: 1,
+    averageTicket: 81.3,
+    lastActivityAt: '2026-04-23T18:12:00-04:00',
+    history: [
+      { id: 'wh_3', label: 'Mesa 03 fechada', createdAt: '2026-04-23T18:12:00-04:00', value: 164.2 },
+      { id: 'wh_4', label: 'Mesa 05 aberta', createdAt: '2026-04-23T17:46:00-04:00', value: 0 },
+    ],
+  },
+  {
+    id: 'wtr_3',
+    name: 'Paula Dias',
+    email: 'paula.waiter@cain.local',
+    phone: '(92) 99410-8822',
+    active: false,
+    status: 'paused',
+    totalOrders: 12,
+    totalSales: 980,
+    tablesServed: 9,
+    cancellations: 1,
+    averageTicket: 81.6,
+    lastActivityAt: '2026-04-22T22:04:00-04:00',
+    history: [
+      { id: 'wh_5', label: 'Turno encerrado', createdAt: '2026-04-22T22:04:00-04:00', value: 0 },
+    ],
+  },
+]

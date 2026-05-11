@@ -1,0 +1,33 @@
+import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common'
+
+import {
+  kitchenQueueQuerySchema,
+  markKitchenOrderReadySchema,
+  type KitchenQueueQuery,
+  type MarkKitchenOrderReadyPayload,
+} from '@/contracts/kitchen.contract'
+import { Permissions } from '@/modules/auth/decorators/permissions.decorator'
+import { ZodValidationPipe } from '@/shared/pipes/zod-validation.pipe'
+
+import { KitchenService } from './kitchen.service'
+
+@Controller('kitchen')
+export class KitchenController {
+  constructor(private readonly kitchenService: KitchenService) {}
+
+  @Get('queue')
+  @Permissions('kitchen:view')
+  getQueue(@Query(new ZodValidationPipe(kitchenQueueQuerySchema)) query: KitchenQueueQuery) {
+    return this.kitchenService.getQueue(query)
+  }
+
+  @Patch('orders/:id/ready')
+  @Permissions('kitchen:update')
+  markOrderReady(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(markKitchenOrderReadySchema))
+    body: MarkKitchenOrderReadyPayload,
+  ) {
+    return this.kitchenService.markOrderReady(id, body)
+  }
+}

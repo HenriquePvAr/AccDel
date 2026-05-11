@@ -1,0 +1,681 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  in_analysis
+  in_preparation
+  ready
+  out_for_delivery
+  completed
+  cancelled
+}
+
+enum OrderChannel {
+  delivery
+  dine_in
+  counter
+  pickup
+  digital_menu
+  whatsapp
+}
+
+enum PaymentMethod {
+  pix
+  credit_card
+  debit_card
+  cash
+  meal_voucher
+  payment_link
+}
+
+enum PaymentStatus {
+  paid
+  pending
+  refunded
+}
+
+enum PriorityLevel {
+  normal
+  priority
+  vip
+}
+
+enum ProductChannel {
+  dine_in
+  delivery
+  digital_menu
+  counter
+}
+
+enum CashRegisterStatus {
+  open
+  closing
+  closed
+}
+
+enum CashMovementType {
+  sale
+  withdrawal
+  supply
+  adjustment
+  refund
+}
+
+enum AdminRole {
+  owner
+  manager
+  attendant
+  cashier
+  kitchen
+  waiter
+  driver
+  supervisor
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum DriverAvailabilityStatus {
+  available
+  delivering
+  paused
+}
+
+enum WaiterOperationalStatus {
+  available
+  serving
+  paused
+}
+
+enum DiningTableStatus {
+  free
+  occupied
+  reserved
+  closing
+  closed
+}
+
+enum TableSessionStatus {
+  open
+  awaiting_close
+  closed
+}
+
+enum TableSessionEventType {
+  opened
+  item_added
+  waiter_assigned
+  awaiting_close
+  reopened
+  closed
+  transferred
+  split
+  updated
+}
+
+enum DriverLocationSource {
+  gps
+  app
+  admin
+  simulator
+  fallback
+}
+
+enum DeliveryAssignmentStatus {
+  active
+  completed
+  cancelled
+}
+
+model Store {
+  id                String   @id @default(uuid())
+  name              String
+  tradeName         String   @map("trade_name")
+  timezone          String   @default("America/Manaus")
+  city              String
+  state             String
+  brandAccent       String   @map("brand_accent")
+  latitude          Decimal  @default(-3.1019000) @db.Decimal(10, 7)
+  longitude         Decimal  @default(-60.0217000) @db.Decimal(10, 7)
+  autoAcceptEnabled Boolean  @default(false) @map("auto_accept_enabled")
+  estimatedPrepTimeMinutes     Int @default(30) @map("estimated_prep_time_minutes")
+  estimatedDeliveryTimeMinutes Int @default(90) @map("estimated_delivery_time_minutes")
+  estimatedDineInTimeMinutes   Int @default(50) @map("estimated_dine_in_time_minutes")
+  estimatedCounterTimeMinutes  Int @default(25) @map("estimated_counter_time_minutes")
+  estimatedPickupTimeMinutes   Int @default(30) @map("estimated_pickup_time_minutes")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  customers     Customer[]
+  categories    Category[]
+  products      Product[]
+  orders        Order[]
+  cashRegisters CashRegister[]
+  users         StoreUser[]
+  diningAreas   DiningArea[]
+  diningTables  DiningTable[]
+  tableSessions TableSession[]
+  driverLocations DriverLocation[]
+  deliveryAssignments DeliveryAssignment[]
+  etaSnapshots EtaSnapshot[]
+
+  @@map("stores")
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  phone        String?
+  passwordHash String     @map("password_hash")
+  status       UserStatus @default(active)
+  lastLoginAt  DateTime?  @map("last_login_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  stores       StoreUser[]
+  driverOrders Order[]    @relation("DriverOrders")
+  driverLocations DriverLocation[] @relation("DriverLocations")
+  deliveryAssignments DeliveryAssignment[] @relation("DriverAssignments")
+  etaSnapshots EtaSnapshot[] @relation("DriverEtaSnapshots")
+  assignedTables      DiningTable[]  @relation("TableWaiter")
+  waiterSessions      TableSession[] @relation("SessionWaiter")
+  closedTableSessions TableSession[] @relation("SessionCloser")
+
+  @@index([status, createdAt])
+  @@map("users")
+}
+
+model StoreUser {
+  id        String    @id @default(uuid())
+  storeId   String    @map("store_id")
+  userId    String    @map("user_id")
+  role      AdminRole
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  driverProfile DriverProfile?
+  waiterProfile WaiterProfile?
+  deliveryAssignments DeliveryAssignment[] @relation("AssignmentStoreUser")
+
+  @@unique([storeId, userId])
+  @@index([storeId, role, active])
+  @@index([userId, active])
+  @@map("store_users")
+}
+
+model DriverProfile {
+  id             String                   @id @default(uuid())
+  storeUserId    String                   @unique @map("store_user_id")
+  vehicle        String
+  active         Boolean                  @default(true)
+  availability   DriverAvailabilityStatus @default(available)
+  lastActivityAt DateTime?                @map("last_activity_at")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  storeUser StoreUser @relation(fields: [storeUserId], references: [id], onDelete: Cascade)
+  locations DriverLocation[]
+
+  @@index([active, availability])
+  @@map("driver_profiles")
+}
+
+model WaiterProfile {
+  id             String                  @id @default(uuid())
+  storeUserId    String                  @unique @map("store_user_id")
+  active         Boolean                 @default(true)
+  status         WaiterOperationalStatus @default(available)
+  totalOrders    Int                     @default(0) @map("total_orders")
+  totalSales     Decimal                 @default(0) @map("total_sales") @db.Decimal(10, 2)
+  tablesServed   Int                     @default(0) @map("tables_served")
+  cancellations  Int                     @default(0)
+  lastActivityAt DateTime?               @map("last_activity_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  storeUser StoreUser            @relation(fields: [storeUserId], references: [id], onDelete: Cascade)
+  history   WaiterHistoryEntry[]
+
+  @@index([active, status])
+  @@map("waiter_profiles")
+}
+
+model WaiterHistoryEntry {
+  id              String    @id @default(uuid())
+  waiterProfileId String    @map("waiter_profile_id")
+  label           String
+  value           Decimal?  @db.Decimal(10, 2)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  waiterProfile WaiterProfile @relation(fields: [waiterProfileId], references: [id], onDelete: Cascade)
+
+  @@index([waiterProfileId, createdAt])
+  @@map("waiter_history_entries")
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  storeId   String   @map("store_id")
+  name      String
+  phone     String
+  tags      String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  addresses CustomerAddress[]
+  orders    Order[]
+
+  @@index([storeId, phone])
+  @@map("customers")
+}
+
+model CustomerAddress {
+  id         String   @id @default(uuid())
+  customerId String   @map("customer_id")
+  label      String
+  street     String
+  number     String
+  district   String
+  complement String?
+  city       String
+  state      String
+  reference  String?
+  latitude   Decimal? @db.Decimal(10, 7)
+  longitude  Decimal? @db.Decimal(10, 7)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  storeId     String   @map("store_id")
+  name        String
+  description String
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@index([storeId, sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id                 String   @id @default(uuid())
+  storeId            String   @map("store_id")
+  categoryId         String   @map("category_id")
+  name               String
+  description        String
+  price              Decimal  @db.Decimal(10, 2)
+  image              String
+  featured           Boolean  @default(false)
+  active             Boolean  @default(true)
+  preparationStation String   @map("preparation_station")
+  tags               String[] @default([])
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  store        Store                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category     Category                     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  availability ProductChannelAvailability[]
+  orderItems   OrderItem[]
+  tableSessionItems TableSessionItem[]
+
+  @@index([storeId, active])
+  @@index([categoryId])
+  @@map("products")
+}
+
+model ProductChannelAvailability {
+  id            String         @id @default(uuid())
+  productId     String         @map("product_id")
+  channel       ProductChannel
+  available     Boolean        @default(true)
+  visible       Boolean        @default(true)
+  soldOut       Boolean        @default(false) @map("sold_out")
+  priceOverride Decimal?       @map("price_override") @db.Decimal(10, 2)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, channel])
+  @@index([channel, available, visible])
+  @@map("product_channels")
+}
+
+model Order {
+  id            String        @id @default(uuid())
+  storeId       String        @map("store_id")
+  number        String
+  customerId    String?       @map("customer_id")
+  customerName  String        @map("customer_name")
+  customerPhone String        @map("customer_phone")
+  source        OrderChannel
+  serviceType   OrderChannel  @map("service_type")
+  status        OrderStatus
+  paymentMethod PaymentMethod @map("payment_method")
+  paymentStatus PaymentStatus @map("payment_status")
+  total         Decimal       @db.Decimal(10, 2)
+  subtotal      Decimal       @db.Decimal(10, 2)
+  deliveryFee   Decimal       @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  discount      Decimal       @default(0) @db.Decimal(10, 2)
+  dueAt         DateTime      @map("due_at")
+  estimatedPrepTimeMinutes     Int? @map("estimated_prep_time_minutes")
+  estimatedDeliveryTimeMinutes Int? @map("estimated_delivery_time_minutes")
+  estimatedTotalTimeMinutes    Int? @map("estimated_total_time_minutes")
+  priority      PriorityLevel @default(normal)
+  delayed       Boolean       @default(false)
+  tags          String[]      @default([])
+  addressLabel  String?       @map("address_label")
+  addressText   String?       @map("address_text")
+  deliveryLatitude  Decimal?  @map("delivery_latitude") @db.Decimal(10, 7)
+  deliveryLongitude Decimal?  @map("delivery_longitude") @db.Decimal(10, 7)
+  tableCode     String?       @map("table_code")
+  notes         String?
+  driverId      String?       @map("driver_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  store    Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  driver   User?                @relation("DriverOrders", fields: [driverId], references: [id], onDelete: SetNull)
+  items    OrderItem[]
+  history  OrderStatusHistory[]
+  deliveryAssignments DeliveryAssignment[]
+  etaSnapshots EtaSnapshot[]
+  driverLocations DriverLocation[]
+
+  @@unique([storeId, number])
+  @@index([storeId, status, createdAt])
+  @@index([customerId])
+  @@index([paymentMethod])
+  @@index([driverId, status])
+  @@map("orders")
+}
+
+model DriverLocation {
+  id              String               @id @default(uuid())
+  storeId         String               @map("store_id")
+  driverId        String               @map("driver_id")
+  driverProfileId String               @map("driver_profile_id")
+  orderId         String?              @map("order_id")
+  assignmentId    String?              @map("assignment_id")
+  latitude        Decimal              @db.Decimal(10, 7)
+  longitude       Decimal              @db.Decimal(10, 7)
+  speedKmh        Decimal?             @map("speed_kmh") @db.Decimal(6, 2)
+  heading         Decimal?             @db.Decimal(6, 2)
+  accuracyMeters  Decimal?             @map("accuracy_meters") @db.Decimal(8, 2)
+  source          DriverLocationSource @default(gps)
+  capturedAt      DateTime             @map("captured_at")
+  isActive        Boolean              @default(true) @map("is_active")
+  createdAt       DateTime             @default(now()) @map("created_at")
+
+  store         Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  driver        User          @relation("DriverLocations", fields: [driverId], references: [id], onDelete: Cascade)
+  driverProfile DriverProfile @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  order         Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  assignment    DeliveryAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, isActive, capturedAt])
+  @@index([driverId, isActive, capturedAt])
+  @@index([driverProfileId, capturedAt])
+  @@index([orderId, capturedAt])
+  @@index([assignmentId, capturedAt])
+  @@map("driver_locations")
+}
+
+model DeliveryAssignment {
+  id              String                   @id @default(uuid())
+  storeId         String                   @map("store_id")
+  orderId         String                   @map("order_id")
+  driverId        String                   @map("driver_id")
+  storeUserId     String                   @map("store_user_id")
+  plannedSequence Int                      @default(1) @map("planned_sequence")
+  finalSequence   Int                      @default(1) @map("final_sequence")
+  actualSequence  Int?                     @map("actual_sequence")
+  status          DeliveryAssignmentStatus @default(active)
+  assignedAt      DateTime                 @default(now()) @map("assigned_at")
+  completedAt     DateTime?                @map("completed_at")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver    User      @relation("DriverAssignments", fields: [driverId], references: [id], onDelete: Cascade)
+  storeUser StoreUser @relation("AssignmentStoreUser", fields: [storeUserId], references: [id], onDelete: Cascade)
+  driverLocations DriverLocation[]
+
+  @@unique([orderId, status])
+  @@index([storeId, driverId, status, finalSequence])
+  @@index([driverId, status, assignedAt])
+  @@map("delivery_assignments")
+}
+
+model EtaSnapshot {
+  id              String   @id @default(uuid())
+  storeId         String   @map("store_id")
+  orderId         String   @map("order_id")
+  driverId        String?  @map("driver_id")
+  provider        String
+  etaMinutes      Int      @map("eta_minutes")
+  durationSeconds Int      @map("duration_seconds")
+  distanceMeters  Int      @map("distance_meters")
+  fromLatitude    Decimal? @map("from_latitude") @db.Decimal(10, 7)
+  fromLongitude   Decimal? @map("from_longitude") @db.Decimal(10, 7)
+  toLatitude      Decimal? @map("to_latitude") @db.Decimal(10, 7)
+  toLongitude     Decimal? @map("to_longitude") @db.Decimal(10, 7)
+  routeGeometry   Json?    @map("route_geometry")
+  message         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  store  Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver User? @relation("DriverEtaSnapshots", fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, orderId, createdAt])
+  @@index([driverId, createdAt])
+  @@map("eta_snapshots")
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String   @map("order_id")
+  productId String?  @map("product_id")
+  name      String
+  quantity  Int
+  unitPrice Decimal  @map("unit_price") @db.Decimal(10, 2)
+  notes     String?
+  options   Json     @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String      @map("order_id")
+  status    OrderStatus
+  label     String
+  actor     String
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+}
+
+model CashRegister {
+  id               String             @id @default(uuid())
+  storeId          String             @map("store_id")
+  status           CashRegisterStatus @default(open)
+  operatorName     String             @map("operator_name")
+  openingAmount    Decimal            @default(0) @map("opening_amount") @db.Decimal(10, 2)
+  expectedAmount   Decimal            @default(0) @map("expected_amount") @db.Decimal(10, 2)
+  countedAmount    Decimal            @default(0) @map("counted_amount") @db.Decimal(10, 2)
+  differenceAmount Decimal            @default(0) @map("difference_amount") @db.Decimal(10, 2)
+  openedAt         DateTime           @default(now()) @map("opened_at")
+  closedAt         DateTime?          @map("closed_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  movements CashMovement[]
+
+  @@index([storeId, status, openedAt])
+  @@map("cash_registers")
+}
+
+model CashMovement {
+  id             String           @id @default(uuid())
+  cashRegisterId String           @map("cash_register_id")
+  type           CashMovementType
+  method         PaymentMethod?
+  amount         Decimal          @db.Decimal(10, 2)
+  label          String
+  userName       String           @map("user_name")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+
+  @@index([cashRegisterId, createdAt])
+  @@index([type, method])
+  @@map("cash_movements")
+}
+
+model DiningArea {
+  id        String   @id @default(uuid())
+  storeId   String   @map("store_id")
+  name      String
+  color     String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store  Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  tables DiningTable[]
+
+  @@index([storeId, sortOrder])
+  @@map("dining_areas")
+}
+
+model DiningTable {
+  id               String            @id @default(uuid())
+  storeId          String            @map("store_id")
+  areaId           String            @map("area_id")
+  waiterId         String?           @map("waiter_id")
+  code             String
+  capacity         Int
+  status           DiningTableStatus @default(free)
+  guests           Int?              @map("guest_count")
+  notes            String?
+  currentSessionId String?           @unique @map("current_session_id")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  store          Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  area           DiningArea    @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  waiter         User?         @relation("TableWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
+  currentSession TableSession? @relation("CurrentTableSession", fields: [currentSessionId], references: [id], onDelete: SetNull)
+  sessions       TableSession[] @relation("TableSessions")
+
+  @@unique([storeId, code])
+  @@index([storeId, areaId, status])
+  @@index([waiterId, status])
+  @@map("dining_tables")
+}
+
+model TableSession {
+  id            String             @id @default(uuid())
+  storeId       String             @map("store_id")
+  tableId       String             @map("table_id")
+  waiterId      String?            @map("waiter_id")
+  closedById    String?            @map("closed_by_id")
+  guestCount    Int                @default(1) @map("guest_count")
+  subtotal      Decimal            @default(0) @db.Decimal(10, 2)
+  discount      Decimal            @default(0) @db.Decimal(10, 2)
+  serviceFee    Decimal            @default(0) @map("service_fee") @db.Decimal(10, 2)
+  total         Decimal            @default(0) @db.Decimal(10, 2)
+  paymentMethod PaymentMethod?     @map("payment_method")
+  status        TableSessionStatus @default(open)
+  notes         String?
+  openedAt      DateTime           @default(now()) @map("opened_at")
+  closedAt      DateTime?          @map("closed_at")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  store           Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  table           DiningTable         @relation("TableSessions", fields: [tableId], references: [id], onDelete: Cascade)
+  waiter          User?               @relation("SessionWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
+  closedBy        User?               @relation("SessionCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  currentForTable DiningTable?        @relation("CurrentTableSession")
+  items           TableSessionItem[]
+  events          TableSessionEvent[]
+
+  @@index([storeId, status, openedAt])
+  @@index([tableId, status])
+  @@index([waiterId, openedAt])
+  @@map("table_sessions")
+}
+
+model TableSessionItem {
+  id         String   @id @default(uuid())
+  sessionId   String   @map("session_id")
+  productId   String?  @map("product_id")
+  name        String
+  quantity    Int
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(10, 2)
+  totalPrice  Decimal  @map("total_price") @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  session TableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  product Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, createdAt])
+  @@index([productId])
+  @@map("table_session_items")
+}
+
+model TableSessionEvent {
+  id        String                @id @default(uuid())
+  sessionId String                @map("session_id")
+  type      TableSessionEventType
+  label     String
+  actor     String
+  metadata  Json                  @default("{}")
+  createdAt DateTime              @default(now()) @map("created_at")
+
+  session TableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("table_session_events")
+}

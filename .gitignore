@@ -1,0 +1,56 @@
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+.next/
+.vite/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Local database / embedded postgres
+.embedded-postgres/
+**/.embedded-postgres/
+apps/api/.embedded-postgres/
+
+# Temporary browser/debug files
+tmp-*/
+tmp-auth-chrome-cdp2/
+tmp-auth-chrome-guest/
+tmp-*.png
+tmp-*.html
+tmp-*.pid
+*-dom.html
+.dining-dom*.html
+.reports-dom.html
+.waiters-dom.html
+
+# Local files
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

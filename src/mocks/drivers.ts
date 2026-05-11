@@ -1,0 +1,75 @@
+import type { Driver, DriverLocation } from '@/types'
+
+export const driversMock: Driver[] = [
+  {
+    id: 'drv_1',
+    name: 'Diego Paz',
+    phone: '(92) 99810-1200',
+    vehicle: 'Moto',
+    connectionStatus: 'online',
+    availability: 'delivering',
+    currentOrderId: 'ord_1006',
+    averageDeliveryMinutes: 28,
+    distanceKmToday: 41.2,
+    queue: [
+      {
+        orderId: 'ord_1006',
+        orderNumber: '#1006',
+        customerName: 'Lucas Prado',
+        addressLabel: 'Vieiralves',
+        plannedSequence: 1,
+        finalSequence: 2,
+        actualSequence: 1,
+        etaMinutes: 9,
+      },
+      {
+        orderId: 'ord_1007',
+        orderNumber: '#1007',
+        customerName: 'Carlos Menezes',
+        addressLabel: 'N. Sra. das Graças',
+        plannedSequence: 2,
+        finalSequence: 1,
+        etaMinutes: 6,
+      },
+    ],
+  },
+  {
+    id: 'drv_2',
+    name: 'Ana Vela',
+    phone: '(92) 99600-4400',
+    vehicle: 'Moto',
+    connectionStatus: 'online',
+    availability: 'available',
+    averageDeliveryMinutes: 24,
+    distanceKmToday: 35.4,
+    queue: [],
+  },
+  {
+    id: 'drv_3',
+    name: 'Igo Moreira',
+    phone: '(92) 99414-1110',
+    vehicle: 'Bike',
+    connectionStatus: 'online',
+    availability: 'paused',
+    averageDeliveryMinutes: 31,
+    distanceKmToday: 18.7,
+    queue: [],
+  },
+  {
+    id: 'drv_4',
+    name: 'Rafa Diniz',
+    phone: '(92) 99222-3131',
+    vehicle: 'Moto',
+    connectionStatus: 'offline',
+    availability: 'paused',
+    averageDeliveryMinutes: 27,
+    distanceKmToday: 0,
+    queue: [],
+  },
+]
+
+export const driverLocationsMock: DriverLocation[] = [
+  { id: 'loc_1', driverId: 'drv_1', x: 70, y: 36, heading: 90, speedKmh: 32, capturedAt: '2026-04-22T18:55:00-04:00' },
+  { id: 'loc_2', driverId: 'drv_2', x: 32, y: 60, heading: 15, speedKmh: 0, capturedAt: '2026-04-22T18:54:00-04:00' },
+  { id: 'loc_3', driverId: 'drv_3', x: 50, y: 72, heading: 210, speedKmh: 0, capturedAt: '2026-04-22T18:50:00-04:00' },
+]

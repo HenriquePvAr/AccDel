@@ -1,0 +1,271 @@
+@import '@fontsource/plus-jakarta-sans/400.css';
+@import '@fontsource/plus-jakarta-sans/500.css';
+@import '@fontsource/plus-jakarta-sans/600.css';
+@import '@fontsource/plus-jakarta-sans/700.css';
+@import '@fontsource/jetbrains-mono/500.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 29% 94%;
+    --foreground: 210 16% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 16% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 16% 15%;
+    --primary: 18 63% 48%;
+    --primary-foreground: 25 100% 98%;
+    --secondary: 35 24% 90%;
+    --secondary-foreground: 210 16% 15%;
+    --muted: 35 22% 90%;
+    --muted-foreground: 214 10% 43%;
+    --accent: 16 55% 89%;
+    --accent-foreground: 210 16% 15%;
+    --destructive: 5 55% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 34 23% 82%;
+    --input: 34 23% 82%;
+    --ring: 18 63% 48%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply min-h-screen bg-canvas font-sans text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at 12% 10%, rgba(246, 133, 76, 0.14), transparent 18%),
+      radial-gradient(circle at 84% 8%, rgba(67, 124, 255, 0.12), transparent 18%),
+      radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.04), transparent 30%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.35));
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
+    background-size: 96px 96px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.24), transparent 72%);
+    z-index: 0;
+  }
+
+  #root {
+    @apply min-h-screen;
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@layer components {
+  .panel-surface {
+    @apply rounded-[24px] border border-white/70 bg-white/85 shadow-soft backdrop-blur-xl;
+  }
+
+  .panel-muted {
+    @apply rounded-[20px] border border-border/80 bg-sand/55;
+  }
+
+  .app-shell-grid {
+    background-image:
+      linear-gradient(rgba(31, 37, 43, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(31, 37, 43, 0.035) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  .cain-premium-surface {
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(246, 133, 76, 0.12), transparent 24%),
+      linear-gradient(180deg, rgba(10, 22, 38, 0.96), rgba(6, 15, 28, 0.96));
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow:
+      0 24px 80px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(18px);
+  }
+
+  .cain-soft-glow {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 18px 42px rgba(246, 133, 76, 0.14);
+  }
+
+  .cain-chip {
+    @apply rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-300;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(93, 103, 114, 0.25);
+    border-radius: 999px;
+  }
+
+  .cain-map-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    transform-origin: center bottom;
+  }
+
+  .cain-map-marker-icon {
+    display: flex;
+    height: 44px;
+    width: 44px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    color: white;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(14px);
+    transition:
+      transform 180ms ease,
+      box-shadow 180ms ease,
+      border-color 180ms ease;
+  }
+
+  .cain-map-marker-icon svg {
+    height: 21px;
+    width: 21px;
+    fill: currentColor;
+  }
+
+  .cain-map-marker-store .cain-map-marker-icon {
+    border: 1px solid rgba(246, 133, 76, 0.45);
+    background: linear-gradient(135deg, #e65d1d, #fb8d4d);
+  }
+
+  .cain-map-marker-driver .cain-map-marker-icon {
+    border: 1px solid rgba(125, 184, 255, 0.32);
+    background: linear-gradient(135deg, rgba(24, 72, 132, 0.96), rgba(19, 119, 206, 0.9));
+  }
+
+  .cain-map-marker-driver[data-status='available'] .cain-map-marker-icon {
+    border-color: rgba(52, 211, 153, 0.3);
+    background: linear-gradient(135deg, rgba(6, 95, 70, 0.95), rgba(16, 185, 129, 0.88));
+  }
+
+  .cain-map-marker-driver[data-status='paused'] .cain-map-marker-icon {
+    border-color: rgba(251, 191, 36, 0.3);
+    background: linear-gradient(135deg, rgba(120, 53, 15, 0.95), rgba(245, 158, 11, 0.88));
+  }
+
+  .cain-map-marker-driver[data-status='offline'] .cain-map-marker-icon {
+    border-color: rgba(100, 116, 139, 0.28);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(71, 85, 105, 0.88));
+  }
+
+  .cain-map-marker-selected .cain-map-marker-icon,
+  .cain-map-marker:hover .cain-map-marker-icon {
+    transform: translateY(-2px) scale(1.06);
+    box-shadow: 0 24px 64px rgba(246, 107, 33, 0.28);
+  }
+
+  .cain-map-marker-stop {
+    height: 34px;
+    width: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(7, 17, 31, 0.9);
+    color: #f6a15f;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.75rem;
+    font-weight: 800;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(14px);
+  }
+
+  .cain-map-marker-stop-active {
+    border-color: rgba(47, 140, 255, 0.44);
+    background: rgba(13, 36, 61, 0.94);
+    color: #a4d6ff;
+  }
+
+  .cain-map-marker-stop-next {
+    border-color: rgba(246, 133, 76, 0.34);
+    background: rgba(29, 19, 13, 0.92);
+    color: #f6a15f;
+  }
+
+  .cain-map-popup .maplibregl-popup-content {
+    min-width: 190px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    background: rgba(7, 17, 31, 0.94);
+    color: #f8fafc;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(16px);
+  }
+
+  .cain-map-popup .maplibregl-popup-tip {
+    border-top-color: rgba(7, 17, 31, 0.94);
+    border-bottom-color: rgba(7, 17, 31, 0.94);
+  }
+
+  .cain-map-popup strong,
+  .cain-map-popup span {
+    display: block;
+  }
+
+  .cain-map-popup strong {
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+  }
+
+  .cain-map-popup span {
+    color: #94a3b8;
+    font-size: 0.75rem;
+  }
+
+  .maplibregl-ctrl-group {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 16px !important;
+    background: rgba(7, 17, 31, 0.88) !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22) !important;
+    backdrop-filter: blur(16px);
+  }
+
+  .maplibregl-ctrl button {
+    filter: invert(1) opacity(0.85);
+  }
+
+  .maplibregl-ctrl-attrib {
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 999px !important;
+    background: rgba(7, 17, 31, 0.82) !important;
+    color: #cbd5e1 !important;
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-size: 0.65rem;
+    line-height: 1.35;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(14px);
+  }
+
+  .maplibregl-ctrl-attrib a {
+    color: #f6a15f !important;
+  }
+}
