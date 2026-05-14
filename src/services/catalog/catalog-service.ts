@@ -12,6 +12,7 @@ import type {
   UpdateProductChannelAvailabilityResponse,
 } from '@/contracts'
 import { getDemoDatabase, mutateDemoDatabase } from '@/services/adapters/demo-database'
+import { buildListResponse } from '@/services/adapters/list-response'
 import {
   ApiClientError,
   apiClient,
@@ -49,10 +50,18 @@ export const catalogService = {
   },
 
   async listPromotions(): Promise<ListPromotionsResponse> {
+    if (shouldUseApi) {
+      return buildListResponse([])
+    }
+
     return simulateAsync(buildPromotionsResponse(getDemoDatabase().catalog.promotions))
   },
 
   async listCoupons(): Promise<ListCouponsResponse> {
+    if (shouldUseApi) {
+      return buildListResponse([])
+    }
+
     return simulateAsync(buildCouponsResponse(getDemoDatabase().catalog.coupons))
   },
 

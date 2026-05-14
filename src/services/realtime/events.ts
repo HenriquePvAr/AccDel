@@ -1,10 +1,12 @@
+import type { DriverLocation } from '@/types'
+
 export interface AdminRealtimePayloadMap {
   'order.created': { orderId: string }
   'order.updated': { orderId: string }
   'order.status_changed': { orderId: string; status: string; driverId?: string | null }
   'driver.location_updated': {
     driverId: string
-    location: Record<string, unknown>
+    location: DriverLocation
   }
   'driver.queue_updated': { driverId: string; reason?: string }
   'driver.status_updated': {
@@ -19,11 +21,10 @@ export interface AdminRealtimePayloadMap {
 
 export type AdminRealtimeEventName = keyof AdminRealtimePayloadMap
 
-export type AdminRealtimeEvent<TName extends AdminRealtimeEventName = AdminRealtimeEventName> =
-  TName extends AdminRealtimeEventName
-    ? {
-        name: TName
-        occurredAt: string
-        payload: AdminRealtimePayloadMap[TName]
-      }
-    : never
+export type AdminRealtimeEvent<TName extends AdminRealtimeEventName = AdminRealtimeEventName> = {
+  [Name in TName]: {
+    name: Name
+    occurredAt: string
+    payload: AdminRealtimePayloadMap[Name]
+  }
+}[TName]

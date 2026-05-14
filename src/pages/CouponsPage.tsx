@@ -1,3 +1,6 @@
+import { TicketPercent } from 'lucide-react'
+
+import { EmptyState } from '@/components/shared/EmptyState'
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
 import { Card, CardContent } from '@/components/ui/card'
@@ -14,7 +17,7 @@ export function CouponsPage() {
     <PageShell>
       <SectionHeader
         title="Cupons"
-        description="Lista mockada de cupons reutilizável entre catálogo, pedidos e futuras regras de benefício."
+        description="Cupons comerciais persistidos quando o dominio estiver conectado a API."
       />
       {couponsQuery.isLoading ? (
         <div className="space-y-4">
@@ -22,7 +25,7 @@ export function CouponsPage() {
             <Skeleton key={index} className="h-[92px] rounded-[24px]" />
           ))}
         </div>
-      ) : (
+      ) : coupons.length ? (
         <div className="space-y-4">
           {coupons.map((coupon) => (
             <Card key={coupon.id}>
@@ -32,7 +35,7 @@ export function CouponsPage() {
                   <p className="text-sm text-muted-foreground">
                     {coupon.type === 'percent'
                       ? `${coupon.value}%`
-                      : `R$ ${coupon.value}`} · mínimo R$ {coupon.minOrderAmount}
+                      : `R$ ${coupon.value}`} - minimo R$ {coupon.minOrderAmount}
                   </p>
                 </div>
                 <div className="text-right text-sm">
@@ -43,6 +46,12 @@ export function CouponsPage() {
             </Card>
           ))}
         </div>
+      ) : (
+        <EmptyState
+          icon={<TicketPercent className="h-5 w-5" />}
+          title="Cupons sem fonte real"
+          description="Ainda nao existe endpoint persistido para cupons; a tela nao exibe mais dados mockados em modo API."
+        />
       )}
     </PageShell>
   )

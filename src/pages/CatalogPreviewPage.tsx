@@ -184,7 +184,7 @@ export function CatalogPreviewPage() {
 
             <div className="sticky bottom-3 rounded-[26px] bg-graphite p-4 text-white shadow-panel">
               <div className="flex items-center justify-between text-sm text-white/70">
-                <span>Carrinho mockado</span>
+                <span>Carrinho da previa</span>
                 <div className="flex items-center gap-2">
                   <span>{cartItems.length} itens</span>
                   <Button variant="secondary" size="sm" onClick={clearCart}>

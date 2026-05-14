@@ -16,7 +16,7 @@ class MockRealtimeBus {
     }
 
     for (const listener of this.listeners) {
-      listener(event)
+      listener(event as AdminRealtimeEvent)
     }
   }
 

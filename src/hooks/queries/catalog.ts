@@ -66,7 +66,7 @@ export function useSaveProductMutation() {
       queryClient.invalidateQueries({ queryKey: ['catalog'] })
       useToastStore.getState().pushToast({
         title: 'Produto salvo',
-        description: 'As alterações do produto já estão persistidas no mock local.',
+        description: 'As alteracoes do produto foram persistidas pela fonte de dados ativa.',
         variant: 'success',
       })
     },
@@ -83,7 +83,7 @@ export function useUpdateProductChannelMutation() {
       queryClient.invalidateQueries({ queryKey: ['catalog'] })
       useToastStore.getState().pushToast({
         title: 'Canal atualizado',
-        description: 'A disponibilidade por canal foi persistida localmente.',
+        description: 'A disponibilidade por canal foi persistida pela fonte de dados ativa.',
         variant: 'success',
       })
     },

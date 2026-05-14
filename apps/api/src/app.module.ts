@@ -12,6 +12,7 @@ import { KitchenModule } from './modules/kitchen/kitchen.module'
 import { OrdersModule } from './modules/orders/orders.module'
 import { ReportsModule } from './modules/reports/reports.module'
 import { SettingsModule } from './modules/settings/settings.module'
+import { UsersModule } from './modules/users/users.module'
 import { WaitersModule } from './modules/waiters/waiters.module'
 import { PrismaModule } from './shared/prisma/prisma.module'
 import { RealtimeModule } from './shared/realtime/realtime.module'
@@ -35,6 +36,7 @@ import { RealtimeModule } from './shared/realtime/realtime.module'
     KitchenModule,
     ReportsModule,
     SettingsModule,
+    UsersModule,
   ],
 })
 export class AppModule {}

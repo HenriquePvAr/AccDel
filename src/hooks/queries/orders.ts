@@ -52,7 +52,7 @@ export function useCreateOrderMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
       useToastStore.getState().pushToast({
         title: 'Pedido criado',
-        description: 'O pedido já entrou no fluxo operacional mockado.',
+        description: 'O pedido ja entrou no fluxo operacional.',
         variant: 'success',
       })
     },

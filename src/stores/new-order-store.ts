@@ -29,8 +29,8 @@ interface NewOrderState {
 
 const defaults = {
   channel: 'delivery' as OrderChannel,
-  customerId: 'cus_1',
-  addressId: 'addr_1',
+  customerId: null,
+  addressId: null,
   tableId: null,
   paymentMethod: 'pix' as PaymentMethod,
   notes: '',

@@ -1,3 +1,6 @@
+import { Megaphone } from 'lucide-react'
+
+import { EmptyState } from '@/components/shared/EmptyState'
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
 import { Card, CardContent } from '@/components/ui/card'
@@ -6,15 +9,15 @@ import { usePromotionsQuery } from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
 
 export function PromotionsPage() {
-  usePageTitle('Promoções')
+  usePageTitle('Promocoes')
   const promotionsQuery = usePromotionsQuery()
   const promotions = promotionsQuery.data?.data ?? []
 
   return (
     <PageShell>
       <SectionHeader
-        title="Promoções"
-        description="Base comercial da fase atual, com promoções automáticas e estrutura pronta para regras avançadas."
+        title="Promocoes"
+        description="Regras comerciais persistidas quando o dominio estiver conectado a API."
       />
       {promotionsQuery.isLoading ? (
         <div className="space-y-4">
@@ -22,7 +25,7 @@ export function PromotionsPage() {
             <Skeleton key={index} className="h-[92px] rounded-[24px]" />
           ))}
         </div>
-      ) : (
+      ) : promotions.length ? (
         <div className="space-y-4">
           {promotions.map((promotion) => (
             <Card key={promotion.id}>
@@ -39,6 +42,12 @@ export function PromotionsPage() {
             </Card>
           ))}
         </div>
+      ) : (
+        <EmptyState
+          icon={<Megaphone className="h-5 w-5" />}
+          title="Promocoes sem fonte real"
+          description="Ainda nao existe endpoint persistido para promocoes; a tela nao exibe mais dados mockados em modo API."
+        />
       )}
     </PageShell>
   )

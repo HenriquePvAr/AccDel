@@ -4,38 +4,55 @@ import { useEffect } from 'react'
 
 import { ToastViewport } from '@/components/shared/ToastViewport'
 import { queryClient, queryKeys } from '@/hooks/queries'
-import { authUnauthorizedEvent } from '@/services/http/api-client'
+import { authUnauthorizedEvent, shouldUseApi } from '@/services/http/api-client'
+import { subscribeToAdminRealtime } from '@/services/realtime/admin-realtime-stream'
+import type { AdminRealtimeEvent } from '@/services/realtime/events'
 import { mockRealtimeBus } from '@/services/realtime/mock-realtime'
 import { useAuthStore } from '@/stores/auth-store'
 
+function invalidateRealtimeEvent(event: AdminRealtimeEvent) {
+  if (event.name.startsWith('order.')) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
+  }
+
+  if (event.name.startsWith('catalog.')) {
+    queryClient.invalidateQueries({ queryKey: ['catalog'] })
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
+  }
+
+  if (event.name.startsWith('driver.')) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.drivers.list })
+    queryClient.invalidateQueries({ queryKey: queryKeys.drivers.locations })
+  }
+
+  if (event.name.startsWith('cash.')) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
+  }
+
+  if (event.name.startsWith('dining.')) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.dining.tables })
+  }
+}
+
 function RealtimeBridge() {
+  const accessToken = useAuthStore((state) => state.accessToken)
+  const status = useAuthStore((state) => state.status)
+
   useEffect(() => {
-    return mockRealtimeBus.subscribe((event) => {
-      if (event.name.startsWith('order.')) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
-      }
+    if (!shouldUseApi) {
+      return mockRealtimeBus.subscribe(invalidateRealtimeEvent)
+    }
 
-      if (event.name.startsWith('catalog.')) {
-        queryClient.invalidateQueries({ queryKey: ['catalog'] })
-        queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
-      }
+    if (!accessToken || status !== 'authenticated') {
+      return
+    }
 
-      if (event.name.startsWith('driver.')) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.drivers.list })
-        queryClient.invalidateQueries({ queryKey: queryKeys.drivers.locations })
-      }
-
-      if (event.name.startsWith('cash.')) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
-        queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
-      }
-
-      if (event.name.startsWith('dining.')) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.dining.tables })
-      }
+    return subscribeToAdminRealtime({
+      onEvent: invalidateRealtimeEvent,
     })
-  }, [])
+  }, [accessToken, status])
 
   return null
 }

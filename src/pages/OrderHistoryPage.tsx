@@ -72,7 +72,7 @@ export function OrderHistoryPage() {
     <PageShell>
       <SectionHeader
         title="Histórico de pedidos"
-        description="Busca avançada, detalhe completo e repetição mock persistida no mesmo fluxo operacional."
+        description="Busca avancada, detalhe completo e repeticao usando a fonte de pedidos ativa."
       />
 
       <FilterBar>
@@ -142,7 +142,7 @@ export function OrderHistoryPage() {
         <EmptyState
           icon={<History className="h-5 w-5" />}
           title="Nenhum pedido no histórico"
-          description="Assim que os pedidos mockados forem criados ou repetidos, eles aparecem aqui."
+          description="Assim que os pedidos forem criados ou repetidos, eles aparecem aqui."
         />
       )}
 

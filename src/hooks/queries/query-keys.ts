@@ -42,6 +42,9 @@ export const queryKeys = {
   settings: {
     store: ['settings', 'store'] as const,
   },
+  users: {
+    list: ['users', 'list'] as const,
+  },
   reports: {
     snapshot: (filters?: unknown) => ['reports', 'snapshot', filters] as const,
   },

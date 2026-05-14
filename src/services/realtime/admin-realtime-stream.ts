@@ -132,7 +132,7 @@ export function subscribeToAdminRealtime({
           processChunk(complete)
         }
       }
-    } catch (error) {
+    } catch {
       if (disposed || controller?.signal.aborted) {
         return
       }

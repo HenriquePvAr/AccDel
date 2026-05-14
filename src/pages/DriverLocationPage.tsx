@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowDownUp, Move, RefreshCcw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
@@ -43,6 +43,16 @@ import type { Driver, DriverLocation } from '@/types'
 const EMPTY_DRIVERS: Driver[] = []
 const EMPTY_LOCATIONS: DriverLocation[] = []
 
+interface DriverRouteDraftState {
+  driverId: string | null
+  sourceOrderIds: string[]
+  draftOrderIds: string[]
+}
+
+function areSameStringList(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
 export function DriverLocationPage() {
   usePageTitle('Localizacao dos motoboys')
   const queryClient = useQueryClient()
@@ -60,7 +70,7 @@ export function DriverLocationPage() {
   const [sortBy, setSortBy] = useState<DriverSortOption>('default')
   const [autoTrackingDevEnabled, setAutoTrackingDevEnabled] = useState(false)
   const [dispatchCenterOpen, setDispatchCenterOpen] = useState(false)
-  const [draftOrderIds, setDraftOrderIds] = useState<string[]>([])
+  const [routeDraft, setRouteDraft] = useState<DriverRouteDraftState | null>(null)
   const [realtimeConnected, setRealtimeConnected] = useState(false)
   const driverStatusCounts = useMemo(
     () => ({
@@ -174,6 +184,17 @@ export function DriverLocationPage() {
     () => (routeQuery.data?.data?.stops ?? []).map((stop) => stop.orderId),
     [routeQuery.data?.data?.stops],
   )
+  const draftOrderIds = useMemo(() => {
+    if (
+      routeDraft &&
+      routeDraft.driverId === selectedDriverId &&
+      areSameStringList(routeDraft.sourceOrderIds, routeOrderIds)
+    ) {
+      return routeDraft.draftOrderIds
+    }
+
+    return routeOrderIds
+  }, [routeDraft, routeOrderIds, selectedDriverId])
   const routeDraftDirty = useMemo(
     () =>
       routeOrderIds.length > 0 &&
@@ -183,16 +204,23 @@ export function DriverLocationPage() {
   )
   const routePreview = routePreviewMutation.data?.data ?? null
 
-  useEffect(() => {
-    setDraftOrderIds(routeOrderIds)
-  }, [routeOrderIds, selectedDriverId])
+  const updateDraftOrderIds = useCallback(
+    (nextOrderIds: string[]) => {
+      setRouteDraft({
+        driverId: selectedDriverId,
+        sourceOrderIds: routeOrderIds,
+        draftOrderIds: nextOrderIds,
+      })
+    },
+    [routeOrderIds, selectedDriverId],
+  )
 
   useEffect(() => {
     const unsubscribe = subscribeToAdminRealtime({
       onConnectionChange: setRealtimeConnected,
       onEvent: (event) => {
         if (event.name === 'driver.location_updated') {
-          const location = event.payload.location as DriverLocation
+          const { location } = event.payload
           queryClient.setQueryData<ListResponse<DriverLocation>>(
             queryKeys.drivers.locations,
             (current) => {
@@ -350,7 +378,7 @@ export function DriverLocationPage() {
       return
     }
 
-    setDraftOrderIds(nextOrderIds)
+    updateDraftOrderIds(nextOrderIds)
     routePreviewMutation.mutate({
       driverId: selectedDriver.id,
       proposedOrderIds: nextOrderIds,
@@ -395,7 +423,7 @@ export function DriverLocationPage() {
 
   const handleClearPreview = () => {
     routePreviewMutation.reset()
-    setDraftOrderIds(routeOrderIds)
+    setRouteDraft(null)
   }
 
   const devControls =

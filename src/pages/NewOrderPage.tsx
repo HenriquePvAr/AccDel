@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Bike,
-  Bookmark,
   Building2,
   ClipboardList,
   Home,
@@ -12,7 +11,6 @@ import {
   Package,
   Phone,
   Plus,
-  ReceiptText,
   Search,
   ShoppingBag,
   ShoppingBasket,
@@ -121,7 +119,7 @@ export function NewOrderPage() {
   const customers = customersQuery.data?.data ?? []
   const tables = diningQuery.data?.data.tables ?? []
 
-  const customer = customers.find((entry) => entry.id === customerId) ?? customers[0]
+  const customer = customers.find((entry) => entry.id === customerId) ?? null
   const availableAddresses = customer?.addresses ?? []
   const filteredProducts = products.filter((product) => {
     const matchesSearch = `${product.name} ${product.description}`
@@ -140,7 +138,21 @@ export function NewOrderPage() {
     customersQuery.isLoading ||
     diningQuery.isLoading
 
-  const selectedAddress = availableAddresses.find((entry) => entry.id === addressId) ?? availableAddresses[0]
+  const selectedAddress = availableAddresses.find((entry) => entry.id === addressId) ?? null
+  const hasRequiredDestination =
+    channel === 'delivery'
+      ? Boolean(customerId && addressId)
+      : channel === 'dine_in'
+        ? Boolean(tableId)
+        : true
+  const canCreateOrder =
+    cartItems.length > 0 && hasRequiredDestination && !createOrderMutation.isPending
+
+  const handleCustomerChange = (nextCustomerId: string) => {
+    setCustomerId(nextCustomerId)
+    const nextCustomer = customers.find((entry) => entry.id === nextCustomerId)
+    setAddressId(nextCustomer?.addresses[0]?.id ?? null)
+  }
 
   useEffect(() => {
     if (!products.length || !cartItems.length) {
@@ -177,7 +189,7 @@ export function NewOrderPage() {
   }, [cartItems, products, replaceCartItems])
 
   const handleCreateOrder = () => {
-    if (!cartItems.length || createOrderMutation.isPending) {
+    if (!canCreateOrder) {
       return
     }
 
@@ -230,7 +242,7 @@ export function NewOrderPage() {
             </Button>
             <Button
               type="button"
-              disabled={!cartItems.length || createOrderMutation.isPending}
+              disabled={!canCreateOrder}
               onClick={handleCreateOrder}
               className="h-12 rounded-xl bg-orange-600 px-7 font-black text-white shadow-[0_18px_40px_rgba(234,88,12,0.26)] hover:bg-orange-500"
             >
@@ -277,7 +289,7 @@ export function NewOrderPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-300">Cliente</label>
-                <Select value={customerId ?? ''} onValueChange={setCustomerId}>
+                <Select value={customerId ?? ''} onValueChange={handleCustomerChange}>
                   <SelectTrigger className={inputClass}>
                     <SelectValue placeholder="Selecionar cliente" />
                   </SelectTrigger>
@@ -595,20 +607,6 @@ export function NewOrderPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
-              <div className="relative">
-                <ReceiptText className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <Input placeholder="Codigo do cupom" className={cn(inputClass, 'pl-10')} />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 rounded-xl border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.07]"
-              >
-                Aplicar
-              </Button>
-            </div>
-
             <div className="mt-4 rounded-2xl border border-white/10 bg-[#0a1421] p-4">
               <div className="flex items-center justify-between">
                 <p className="text-lg font-black text-white">Total do pedido</p>
@@ -617,17 +615,12 @@ export function NewOrderPage() {
             </div>
 
             <div className="mt-5 grid gap-3">
+              <p className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-semibold text-slate-400">
+                Rascunho salvo automaticamente neste navegador.
+              </p>
               <Button
                 type="button"
-                variant="outline"
-                className="h-12 rounded-xl border-white/10 bg-white/[0.03] font-black text-slate-100 hover:bg-white/[0.07]"
-              >
-                <Bookmark className="h-4 w-4" />
-                Salvar rascunho
-              </Button>
-              <Button
-                type="button"
-                disabled={!cartItems.length || createOrderMutation.isPending}
+                disabled={!canCreateOrder}
                 onClick={handleCreateOrder}
                 className="h-12 rounded-xl bg-orange-600 font-black text-white hover:bg-orange-500"
               >
