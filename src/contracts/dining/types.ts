@@ -68,9 +68,33 @@ export interface AddTableSessionItemRequest {
   quantity: number
   notes?: string
   waiterId?: string
+  options?: Array<{
+    groupId: string
+    optionId: string
+    quantity: number
+  }>
 }
 
 export interface AddTableSessionItemResponse {
+  data: TableSession
+}
+
+export interface AddTableSessionItemsRequest {
+  sessionId: string
+  items: Array<{
+    productId: string
+    quantity: number
+    notes?: string
+    waiterId?: string
+    options?: Array<{
+      groupId: string
+      optionId: string
+      quantity: number
+    }>
+  }>
+}
+
+export interface AddTableSessionItemsResponse {
   data: TableSession
 }
 

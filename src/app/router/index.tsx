@@ -15,6 +15,7 @@ const OrderDetailsPage = lazy(() =>
   import('@/pages/OrderDetailsPage').then((module) => ({ default: module.OrderDetailsPage })),
 )
 const NewOrderPage = lazy(() => import('@/pages/NewOrderPage').then((module) => ({ default: module.NewOrderPage })))
+const CustomersPage = lazy(() => import('@/pages/CustomersPage').then((module) => ({ default: module.CustomersPage })))
 const DiningTablesPage = lazy(() =>
   import('@/pages/DiningTablesPage').then((module) => ({ default: module.DiningTablesPage })),
 )
@@ -50,6 +51,9 @@ const UsersSettingsPage = lazy(() =>
 )
 const DeliverySettingsPage = lazy(() =>
   import('@/pages/DeliverySettingsPage').then((module) => ({ default: module.DeliverySettingsPage })),
+)
+const PaymentSettingsPage = lazy(() =>
+  import('@/pages/PaymentSettingsPage').then((module) => ({ default: module.PaymentSettingsPage })),
 )
 const PreferencesSettingsPage = lazy(() =>
   import('@/pages/PreferencesSettingsPage').then((module) => ({ default: module.PreferencesSettingsPage })),
@@ -99,6 +103,7 @@ const router = createBrowserRouter([
       { path: 'dashboard', element: protectedPage('dashboard:view', <DashboardPage />) },
       { path: 'orders', element: protectedPage('orders:view', <OrdersPage />) },
       { path: 'orders/new', element: protectedPage('orders:create', <NewOrderPage />) },
+      { path: 'customers', element: protectedPage('orders:create', <CustomersPage />) },
       { path: 'orders/:orderId', element: protectedPage('orders:view', <OrderDetailsPage />) },
       { path: 'dining/tables', element: protectedPage('dining:view', <DiningTablesPage />) },
       { path: 'dining/waiters', element: protectedPage('dining:view', <WaitersPage />) },
@@ -116,6 +121,7 @@ const router = createBrowserRouter([
       { path: 'settings/store', element: protectedPage('settings:store:view', <StoreSettingsPage />) },
       { path: 'settings/users', element: protectedPage('users:view', <UsersSettingsPage />) },
       { path: 'settings/delivery', element: protectedPage('settings:delivery:view', <DeliverySettingsPage />) },
+      { path: 'settings/payments', element: protectedPage('settings:preferences:view', <PaymentSettingsPage />) },
       { path: 'settings/preferences', element: protectedPage('settings:preferences:view', <PreferencesSettingsPage />) },
     ],
   },

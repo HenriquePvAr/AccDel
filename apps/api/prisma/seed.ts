@@ -10,6 +10,8 @@ import type {
 } from '@prisma/client'
 import { PrismaClient } from '@prisma/client'
 
+import { seedCatalog } from './seed-catalog'
+
 loadEnvFile('.env')
 
 const prisma = new PrismaClient()
@@ -32,6 +34,9 @@ async function seed() {
   await prisma.tableSession.deleteMany()
   await prisma.diningTable.deleteMany()
   await prisma.diningArea.deleteMany()
+  await prisma.productOptionGroupLink.deleteMany()
+  await prisma.productOption.deleteMany()
+  await prisma.productOptionGroup.deleteMany()
   await prisma.productChannelAvailability.deleteMany()
   await prisma.product.deleteMany()
   await prisma.category.deleteMany()
@@ -42,6 +47,7 @@ async function seed() {
   await prisma.waiterProfile.deleteMany()
   await prisma.storeUser.deleteMany()
   await prisma.user.deleteMany()
+  await prisma.paymentMethodConfig.deleteMany()
   await prisma.store.deleteMany()
 
   await prisma.store.create({
@@ -63,6 +69,8 @@ async function seed() {
       estimatedPickupTimeMinutes: 24,
     },
   })
+
+  await seedPaymentMethodConfigs()
 
   await createUser({
     id: 'usr_owner',
@@ -320,87 +328,7 @@ async function seed() {
     },
   })
 
-  await prisma.category.createMany({
-    data: [
-      {
-        id: 'cat_burgers',
-        storeId,
-        name: 'Burgers assinatura',
-        description: 'Hamburgueres premium com blend da casa.',
-        sortOrder: 1,
-      },
-      {
-        id: 'cat_combos',
-        storeId,
-        name: 'Combos operacionais',
-        description: 'Combos pensados para alto giro no delivery.',
-        sortOrder: 2,
-      },
-      {
-        id: 'cat_sides',
-        storeId,
-        name: 'Acompanhamentos',
-        description: 'Entradas, batatas e complementos.',
-        sortOrder: 3,
-      },
-    ],
-  })
-
-  await createProduct({
-    id: 'prod_prime',
-    categoryId: 'cat_burgers',
-    name: 'Cain Prime',
-    description: 'Blend 180g, queijo curado, cebola caramelizada e molho defumado.',
-    price: 42.9,
-    image:
-      'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80',
-    featured: true,
-    active: true,
-    preparationStation: 'chapa',
-    tags: ['Mais vendido', 'Premium'],
-  })
-
-  await createProduct({
-    id: 'prod_smash',
-    categoryId: 'cat_burgers',
-    name: 'Smash da Casa',
-    description: 'Dois smash burgers, cheddar, picles e molho secreto.',
-    price: 34.9,
-    image:
-      'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=80',
-    featured: false,
-    active: true,
-    preparationStation: 'chapa',
-    tags: ['Rapido', 'Classico'],
-  })
-
-  await createProduct({
-    id: 'prod_duo',
-    categoryId: 'cat_combos',
-    name: 'Combo Duo',
-    description: 'Dois burgers, duas batatas e dois refrigerantes.',
-    price: 79.9,
-    image:
-      'https://images.unsplash.com/photo-1619881590738-a111d176d906?auto=format&fit=crop&w=900&q=80',
-    featured: true,
-    active: true,
-    preparationStation: 'assembly',
-    tags: ['Combo', 'Delivery'],
-  })
-
-  await createProduct({
-    id: 'prod_fries',
-    categoryId: 'cat_sides',
-    name: 'Batata Rustica',
-    description: 'Batata rustica crocante com paprika e aioli.',
-    price: 18.9,
-    image:
-      'https://images.unsplash.com/photo-1630384060421-cb20d0e0649d?auto=format&fit=crop&w=900&q=80',
-    featured: false,
-    active: true,
-    preparationStation: 'fritura',
-    tags: ['Acompanhamento'],
-  })
+  await seedCatalog(prisma, storeId, channels)
 
   await prisma.diningArea.createMany({
     data: [
@@ -545,8 +473,8 @@ async function seed() {
     paymentMethod: 'pix',
     status: 'in_analysis',
     items: [
-      { productId: 'prod_prime', name: 'Cain Prime', quantity: 1, unitPrice: 42.9 },
-      { productId: 'prod_fries', name: 'Batata Rustica', quantity: 1, unitPrice: 18.9 },
+      { productId: 'prod_prime', name: 'Madeiro', quantity: 1, unitPrice: 32 },
+      { productId: 'prod_fries', name: 'Batata Frita Média', quantity: 1, unitPrice: 25 },
     ],
     addressLabel: 'Casa',
     addressText: 'Rua Rio Madeira, 220 - Vieiralves',
@@ -567,7 +495,7 @@ async function seed() {
     source: 'delivery',
     paymentMethod: 'credit_card',
     status: 'in_preparation',
-    items: [{ productId: 'prod_duo', name: 'Combo Duo', quantity: 1, unitPrice: 79.9 }],
+    items: [{ productId: 'prod_duo', name: 'Combo X-Salada', quantity: 1, unitPrice: 29.9 }],
     addressLabel: 'Apartamento',
     addressText: 'Av. Djalma Batista, 1500 - Chapada',
     deliveryLatitude: -3.0948,
@@ -587,7 +515,7 @@ async function seed() {
     source: 'counter',
     paymentMethod: 'debit_card',
     status: 'ready',
-    items: [{ productId: 'prod_smash', name: 'Smash da Casa', quantity: 2, unitPrice: 34.9 }],
+    items: [{ productId: 'prod_smash', name: 'Pinguim Tradicional', quantity: 2, unitPrice: 19.9 }],
     tags: ['Balcao'],
     createdMinutesAgo: 36,
     estimatedPrepTimeMinutes: 20,
@@ -604,7 +532,7 @@ async function seed() {
     paymentMethod: 'pix',
     status: 'out_for_delivery',
     driverId: 'usr_driver_diego',
-    items: [{ productId: 'prod_duo', name: 'Combo Duo', quantity: 1, unitPrice: 79.9 }],
+    items: [{ productId: 'prod_duo', name: 'Combo X-Salada', quantity: 1, unitPrice: 29.9 }],
     addressLabel: 'Escritorio',
     addressText: 'Rua Salvador, 550 - Vieiralves',
     deliveryLatitude: -3.0934,
@@ -625,7 +553,7 @@ async function seed() {
     paymentMethod: 'pix',
     status: 'completed',
     driverId: 'usr_driver_ana',
-    items: [{ productId: 'prod_smash', name: 'Smash da Casa', quantity: 1, unitPrice: 34.9 }],
+    items: [{ productId: 'prod_smash', name: 'Pinguim Tradicional', quantity: 1, unitPrice: 19.9 }],
     addressLabel: 'Casa',
     addressText: 'Rua Rio Madeira, 220 - Vieiralves',
     deliveryLatitude: -3.1028,
@@ -707,6 +635,96 @@ async function seed() {
         ],
       },
     },
+  })
+}
+
+async function seedPaymentMethodConfigs() {
+  await prisma.paymentMethodConfig.createMany({
+    data: [
+      {
+        id: 'pay_cash',
+        storeId,
+        name: 'Dinheiro',
+        method: 'cash',
+        provider: 'manual',
+        active: true,
+        fixed: true,
+        autoCashEntry: true,
+        sortOrder: 1,
+        channels: ['delivery', 'counter', 'dine_in', 'digital_menu'],
+      },
+      {
+        id: 'pay_credit_card',
+        storeId,
+        name: 'Cartao de credito',
+        method: 'credit_card',
+        provider: 'manual',
+        active: true,
+        fixed: true,
+        autoCashEntry: true,
+        sortOrder: 2,
+        channels: ['delivery', 'counter', 'dine_in', 'digital_menu'],
+      },
+      {
+        id: 'pay_debit_card',
+        storeId,
+        name: 'Cartao de debito',
+        method: 'debit_card',
+        provider: 'manual',
+        active: true,
+        fixed: true,
+        autoCashEntry: true,
+        sortOrder: 3,
+        channels: ['delivery', 'counter', 'dine_in', 'digital_menu'],
+      },
+      {
+        id: 'pay_pix',
+        storeId,
+        name: 'Pix',
+        method: 'pix',
+        provider: 'pix',
+        active: true,
+        fixed: true,
+        autoCashEntry: true,
+        sortOrder: 4,
+        channels: ['delivery', 'counter', 'dine_in', 'digital_menu'],
+      },
+      {
+        id: 'pay_voucher',
+        storeId,
+        name: 'Voucher',
+        method: 'meal_voucher',
+        provider: 'manual',
+        active: true,
+        autoCashEntry: true,
+        sortOrder: 5,
+        channels: ['counter', 'dine_in'],
+      },
+      {
+        id: 'pay_picpay',
+        storeId,
+        name: 'PicPay',
+        method: 'payment_link',
+        provider: 'picpay',
+        active: false,
+        requiresReceipt: true,
+        autoCashEntry: false,
+        externalEnabled: false,
+        sortOrder: 6,
+        channels: ['delivery', 'digital_menu'],
+      },
+      {
+        id: 'pay_other',
+        storeId,
+        name: 'Outro',
+        method: null,
+        provider: 'manual',
+        active: false,
+        autoCashEntry: false,
+        sortOrder: 7,
+        channels: ['counter', 'dine_in'],
+      },
+    ],
   })
 }
 
@@ -797,34 +815,6 @@ async function createUser(data: {
   })
 }
 
-async function createProduct(data: {
-  id: string
-  categoryId: string
-  name: string
-  description: string
-  price: number
-  image: string
-  featured: boolean
-  active: boolean
-  preparationStation: string
-  tags: string[]
-}) {
-  await prisma.product.create({
-    data: {
-      ...data,
-      storeId,
-      availability: {
-        create: channels.map((channel) => ({
-          channel,
-          available: true,
-          visible: true,
-          soldOut: false,
-        })),
-      },
-    },
-  })
-}
-
 async function createTableSession(data: {
   id: string
   tableId: string
@@ -904,6 +894,7 @@ async function createTableSession(data: {
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice,
           notes: item.notes,
+          createdByName: data.waiterId ? 'Garcom' : 'Operacao',
         })),
       },
       events: {

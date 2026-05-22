@@ -9,6 +9,11 @@ export const queryKeys = {
     tracking: (orderId: string | null) => ['orders', 'tracking', orderId] as const,
     customers: ['orders', 'customers'] as const,
   },
+  customers: {
+    all: ['customers'] as const,
+    list: (filters?: unknown) => ['customers', 'list', filters] as const,
+    detail: (customerId: string | null) => ['customers', 'detail', customerId] as const,
+  },
   kitchen: {
     all: ['kitchen'] as const,
     queue: (filters?: unknown) => ['kitchen', 'queue', filters] as const,
@@ -41,6 +46,7 @@ export const queryKeys = {
   },
   settings: {
     store: ['settings', 'store'] as const,
+    payments: ['settings', 'payments'] as const,
   },
   users: {
     list: ['users', 'list'] as const,

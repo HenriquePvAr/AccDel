@@ -1,6 +1,7 @@
 export * from './common'
 export * from './auth'
 export * from './orders'
+export * from './customers'
 export * from './catalog'
 export * from './drivers'
 export * from './cash'

@@ -81,6 +81,9 @@ export function mapTableSession(session: TableSessionRecord) {
         unitPrice: toNumber(item.unitPrice),
         totalPrice: toNumber(item.totalPrice),
         notes: item.notes ?? undefined,
+        options: Array.isArray(item.options) ? item.options : [],
+        createdAt: item.createdAt.toISOString(),
+        createdByName: item.createdByName ?? undefined,
       })),
     timeline: session.events
       .slice()

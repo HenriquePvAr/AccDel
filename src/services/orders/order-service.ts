@@ -153,6 +153,7 @@ export const orderService = {
               unitPrice: item.unitPrice,
               totalPrice: item.quantity * item.unitPrice,
               notes: item.notes,
+              options: item.options,
             })),
           )
           session.subtotal = session.items.reduce((sum, item) => sum + item.totalPrice, 0)

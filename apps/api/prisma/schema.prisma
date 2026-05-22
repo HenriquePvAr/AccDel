@@ -34,6 +34,12 @@ enum PaymentMethod {
   payment_link
 }
 
+enum PaymentProvider {
+  manual
+  pix
+  picpay
+}
+
 enum PaymentStatus {
   paid
   pending
@@ -51,6 +57,24 @@ enum ProductChannel {
   delivery
   digital_menu
   counter
+}
+
+enum PromotionDiscountType {
+  percent
+  fixed
+  combo
+}
+
+enum CouponDiscountType {
+  percent
+  fixed
+}
+
+enum CommercialStatus {
+  active
+  inactive
+  scheduled
+  expired
 }
 
 enum CashRegisterStatus {
@@ -166,6 +190,10 @@ model Store {
   driverLocations DriverLocation[]
   deliveryAssignments DeliveryAssignment[]
   etaSnapshots EtaSnapshot[]
+  optionGroups ProductOptionGroup[]
+  promotions    Promotion[]
+  coupons       Coupon[]
+  paymentMethodConfigs PaymentMethodConfig[]
 
   @@map("stores")
 }
@@ -270,6 +298,7 @@ model Customer {
   storeId   String   @map("store_id")
   name      String
   phone     String
+  notes     String?
   tags      String[] @default([])
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -309,6 +338,11 @@ model Category {
   storeId     String   @map("store_id")
   name        String
   description String
+  active      Boolean  @default(true)
+  icon        String?
+  color       String?
+  visibleOnPos         Boolean @default(true) @map("visible_on_pos")
+  visibleOnDigitalMenu Boolean @default(true) @map("visible_on_digital_menu")
   sortOrder   Int      @default(0) @map("sort_order")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -332,12 +366,14 @@ model Product {
   active             Boolean  @default(true)
   preparationStation String   @map("preparation_station")
   tags               String[] @default([])
+  sortOrder          Int      @default(0) @map("sort_order")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   store        Store                        @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category     Category                     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   availability ProductChannelAvailability[]
+  optionGroups ProductOptionGroupLink[]
   orderItems   OrderItem[]
   tableSessionItems TableSessionItem[]
 
@@ -364,6 +400,132 @@ model ProductChannelAvailability {
   @@map("product_channels")
 }
 
+model ProductOptionGroup {
+  id          String   @id @default(uuid())
+  storeId     String   @map("store_id")
+  name        String
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  store        Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  options      ProductOption[]
+  productLinks ProductOptionGroupLink[]
+
+  @@unique([storeId, name])
+  @@index([storeId, sortOrder])
+  @@map("product_option_groups")
+}
+
+model ProductOption {
+  id          String   @id @default(uuid())
+  groupId     String   @map("group_id")
+  name        String
+  description String?
+  priceDelta  Decimal  @default(0) @map("price_delta") @db.Decimal(10, 2)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  group ProductOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, name])
+  @@index([groupId, sortOrder])
+  @@map("product_options")
+}
+
+model ProductOptionGroupLink {
+  productId     String  @map("product_id")
+  groupId       String  @map("group_id")
+  required      Boolean @default(false)
+  minSelections Int     @default(0) @map("min_selections")
+  maxSelections Int     @default(1) @map("max_selections")
+  sortOrder     Int     @default(0) @map("sort_order")
+  description   String?
+
+  product Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  group   ProductOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([productId, groupId])
+  @@index([groupId])
+  @@map("product_option_group_links")
+}
+
+model Promotion {
+  id            String                @id @default(uuid())
+  storeId       String                @map("store_id")
+  name          String
+  description   String?
+  type          PromotionDiscountType
+  discountValue Decimal?              @map("discount_value") @db.Decimal(10, 2)
+  status        CommercialStatus      @default(inactive)
+  startsAt      DateTime?             @map("starts_at")
+  endsAt        DateTime?             @map("ends_at")
+  channels      ProductChannel[]      @default([])
+  productIds    String[]              @default([]) @map("product_ids")
+  categoryIds   String[]              @default([]) @map("category_ids")
+  rules          Json?
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status])
+  @@map("promotions")
+}
+
+model Coupon {
+  id             String             @id @default(uuid())
+  storeId        String             @map("store_id")
+  code           String
+  description    String?
+  type           CouponDiscountType
+  value          Decimal            @db.Decimal(10, 2)
+  minOrderAmount Decimal            @default(0) @map("min_order_amount") @db.Decimal(10, 2)
+  maxUses        Int?               @map("max_uses")
+  uses           Int                @default(0)
+  status         CommercialStatus   @default(inactive)
+  validFrom      DateTime?          @map("valid_from")
+  validUntil     DateTime?          @map("valid_until")
+  channels       ProductChannel[]   @default([])
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, code])
+  @@index([storeId, status])
+  @@map("coupons")
+}
+
+model PaymentMethodConfig {
+  id               String          @id @default(uuid())
+  storeId          String          @map("store_id")
+  name             String
+  method           PaymentMethod?  @map("method")
+  provider         PaymentProvider @default(manual)
+  active           Boolean         @default(true)
+  fixed            Boolean         @default(false)
+  requiresReceipt  Boolean         @default(false) @map("requires_receipt")
+  autoCashEntry    Boolean         @default(true) @map("auto_cash_entry")
+  channels         ProductChannel[] @default([])
+  sortOrder        Int             @default(0) @map("sort_order")
+  externalEnabled  Boolean         @default(false) @map("external_enabled")
+  externalPaymentId String?        @map("external_payment_id")
+  qrCodePayload    String?         @map("qr_code_payload")
+  qrCodeUrl        String?         @map("qr_code_url")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, name])
+  @@index([storeId, active, sortOrder])
+  @@map("payment_method_configs")
+}
+
 model Order {
   id            String        @id @default(uuid())
   storeId       String        @map("store_id")
@@ -380,6 +542,9 @@ model Order {
   subtotal      Decimal       @db.Decimal(10, 2)
   deliveryFee   Decimal       @default(0) @map("delivery_fee") @db.Decimal(10, 2)
   discount      Decimal       @default(0) @db.Decimal(10, 2)
+  couponCode    String?       @map("coupon_code")
+  promotionName String?       @map("promotion_name")
+  discountBreakdown Json?     @map("discount_breakdown")
   dueAt         DateTime      @map("due_at")
   estimatedPrepTimeMinutes     Int? @map("estimated_prep_time_minutes")
   estimatedDeliveryTimeMinutes Int? @map("estimated_delivery_time_minutes")
@@ -654,6 +819,8 @@ model TableSessionItem {
   unitPrice   Decimal  @map("unit_price") @db.Decimal(10, 2)
   totalPrice  Decimal  @map("total_price") @db.Decimal(10, 2)
   notes       String?
+  options     Json     @default("[]")
+  createdByName String? @map("created_by_name")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

@@ -46,11 +46,18 @@ export interface CreateOrderRequest {
   addressId?: string | null
   tableId?: string | null
   paymentMethod: PaymentMethod
+  couponCode?: string
   notes?: string
   sendToProduction: boolean
   items: Array<{
     productId: string
     quantity: number
+    notes?: string
+    options?: Array<{
+      groupId: string
+      optionId: string
+      quantity: number
+    }>
   }>
 }
 

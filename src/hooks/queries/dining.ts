@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type {
   AddTableSessionItemRequest,
+  AddTableSessionItemsRequest,
   CloseTableSessionRequest,
   OpenTableSessionRequest,
   SplitTableSessionRequest,
@@ -17,6 +18,8 @@ function invalidateDiningRelatedQueries(queryClient: ReturnType<typeof useQueryC
   queryClient.invalidateQueries({ queryKey: ['waiters'] })
   queryClient.invalidateQueries({ queryKey: ['reports'] })
   queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
+  queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
+  queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
 }
 
 export function useDiningTablesQuery() {
@@ -51,7 +54,23 @@ export function useAddTableSessionItemMutation() {
       invalidateDiningRelatedQueries(queryClient)
       useToastStore.getState().pushToast({
         title: 'Consumo atualizado',
-        description: 'O item entrou na sessao da mesa e o consumo ja foi recalculado.',
+        description: 'O item entrou na comanda e foi enviado para a cozinha.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
+export function useAddTableSessionItemsMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: AddTableSessionItemsRequest) => diningService.addSessionItems(request),
+    onSuccess: (_, variables) => {
+      invalidateDiningRelatedQueries(queryClient)
+      useToastStore.getState().pushToast({
+        title: 'Itens enviados',
+        description: `${variables.items.length} item(ns) entraram na comanda e em uma unica ficha da cozinha.`,
         variant: 'success',
       })
     },

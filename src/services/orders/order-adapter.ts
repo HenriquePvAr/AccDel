@@ -77,13 +77,38 @@ export function buildOrderFromRequest(args: {
         return null
       }
 
+      const options =
+        product.optionGroups
+          ?.flatMap((group) =>
+            (item.options ?? [])
+              .filter((option) => option.groupId === group.id)
+              .map((option) => {
+                const catalogOption = group.options.find((entry) => entry.id === option.optionId)
+
+                return catalogOption
+                  ? {
+                      id: catalogOption.id,
+                      groupId: group.id,
+                      groupName: group.name,
+                      name: catalogOption.name,
+                      quantity: option.quantity,
+                      price: catalogOption.priceDelta,
+                    }
+                  : null
+              }),
+          )
+          .filter((option): option is NonNullable<typeof option> => Boolean(option)) ?? []
+      const unitPrice =
+        product.price + options.reduce((sum, option) => sum + option.price * option.quantity, 0)
+
       return {
         id: crypto.randomUUID(),
         productId: product.id,
         name: product.name,
         quantity: item.quantity,
-        unitPrice: product.price,
-        options: [],
+        unitPrice,
+        notes: item.notes,
+        options,
       }
     })
     .filter(Boolean) as Order['items']

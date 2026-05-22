@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type {
+  CreateCustomerRequest,
   CreateOrderRequest,
   GetOrderTrackingRequest,
   ListOrdersRequest,
+  ListCustomersRequest,
+  UpdateCustomerRequest,
   UpdateOrderStatusRequest,
 } from '@/contracts'
-import { orderService } from '@/services'
+import { customerService, orderService } from '@/services'
 import { queryKeys } from '@/hooks/queries/query-keys'
 import { useToastStore } from '@/stores/toast-store'
 
@@ -34,10 +37,55 @@ export function useOrderTrackingQuery(request: GetOrderTrackingRequest | null) {
   })
 }
 
-export function useCustomersQuery() {
+export function useCustomersQuery(
+  request?: ListCustomersRequest,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
-    queryKey: queryKeys.orders.customers,
-    queryFn: () => orderService.listCustomers(),
+    enabled: options?.enabled ?? true,
+    queryKey: queryKeys.customers.list(request?.filters ?? {}),
+    queryFn: () => customerService.listCustomers(request),
+  })
+}
+
+export function useCustomerByIdQuery(customerId: string | null) {
+  return useQuery({
+    enabled: Boolean(customerId),
+    queryKey: queryKeys.customers.detail(customerId),
+    queryFn: () => customerService.getCustomer(customerId!),
+  })
+}
+
+export function useCreateCustomerMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: CreateCustomerRequest) => customerService.createCustomer(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all })
+      useToastStore.getState().pushToast({
+        title: 'Cliente salvo',
+        description: 'O cadastro ja pode ser usado no novo pedido.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
+export function useUpdateCustomerMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: UpdateCustomerRequest) => customerService.updateCustomer(request),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.detail(response.data.id) })
+      useToastStore.getState().pushToast({
+        title: 'Cliente atualizado',
+        description: 'Nome, WhatsApp e endereco foram sincronizados.',
+        variant: 'success',
+      })
+    },
   })
 }
 

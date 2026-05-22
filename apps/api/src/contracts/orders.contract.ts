@@ -43,6 +43,7 @@ export const createOrderSchema = z.object({
   addressId: z.string().nullable().optional(),
   tableId: z.string().nullable().optional(),
   paymentMethod: paymentMethodSchema,
+  couponCode: z.string().trim().min(2).optional(),
   notes: z.string().optional(),
   sendToProduction: z.boolean().default(false),
   items: z
@@ -50,6 +51,16 @@ export const createOrderSchema = z.object({
       z.object({
         productId: z.string(),
         quantity: z.number().int().positive(),
+        notes: z.string().trim().max(280).optional(),
+        options: z
+          .array(
+            z.object({
+              groupId: z.string().trim().min(1),
+              optionId: z.string().trim().min(1),
+              quantity: z.number().int().positive().default(1),
+            }),
+          )
+          .optional(),
       }),
     )
     .min(1),

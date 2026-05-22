@@ -38,8 +38,8 @@ export const tableSessionsMock: TableSession[] = [
     total: 95.37,
     status: 'open',
     items: [
-      { id: 'tsi_1', productId: 'prod_prime', name: 'Cain Prime', quantity: 2, unitPrice: 36.9, totalPrice: 73.8 },
-      { id: 'tsi_2', productId: 'prod_fries', name: 'Batata Rustica', quantity: 1, unitPrice: 12.9, totalPrice: 12.9 },
+      { id: 'tsi_1', productId: 'prod_prime', name: 'Cain Prime', quantity: 2, unitPrice: 36.9, totalPrice: 73.8, options: [] },
+      { id: 'tsi_2', productId: 'prod_fries', name: 'Batata Rustica', quantity: 1, unitPrice: 12.9, totalPrice: 12.9, options: [] },
     ],
     timeline: [
       { id: 't_1', label: 'Mesa 02 aberta', actor: 'Operacao', at: '2026-04-22T18:10:00-04:00' },
@@ -60,7 +60,7 @@ export const tableSessionsMock: TableSession[] = [
     status: 'awaiting_close',
     notes: 'Cliente pediu dividir em 2 cartoes.',
     items: [
-      { id: 'tsi_4', productId: 'prod_duo', name: 'Combo Duo', quantity: 1, unitPrice: 79.9, totalPrice: 79.9 },
+      { id: 'tsi_4', productId: 'prod_duo', name: 'Combo Duo', quantity: 1, unitPrice: 79.9, totalPrice: 79.9, options: [] },
     ],
     timeline: [
       { id: 't_2', label: 'Mesa 04 aberta', actor: 'Operacao', at: '2026-04-22T17:44:00-04:00' },

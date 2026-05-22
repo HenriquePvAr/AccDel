@@ -20,6 +20,7 @@ interface ProductFormDrawerProps {
   onOpenChange: (open: boolean) => void
   onSave: (product: Product) => void
   busy?: boolean
+  defaultCategoryId?: string
 }
 
 export function ProductFormDrawer({
@@ -29,12 +30,13 @@ export function ProductFormDrawer({
   onOpenChange,
   onSave,
   busy = false,
+  defaultCategoryId,
 }: ProductFormDrawerProps) {
   const initial = useMemo<Product>(
     () =>
       product ?? {
         id: crypto.randomUUID(),
-        categoryId: categories[0]?.id ?? 'cat_burgers',
+        categoryId: defaultCategoryId ?? categories[0]?.id ?? 'cat_burgers',
         name: '',
         description: '',
         price: 0,
@@ -43,6 +45,7 @@ export function ProductFormDrawer({
         featured: false,
         active: true,
         preparationStation: 'assembly',
+        sortOrder: 0,
         tags: [],
         availability: (
           ['dine_in', 'delivery', 'digital_menu', 'counter'] as ProductChannel[]
@@ -53,7 +56,7 @@ export function ProductFormDrawer({
           soldOut: false,
         })),
       },
-    [categories, product],
+    [categories, defaultCategoryId, product],
   )
   const [draft, setDraft] = useState(initial)
   const [tagsInput, setTagsInput] = useState(initial.tags.join(', '))

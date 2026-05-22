@@ -3,13 +3,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import type { OrderChannel, OrderStatus, Prisma } from '@prisma/client'
+import type { OrderChannel, OrderStatus, Prisma, ProductChannel } from '@prisma/client'
 
 import type {
   CreateOrderPayload,
   ListOrdersQuery,
   UpdateOrderStatusPayload,
 } from '@/contracts/orders.contract'
+import {
+  type ResolvedProductOption,
+  resolveProductOptionSelection,
+  toProductOptionsJson,
+} from '@/modules/catalog/product-options'
 import { channelLabelMap, statusLabelMap } from '@/shared/mappers/domain-labels'
 import { buildListResponse, normalizePagination } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
@@ -18,6 +23,50 @@ import { calculateRouteEta, type GeoCoordinate } from '@/shared/routing/routing.
 import { DEFAULT_STORE_ID } from '@/shared/store-context'
 
 import { mapOrder } from './orders.mapper'
+
+type OrderProductRecord = Prisma.ProductGetPayload<{
+  include: {
+    availability: true
+    optionGroups: {
+      include: {
+        group: {
+          include: {
+            options: true
+          }
+        }
+      }
+    }
+  }
+}>
+
+interface PricedOrderItem {
+  product: OrderProductRecord
+  quantity: number
+  unitPrice: number
+  notes?: string
+  options: ResolvedProductOption[]
+}
+
+interface PromotionRuleConfig {
+  requiredItems: number
+  participantType: 'category' | 'product'
+  participantId?: string
+  sizeLabel?: string
+  flavorLimitPerItem?: number
+  finalPrice?: number
+}
+
+interface PromotionAdjustment {
+  promotionId?: string
+  promotionName?: string
+  discount: number
+}
+
+interface CouponAdjustment {
+  couponId?: string
+  couponCode?: string
+  discount: number
+}
 
 @Injectable()
 export class OrdersService {
@@ -222,12 +271,34 @@ export class OrdersService {
       customer?.addresses.find((entry) => entry.id === payload.addressId) ??
       customer?.addresses[0] ??
       null
+
+    if (payload.channel === 'delivery' && !customer?.phone) {
+      throw new BadRequestException('Nao e possivel criar delivery sem telefone do cliente.')
+    }
+
+    if (payload.channel === 'delivery' && !address) {
+      throw new BadRequestException('Nao e possivel criar delivery sem endereco.')
+    }
+
+    const catalogChannel = resolveCatalogChannel(payload.channel)
     const products = await this.prisma.product.findMany({
       where: {
         id: {
           in: payload.items.map((item) => item.productId),
         },
         storeId: DEFAULT_STORE_ID,
+      },
+      include: {
+        availability: true,
+        optionGroups: {
+          include: {
+            group: {
+              include: {
+                options: true,
+              },
+            },
+          },
+        },
       },
     })
     const items = payload.items.map((item) => {
@@ -236,16 +307,34 @@ export class OrdersService {
       if (!product) {
         throw new NotFoundException(`Produto ${item.productId} nao encontrado.`)
       }
+      const availability = product.availability.find((entry) => entry.channel === catalogChannel)
+
+      if (!product.active || !availability?.visible || !availability.available || availability.soldOut) {
+        throw new BadRequestException(
+          `Produto ${product.name} indisponivel para ${channelLabelMap[payload.channel]}.`,
+        )
+      }
+      const selectedOptions = resolveProductOptionSelection(product, item.options ?? [])
+      const basePrice = availability.priceOverride?.toNumber() ?? product.price.toNumber()
 
       return {
         product,
         quantity: item.quantity,
+        unitPrice: basePrice + selectedOptions.optionsTotal,
+        notes: item.notes,
+        options: selectedOptions.options,
       }
     })
     const subtotal = items.reduce(
-      (sum, item) => sum + item.product.price.toNumber() * item.quantity,
+      (sum, item) => sum + item.unitPrice * item.quantity,
       0,
     )
+    const promotionAdjustment = await this.resolvePromotionAdjustment(catalogChannel, items)
+    const subtotalAfterPromotion = Math.max(0, subtotal - promotionAdjustment.discount)
+    const couponAdjustment = payload.couponCode
+      ? await this.resolveCouponAdjustment(payload.couponCode, catalogChannel, subtotalAfterPromotion)
+      : { discount: 0 }
+    const discount = promotionAdjustment.discount + couponAdjustment.discount
     const deliveryFee = payload.channel === 'delivery' ? 8.5 : 0
     const status: OrderStatus = payload.sendToProduction ? 'in_preparation' : 'in_analysis'
     const estimatedPrepTimeMinutes = this.getEstimatedPrepTime(store, payload.channel)
@@ -277,15 +366,28 @@ export class OrdersService {
         paymentStatus: payload.paymentMethod === 'cash' ? 'pending' : 'paid',
         subtotal,
         deliveryFee,
-        discount: 0,
-        total: subtotal + deliveryFee,
+        discount,
+        couponCode: couponAdjustment.couponCode,
+        promotionName: promotionAdjustment.promotionName,
+        discountBreakdown: this.buildDiscountBreakdown(
+          subtotal,
+          promotionAdjustment,
+          couponAdjustment,
+        ),
+        total: Math.max(0, subtotal - discount) + deliveryFee,
         dueAt: new Date(Date.now() + estimatedTotalTimeMinutes * 60 * 1000),
         estimatedPrepTimeMinutes,
         estimatedDeliveryTimeMinutes,
         estimatedTotalTimeMinutes,
         priority: 'normal',
         delayed: false,
-        tags: [channelLabelMap[payload.channel]],
+        tags: [
+          channelLabelMap[payload.channel],
+          ...(promotionAdjustment.promotionName
+            ? [`Promocao: ${promotionAdjustment.promotionName}`]
+            : []),
+          ...(couponAdjustment.couponCode ? [`Cupom: ${couponAdjustment.couponCode}`] : []),
+        ],
         addressLabel: address?.label,
         addressText: address
           ? `${address.street}, ${address.number} - ${address.district}`
@@ -299,8 +401,9 @@ export class OrdersService {
             productId: item.product.id,
             name: item.product.name,
             quantity: item.quantity,
-            unitPrice: item.product.price,
-            options: [],
+            unitPrice: item.unitPrice,
+            notes: item.notes,
+            options: toProductOptionsJson(item.options),
           })),
         },
         history: {
@@ -319,6 +422,16 @@ export class OrdersService {
               actor: 'Operacao',
               createdAt,
             },
+            ...(discount > 0
+              ? [
+                  {
+                    status,
+                    label: `Desconto aplicado: R$ ${discount.toFixed(2)}`,
+                    actor: 'Sistema',
+                    createdAt,
+                  },
+                ]
+              : []),
           ],
         },
       },
@@ -329,8 +442,21 @@ export class OrdersService {
       },
     })
 
+    if (couponAdjustment.couponId) {
+      await this.prisma.coupon.update({
+        where: {
+          id: couponAdjustment.couponId,
+        },
+        data: {
+          uses: {
+            increment: 1,
+          },
+        },
+      })
+    }
+
     if (payload.paymentMethod !== 'cash') {
-      await this.registerSaleMovement(number, subtotal + deliveryFee, payload.paymentMethod)
+      await this.registerSaleMovement(number, Math.max(0, subtotal - discount) + deliveryFee, payload.paymentMethod)
     }
 
     this.realtime.emit('order.created', {
@@ -467,6 +593,9 @@ export class OrdersService {
         subtotal: current.subtotal,
         deliveryFee: current.deliveryFee,
         discount: current.discount,
+        couponCode: current.couponCode,
+        promotionName: current.promotionName,
+        discountBreakdown: current.discountBreakdown ?? undefined,
         total: current.total,
         dueAt: new Date(
           Date.now() + (current.estimatedTotalTimeMinutes ?? 35) * 60 * 1000,
@@ -511,6 +640,172 @@ export class OrdersService {
 
     return {
       data: mapOrder(order),
+    }
+  }
+
+  private async resolvePromotionAdjustment(
+    channel: ProductChannel,
+    items: PricedOrderItem[],
+  ): Promise<PromotionAdjustment> {
+    const promotions = await this.prisma.promotion.findMany({
+      where: {
+        storeId: DEFAULT_STORE_ID,
+        status: 'active',
+        type: 'combo',
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    })
+    const now = new Date()
+    const candidates = promotions
+      .filter((promotion) => {
+        const channelAllowed = !promotion.channels.length || promotion.channels.includes(channel)
+        const dateAllowed =
+          (!promotion.startsAt || promotion.startsAt <= now) &&
+          (!promotion.endsAt || promotion.endsAt >= now)
+
+        return channelAllowed && dateAllowed
+      })
+      .map((promotion) => this.calculateComboPromotionDiscount(promotion, items))
+      .filter((adjustment): adjustment is PromotionAdjustment => Boolean(adjustment))
+      .filter((adjustment) => adjustment.discount > 0)
+      .sort((left, right) => right.discount - left.discount)
+
+    return candidates[0] ?? { discount: 0 }
+  }
+
+  private calculateComboPromotionDiscount(
+    promotion: Prisma.PromotionGetPayload<Record<string, never>>,
+    items: PricedOrderItem[],
+  ): PromotionAdjustment | null {
+    const rules = readPromotionRules(promotion.rules)
+    const finalPrice = rules?.finalPrice ?? promotion.discountValue?.toNumber()
+    const requiredItems = rules?.requiredItems ?? 0
+
+    if (!rules || !finalPrice || requiredItems <= 0) {
+      return null
+    }
+
+    const participantIds =
+      rules.participantId
+        ? [rules.participantId]
+        : rules.participantType === 'category'
+          ? promotion.categoryIds
+          : promotion.productIds
+    const eligibleUnits = items
+      .filter((item) => {
+        const participantAllowed =
+          participantIds.length === 0 ||
+          (rules.participantType === 'category'
+            ? participantIds.includes(item.product.categoryId)
+            : participantIds.includes(item.product.id))
+        const sizeAllowed =
+          !rules.sizeLabel ||
+          normalizeText(`${item.product.name} ${item.product.description}`).includes(
+            normalizeText(rules.sizeLabel),
+          )
+        const flavorAllowed =
+          rules.flavorLimitPerItem === undefined ||
+          countFlavorOptions(item.options) <= rules.flavorLimitPerItem
+
+        return participantAllowed && sizeAllowed && flavorAllowed
+      })
+      .flatMap((item) => Array.from({ length: item.quantity }, () => item.unitPrice))
+      .sort((left, right) => right - left)
+
+    const applicationCount = Math.floor(eligibleUnits.length / requiredItems)
+    if (!applicationCount) {
+      return null
+    }
+
+    let discount = 0
+    for (let index = 0; index < applicationCount; index += 1) {
+      const start = index * requiredItems
+      const selectedTotal = eligibleUnits
+        .slice(start, start + requiredItems)
+        .reduce((sum, unitPrice) => sum + unitPrice, 0)
+      discount += Math.max(0, selectedTotal - finalPrice)
+    }
+
+    return {
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+      discount: roundMoney(discount),
+    }
+  }
+
+  private async resolveCouponAdjustment(
+    code: string,
+    channel: ProductChannel,
+    orderTotal: number,
+  ): Promise<CouponAdjustment> {
+    const coupon = await this.prisma.coupon.findFirst({
+      where: {
+        storeId: DEFAULT_STORE_ID,
+        code: code.trim().toUpperCase(),
+      },
+    })
+
+    if (!coupon) {
+      throw new BadRequestException('Cupom nao encontrado.')
+    }
+
+    if (coupon.status !== 'active') {
+      throw new BadRequestException('Cupom inativo.')
+    }
+
+    const now = new Date()
+    if (coupon.validFrom && coupon.validFrom > now) {
+      throw new BadRequestException('Cupom ainda nao esta valido.')
+    }
+
+    if (coupon.validUntil && coupon.validUntil < now) {
+      throw new BadRequestException('Cupom expirado.')
+    }
+
+    if (coupon.channels.length && !coupon.channels.includes(channel)) {
+      throw new BadRequestException('Cupom invalido para este canal.')
+    }
+
+    if (coupon.maxUses && coupon.uses >= coupon.maxUses) {
+      throw new BadRequestException('Cupom atingiu o limite de uso.')
+    }
+
+    const minOrderAmount = coupon.minOrderAmount.toNumber()
+    if (orderTotal < minOrderAmount) {
+      throw new BadRequestException('Pedido minimo nao atingido.')
+    }
+
+    const value = coupon.value.toNumber()
+    const discount =
+      coupon.type === 'percent'
+        ? Math.min(orderTotal, (orderTotal * value) / 100)
+        : Math.min(orderTotal, value)
+
+    return {
+      couponId: coupon.id,
+      couponCode: coupon.code,
+      discount: roundMoney(discount),
+    }
+  }
+
+  private buildDiscountBreakdown(
+    subtotal: number,
+    promotion: PromotionAdjustment,
+    coupon: CouponAdjustment,
+  ): Prisma.InputJsonObject | undefined {
+    if (!promotion.discount && !coupon.discount) {
+      return undefined
+    }
+
+    return {
+      subtotalBeforeDiscount: roundMoney(subtotal),
+      promotionId: promotion.promotionId,
+      promotionName: promotion.promotionName,
+      promotionDiscount: roundMoney(promotion.discount),
+      couponCode: coupon.couponCode,
+      couponDiscount: roundMoney(coupon.discount),
     }
   }
 
@@ -925,6 +1220,76 @@ function fallbackCoordinateFromText(value: string): GeoCoordinate {
 
 function roundCoordinate(value: number) {
   return Math.round(value * 10000) / 10000
+}
+
+function resolveCatalogChannel(channel: OrderChannel): ProductChannel {
+  if (channel === 'dine_in') {
+    return 'dine_in'
+  }
+
+  if (channel === 'counter' || channel === 'pickup') {
+    return 'counter'
+  }
+
+  if (channel === 'digital_menu') {
+    return 'digital_menu'
+  }
+
+  return 'delivery'
+}
+
+function readPromotionRules(value: Prisma.JsonValue | null): PromotionRuleConfig | null {
+  if (!isJsonObject(value)) {
+    return null
+  }
+
+  const requiredItems = readNumber(value.requiredItems)
+  const participantType =
+    value.participantType === 'product' || value.participantType === 'category'
+      ? value.participantType
+      : 'category'
+
+  if (!requiredItems) {
+    return null
+  }
+
+  return {
+    requiredItems,
+    participantType,
+    participantId: readString(value.participantId),
+    sizeLabel: readString(value.sizeLabel),
+    flavorLimitPerItem: readNumber(value.flavorLimitPerItem),
+    finalPrice: readNumber(value.finalPrice),
+  }
+}
+
+function isJsonObject(value: Prisma.JsonValue | null): value is Record<string, Prisma.JsonValue> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function readNumber(value: Prisma.JsonValue | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function readString(value: Prisma.JsonValue | undefined) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function countFlavorOptions(options: ResolvedProductOption[]) {
+  return options
+    .filter((option) => normalizeText(option.groupName).includes('sabor'))
+    .reduce((sum, option) => sum + option.quantity, 0)
+}
+
+function normalizeText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100
 }
 
 function routeGeometryToJson(geometry: GeoCoordinate[]): Prisma.InputJsonValue {

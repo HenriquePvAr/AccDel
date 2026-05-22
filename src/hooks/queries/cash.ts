@@ -47,7 +47,7 @@ export function useCloseCashRegisterMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
       useToastStore.getState().pushToast({
         title: 'Caixa fechado',
-        description: 'O fechamento mock foi persistido para a demo.',
+        description: 'O fechamento foi persistido na fonte de dados ativa.',
         variant: 'success',
       })
     },

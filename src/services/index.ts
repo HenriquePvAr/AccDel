@@ -1,6 +1,7 @@
 export * from './auth/auth-service'
 export * from './catalog/catalog-service'
 export * from './cash/cash-service'
+export * from './customers/customer-service'
 export * from './dining/dining-service'
 export * from './drivers/drivers-service'
 export * from './orders/order-service'

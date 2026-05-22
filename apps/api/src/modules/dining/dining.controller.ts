@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
 
 import {
   addTableSessionItemSchema,
+  addTableSessionItemsSchema,
   closeTableSessionSchema,
   openTableSessionSchema,
   saveDiningTableSchema,
@@ -10,6 +11,7 @@ import {
   updateDiningTableStatusSchema,
   updateTableSessionSchema,
   type AddTableSessionItemPayload,
+  type AddTableSessionItemsPayload,
   type CloseTableSessionPayload,
   type OpenTableSessionPayload,
   type SaveDiningTablePayload,
@@ -102,6 +104,16 @@ export class DiningController {
     body: AddTableSessionItemPayload,
   ) {
     return this.diningService.addItem(id, body)
+  }
+
+  @Post('sessions/:id/add-items')
+  @Permissions('dining:update')
+  addItems(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(addTableSessionItemsSchema))
+    body: AddTableSessionItemsPayload,
+  ) {
+    return this.diningService.addItems(id, body)
   }
 
   @Post('sessions/:id/close')

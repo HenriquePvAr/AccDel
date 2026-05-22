@@ -1,4 +1,4 @@
-import type { StoreProfile } from '@/types'
+import type { PaymentMethod, PaymentMethodConfig, PaymentProvider, ProductChannel, StoreProfile } from '@/types'
 
 export interface GetStoreSettingsResponse {
   data: StoreProfile
@@ -15,4 +15,26 @@ export interface UpdateOperationalSettingsRequest {
 
 export interface UpdateOperationalSettingsResponse {
   data: StoreProfile
+}
+
+export interface ListPaymentMethodsResponse {
+  data: PaymentMethodConfig[]
+}
+
+export interface SavePaymentMethodConfigRequest {
+  id?: string
+  name: string
+  method?: PaymentMethod | null
+  provider: PaymentProvider
+  active: boolean
+  fixed?: boolean
+  requiresReceipt: boolean
+  autoCashEntry: boolean
+  channels: ProductChannel[]
+  sortOrder: number
+  externalEnabled?: boolean
+}
+
+export interface SavePaymentMethodConfigResponse {
+  data: PaymentMethodConfig
 }

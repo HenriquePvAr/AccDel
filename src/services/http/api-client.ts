@@ -10,7 +10,7 @@ export class ApiClientError extends Error {
   }
 }
 
-const apiBaseUrl =
+export const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ??
   import.meta.env.VITE_API_URL ??
   'http://localhost:3333'
@@ -68,6 +68,13 @@ export const apiClient = {
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   },
+
+  delete<TResponse>(path: string, init?: RequestInit & ApiRequestOptions) {
+    return request<TResponse>(path, {
+      ...init,
+      method: 'DELETE',
+    })
+  },
 }
 
 interface ApiRequestOptions {
@@ -97,10 +104,23 @@ async function request<TResponse>(
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      ...init,
+      headers,
+    })
+  } catch (error) {
+    throw new ApiClientError(
+      `Nao foi possivel conectar a API em ${apiBaseUrl}. Verifique se o backend esta rodando com npm run api:dev e se o CORS permite a origem atual.`,
+      0,
+      {
+        cause: error instanceof Error ? error.message : String(error),
+        path,
+      },
+    )
+  }
   const payload = await safeJson(response)
 
   if (response.status === 401 && shouldUseApi && !init?.skipAuth) {

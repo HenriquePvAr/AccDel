@@ -29,3 +29,41 @@ export function mapStoreSettings(store: {
     estimatedPickupTimeMinutes: store.estimatedPickupTimeMinutes,
   }
 }
+
+export function mapPaymentMethodConfig(config: {
+  id: string
+  name: string
+  method: string | null
+  provider: string
+  active: boolean
+  fixed: boolean
+  requiresReceipt: boolean
+  autoCashEntry: boolean
+  channels: string[]
+  sortOrder: number
+  externalEnabled: boolean
+  externalPaymentId: string | null
+  qrCodePayload: string | null
+  qrCodeUrl: string | null
+  createdAt: Date
+  updatedAt: Date
+}) {
+  return {
+    id: config.id,
+    name: config.name,
+    method: config.method ?? undefined,
+    provider: config.provider,
+    active: config.active,
+    fixed: config.fixed,
+    requiresReceipt: config.requiresReceipt,
+    autoCashEntry: config.autoCashEntry,
+    channels: config.channels,
+    sortOrder: config.sortOrder,
+    externalEnabled: config.externalEnabled,
+    externalPaymentId: config.externalPaymentId ?? undefined,
+    qrCodePayload: config.qrCodePayload ?? undefined,
+    qrCodeUrl: config.qrCodeUrl ?? undefined,
+    createdAt: config.createdAt.toISOString(),
+    updatedAt: config.updatedAt.toISOString(),
+  }
+}

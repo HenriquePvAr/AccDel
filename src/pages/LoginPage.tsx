@@ -64,7 +64,7 @@ export function LoginPage() {
     setErrorMessage('')
 
     loginMutation.mutate(
-      { email, password },
+      { email: email.trim(), password },
       {
         onSuccess: (response) => {
           setSession(response.data)

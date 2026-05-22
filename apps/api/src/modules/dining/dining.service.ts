@@ -7,6 +7,7 @@ import type { Prisma, TableSessionEventType } from '@prisma/client'
 
 import type {
   AddTableSessionItemPayload,
+  AddTableSessionItemsPayload,
   CloseTableSessionPayload,
   OpenTableSessionPayload,
   SaveDiningTablePayload,
@@ -15,8 +16,13 @@ import type {
   UpdateDiningTableStatusPayload,
   UpdateTableSessionPayload,
 } from '@/contracts/dining.contract'
+import {
+  resolveProductOptionSelection,
+  toProductOptionsJson,
+} from '@/modules/catalog/product-options'
 import { buildListResponse } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
+import { AdminRealtimeService } from '@/shared/realtime/admin-realtime.service'
 import { DEFAULT_STORE_ID } from '@/shared/store-context'
 
 import { buildDiningTablesSnapshot, mapDiningArea, mapDiningTable, mapTableSession } from './dining.mapper'
@@ -43,7 +49,10 @@ const tableSessionInclude = {
 
 @Injectable()
 export class DiningService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: AdminRealtimeService,
+  ) {}
 
   async listAreas() {
     const areas = await this.prisma.diningArea.findMany({
@@ -278,15 +287,24 @@ export class DiningService {
   }
 
   async addItem(sessionId: string, payload: AddTableSessionItemPayload) {
+    return this.addItems(sessionId, {
+      items: [payload],
+    })
+  }
+
+  async addItems(sessionId: string, payload: AddTableSessionItemsPayload) {
     const session = await this.ensureSession(sessionId)
 
     if (session.status === 'closed') {
       throw new BadRequestException('Nao e possivel adicionar itens a uma conta fechada.')
     }
 
-    const product = await this.prisma.product.findFirst({
+    const productIds = Array.from(new Set(payload.items.map((item) => item.productId)))
+    const products = await this.prisma.product.findMany({
       where: {
-        id: payload.productId,
+        id: {
+          in: productIds,
+        },
         storeId: DEFAULT_STORE_ID,
         active: true,
         availability: {
@@ -298,22 +316,137 @@ export class DiningService {
           },
         },
       },
+      include: {
+        availability: {
+          where: {
+            channel: 'dine_in',
+          },
+        },
+        optionGroups: {
+          include: {
+            group: {
+              include: {
+                options: true,
+              },
+            },
+          },
+        },
+      },
     })
 
-    if (!product) {
-      throw new NotFoundException('Produto indisponivel para o salao.')
+    if (products.length !== productIds.length) {
+      throw new NotFoundException('Um ou mais produtos estao indisponiveis para o salao.')
     }
 
-    const waiterMembership = payload.waiterId
-      ? await this.ensureWaiter(payload.waiterId)
+    const requestedWaiterId =
+      payload.items.find((item) => item.waiterId)?.waiterId ?? session.waiterId
+    const waiterMembership = requestedWaiterId
+      ? await this.ensureWaiter(requestedWaiterId)
       : session.waiterId
         ? await this.ensureWaiter(session.waiterId)
         : null
+    const store = await this.prisma.store.findUniqueOrThrow({
+      where: {
+        id: DEFAULT_STORE_ID,
+      },
+    })
     const actor = waiterMembership?.user.name ?? session.waiter?.name ?? 'Operacao'
-    const lineTotal = product.price.toNumber() * payload.quantity
+    const items = payload.items.map((item) => {
+      const product = products.find((entry) => entry.id === item.productId)
+
+      if (!product) {
+        throw new NotFoundException('Produto indisponivel para o salao.')
+      }
+
+      const selectedOptions = resolveProductOptionSelection(product, item.options ?? [])
+      const optionsJson = toProductOptionsJson(selectedOptions.options)
+      const basePrice = product.availability[0]?.priceOverride?.toNumber() ?? product.price.toNumber()
+      const unitPrice = basePrice + selectedOptions.optionsTotal
+      const totalPrice = unitPrice * item.quantity
+
+      return {
+        product,
+        quantity: item.quantity,
+        unitPrice,
+        totalPrice,
+        notes: normalizeNullableString(item.notes),
+        optionsJson,
+      }
+    })
+    const lineTotal = items.reduce((sum, item) => sum + item.totalPrice, 0)
     const nextStatus = session.status === 'awaiting_close' ? 'open' : session.status
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const createdAt = new Date()
+      const productionNumber = await this.nextOrderNumber(tx)
+      const tableLabel = `Mesa ${session.table.code}`
+      const estimatedPrepTimeMinutes = Math.max(1, store.estimatedDineInTimeMinutes)
+      const productionNotes = items
+        .map((item) => item.notes)
+        .filter((note): note is string => Boolean(note))
+        .join(' | ')
+      const productionOrder = await tx.order.create({
+        data: {
+          storeId: DEFAULT_STORE_ID,
+          number: productionNumber,
+          customerName: tableLabel,
+          customerPhone: '',
+          source: 'dine_in',
+          serviceType: 'dine_in',
+          status: 'in_preparation',
+          paymentMethod: 'cash',
+          paymentStatus: 'pending',
+          subtotal: lineTotal,
+          deliveryFee: 0,
+          discount: 0,
+          total: lineTotal,
+          dueAt: new Date(createdAt.getTime() + estimatedPrepTimeMinutes * 60 * 1000),
+          estimatedPrepTimeMinutes,
+          estimatedDeliveryTimeMinutes: null,
+          estimatedTotalTimeMinutes: estimatedPrepTimeMinutes,
+          priority: 'normal',
+          delayed: false,
+          tags: [
+            'Salao',
+            tableLabel,
+            ...Array.from(new Set(items.map((item) => item.product.preparationStation))),
+          ],
+          tableCode: tableLabel,
+          notes: productionNotes || null,
+          items: {
+            create: items.map((item) => ({
+              productId: item.product.id,
+              name: item.product.name,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              notes: item.notes,
+              options: item.optionsJson,
+            })),
+          },
+          history: {
+            create: [
+              {
+                status: 'in_analysis',
+                label: `${items.length} item(ns) lancado(s) na ${tableLabel}`,
+                actor,
+                createdAt,
+              },
+              {
+                status: 'in_preparation',
+                label: `Pedido ${productionNumber} enviado para cozinha pela comanda`,
+                actor,
+                createdAt,
+              },
+            ],
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          driverId: true,
+        },
+      })
+
       await tx.tableSession.update({
         where: {
           id: session.id,
@@ -328,14 +461,16 @@ export class DiningService {
             increment: lineTotal,
           },
           items: {
-            create: {
-              productId: product.id,
-              name: product.name,
-              quantity: payload.quantity,
-              unitPrice: product.price,
-              totalPrice: lineTotal,
-              notes: normalizeNullableString(payload.notes),
-            },
+            create: items.map((item) => ({
+              productId: item.product.id,
+              name: item.product.name,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice,
+              notes: item.notes,
+              options: item.optionsJson,
+              createdByName: actor,
+            })),
           },
           events: {
             create: [
@@ -349,13 +484,23 @@ export class DiningService {
                     },
                   ]
                 : []),
-              {
+              ...items.map((item) => ({
                 type: 'item_added' as TableSessionEventType,
-                label: `${payload.quantity}x ${product.name} lancado(s) na mesa`,
+                label: `${item.quantity}x ${item.product.name} lancado(s) na mesa`,
                 actor,
                 metadata: {
-                  productId: product.id,
-                  quantity: payload.quantity,
+                  productId: item.product.id,
+                  quantity: item.quantity,
+                },
+              })),
+              {
+                type: 'updated' as TableSessionEventType,
+                label: `Pedido ${productionNumber} enviado para cozinha com ${items.length} item(ns)`,
+                actor,
+                metadata: {
+                  orderId: productionOrder.id,
+                  orderNumber: productionNumber,
+                  itemCount: items.length,
                 },
               },
             ],
@@ -377,23 +522,37 @@ export class DiningService {
       if (waiterMembership) {
         await this.bumpWaiterMetrics(tx, waiterMembership.userId, {
           status: 'serving',
-          incrementOrders: 1,
+          incrementOrders: items.length,
           lastActivityAt: new Date(),
-          historyLabel: `${payload.quantity}x ${product.name} lancado(s) na mesa ${session.table.code}`,
+          historyLabel: `${items.length} item(ns) lancado(s) na mesa ${session.table.code}`,
           historyValue: lineTotal,
         })
       }
 
-      return tx.tableSession.findUniqueOrThrow({
+      const updatedSession = await tx.tableSession.findUniqueOrThrow({
         where: {
           id: session.id,
         },
         include: tableSessionInclude,
       })
+
+      return {
+        session: updatedSession,
+        productionOrder,
+      }
+    })
+
+    this.realtime.emit('order.created', {
+      orderId: result.productionOrder.id,
+    })
+    this.realtime.emit('order.status_changed', {
+      orderId: result.productionOrder.id,
+      status: result.productionOrder.status,
+      driverId: result.productionOrder.driverId ?? null,
     })
 
     return {
-      data: mapTableSession(updated),
+      data: mapTableSession(result.session),
     }
   }
 
@@ -723,6 +882,8 @@ export class DiningService {
               unitPrice: item.unitPrice,
               totalPrice: item.totalPrice,
               notes: item.notes,
+              options: toInputJson(item.options),
+              createdByName: item.createdByName ?? undefined,
             })),
           },
           events: {
@@ -963,6 +1124,16 @@ export class DiningService {
     })
   }
 
+  private async nextOrderNumber(tx: Prisma.TransactionClient) {
+    const count = await tx.order.count({
+      where: {
+        storeId: DEFAULT_STORE_ID,
+      },
+    })
+
+    return `#${1001 + count}`
+  }
+
   private async registerDiningSale(
     tx: Prisma.TransactionClient,
     tableCode: string,
@@ -1008,6 +1179,10 @@ export class DiningService {
 function normalizeNullableString(value?: string | null) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
+}
+
+function toInputJson(value: Prisma.JsonValue): Prisma.InputJsonValue {
+  return value === null ? [] : (value as Prisma.InputJsonValue)
 }
 
 function buildTableStatusUpdate(

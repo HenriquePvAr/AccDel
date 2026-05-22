@@ -770,9 +770,11 @@ function getProductionStartedAt(order: Order) {
 
 function getOperationContext(order: Order) {
   if (order.source === 'dine_in') {
+    const hasNamedCustomer = Boolean(order.customerName && order.customerName !== order.tableCode)
+
     return {
       title: order.tableCode ?? 'Salao sem mesa',
-      detail: order.customerName ? `Cliente: ${order.customerName}` : 'Pedido de salao',
+      detail: hasNamedCustomer ? `Cliente: ${order.customerName}` : 'Comanda de salao',
       icon: <UtensilsCrossed className="h-3.5 w-3.5 text-amber-300" />,
     }
   }

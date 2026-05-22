@@ -1,5 +1,8 @@
 import type {
   GetStoreSettingsResponse,
+  ListPaymentMethodsResponse,
+  SavePaymentMethodConfigRequest,
+  SavePaymentMethodConfigResponse,
   UpdateOperationalSettingsRequest,
   UpdateOperationalSettingsResponse,
 } from '@/contracts'
@@ -35,5 +38,61 @@ export const settingsService = {
     }))
 
     return simulateAsync({ data: nextDb.store })
+  },
+
+  async listPaymentMethods(): Promise<ListPaymentMethodsResponse> {
+    if (shouldUseApi) {
+      return apiClient.get<ListPaymentMethodsResponse>('/settings/payments')
+    }
+
+    return simulateAsync({
+      data: [
+        {
+          id: 'demo_pay_pix',
+          name: 'Pix',
+          method: 'pix',
+          provider: 'pix',
+          active: true,
+          fixed: true,
+          requiresReceipt: false,
+          autoCashEntry: true,
+          channels: ['delivery', 'counter', 'dine_in', 'digital_menu'],
+          sortOrder: 1,
+          externalEnabled: false,
+        },
+      ],
+    })
+  },
+
+  async savePaymentMethod(
+    request: SavePaymentMethodConfigRequest,
+  ): Promise<SavePaymentMethodConfigResponse> {
+    if (shouldUseApi) {
+      const endpoint = request.id ? `/settings/payments/${request.id}` : '/settings/payments'
+      const payload = {
+        ...request,
+        name: request.name.trim(),
+      }
+
+      return request.id
+        ? apiClient.patch<SavePaymentMethodConfigResponse, typeof payload>(endpoint, payload)
+        : apiClient.post<SavePaymentMethodConfigResponse, typeof payload>(endpoint, payload)
+    }
+
+    return simulateAsync({
+      data: {
+        id: request.id ?? crypto.randomUUID(),
+        name: request.name.trim(),
+        method: request.method ?? undefined,
+        provider: request.provider,
+        active: request.active,
+        fixed: request.fixed ?? false,
+        requiresReceipt: request.requiresReceipt,
+        autoCashEntry: request.autoCashEntry,
+        channels: request.channels,
+        sortOrder: request.sortOrder,
+        externalEnabled: request.externalEnabled ?? false,
+      },
+    })
   },
 }

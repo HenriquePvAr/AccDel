@@ -1,149 +1,314 @@
 import {
-  Bike,
+  AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  CircleDot,
+  Clock3,
   ClipboardList,
-  CookingPot,
+  Filter,
+  MapPin,
+  Package,
   RefreshCcw,
+  Wifi,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageShell } from '@/components/shared/PageShell'
+import { SearchInput } from '@/components/shared/SearchInput'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
 import { DispatchOrderDialog } from '@/features/orders/components/DispatchOrderDialog'
-import { OrderGroupColumn } from '@/features/orders/components/OrderGroupColumn'
-import { OrderFilters } from '@/features/orders/components/OrderFilters'
-import { OrderSummaryCards } from '@/features/orders/components/OrderSummaryCards'
+import { OrderDrawer } from '@/features/orders/components/OrderDrawer'
 import type { OrderAction } from '@/features/orders/components/order-actions'
 import {
+  formatElapsedShort,
+  getOrderItemCountLabel,
+  getPrimaryOrderAction,
+} from '@/features/orders/components/order-ui'
+import {
   useDriversQuery,
+  useOrderByIdQuery,
   useOrdersQuery,
   useUpdateOrderStatusMutation,
 } from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { useCan } from '@/hooks/use-permissions'
-import { useAutoAcceptStore, useOrderFiltersStore } from '@/stores'
-import type { Order, OrderChannel, OrderStatus, PaymentMethod } from '@/types'
+import { channelLabelMap } from '@/lib/domain'
+import { formatCurrency } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { useDriversStore, useOrderFiltersStore } from '@/stores'
+import type { Driver, Order, OrderChannel, OrderStatus } from '@/types'
 
-const statusTabs: Array<{ value: OrderStatus | 'all'; label: string }> = [
-  { value: 'all', label: 'Todos' },
-  { value: 'in_analysis', label: 'Em analise' },
-  { value: 'in_preparation', label: 'Em preparo' },
-  { value: 'ready', label: 'Prontos' },
-  { value: 'out_for_delivery', label: 'Em rota' },
-  { value: 'completed', label: 'Finalizados' },
-]
+type KanbanStatus = Extract<OrderStatus, 'in_analysis' | 'in_preparation' | 'ready'>
+type KanbanStatusFilter = KanbanStatus | 'all'
+type SourceFilter = Extract<OrderChannel, 'delivery' | 'counter' | 'pickup'> | 'all'
+type SortOption = 'recent' | 'oldest' | 'delayed'
 
-const emptySummary = {
-  totalOpen: 0,
-  delayed: 0,
-  ready: 0,
-  routing: 0,
+interface KanbanColumnConfig {
+  status: KanbanStatus
+  title: string
+  description: string
+  tone: 'cyan' | 'orange' | 'green'
+  dotClass: string
 }
 
-const boardGroups: Array<{
-  key: 'production' | 'route' | 'ready'
-  title: string
-  subtitle: string
-  statuses: OrderStatus[]
-  icon: typeof CookingPot
-  tone: 'orange' | 'blue' | 'green'
-}> = [
+const kanbanColumns: KanbanColumnConfig[] = [
   {
-    key: 'production',
+    status: 'in_analysis',
+    title: 'Em analise',
+    description: 'Pedidos aguardando aceite.',
+    tone: 'cyan',
+    dotClass: 'bg-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.42)]',
+  },
+  {
+    status: 'in_preparation',
     title: 'Producao',
-    subtitle: 'Analise, aceite e preparo',
-    statuses: ['in_analysis', 'in_preparation'],
-    icon: CookingPot,
+    description: 'Pedidos em preparo na cozinha.',
     tone: 'orange',
+    dotClass: 'bg-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.42)]',
   },
   {
-    key: 'route',
-    title: 'Em rota',
-    subtitle: 'Despachos e entregas ativas',
-    statuses: ['out_for_delivery'],
-    icon: Bike,
-    tone: 'blue',
-  },
-  {
-    key: 'ready',
+    status: 'ready',
     title: 'Pronto',
-    subtitle: 'Prontos, concluidos e cancelados',
-    statuses: ['ready', 'completed', 'cancelled'],
-    icon: CheckCircle2,
+    description: 'Aguardando despacho ou retirada.',
     tone: 'green',
+    dotClass: 'bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.42)]',
   },
 ]
 
-function countByStatus(orders: Order[], status: OrderStatus) {
-  return orders.filter((order) => order.status === status).length
+const sourceOptions: Array<{ value: SourceFilter; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'delivery', label: 'Delivery' },
+  { value: 'counter', label: 'Balcao' },
+  { value: 'pickup', label: 'Retirada' },
+]
+
+const statusOptions: Array<{ value: KanbanStatusFilter; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'in_analysis', label: 'Em analise' },
+  { value: 'in_preparation', label: 'Producao' },
+  { value: 'ready', label: 'Pronto' },
+]
+
+const sortOptions: Array<{ value: SortOption; label: string }> = [
+  { value: 'recent', label: 'Mais recente' },
+  { value: 'oldest', label: 'Mais antigo' },
+  { value: 'delayed', label: 'Mais atrasado' },
+]
+
+const emptyOrders: Order[] = []
+const emptyDrivers: Driver[] = []
+const visiblePerColumn = 6
+
+function isKanbanStatus(value: OrderStatus | 'all'): value is KanbanStatusFilter {
+  return value === 'all' || value === 'in_analysis' || value === 'in_preparation' || value === 'ready'
+}
+
+function isSourceFilter(value: OrderChannel | 'all'): value is SourceFilter {
+  return value === 'all' || value === 'delivery' || value === 'counter' || value === 'pickup'
+}
+
+function matchesSearch(order: Order, search: string) {
+  const query = search.trim().toLowerCase()
+
+  if (!query) {
+    return true
+  }
+
+  const haystack = [
+    order.number,
+    order.customerName,
+    order.customerPhone,
+    order.addressText,
+    order.addressLabel,
+    order.tableCode,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return haystack.includes(query)
+}
+
+function sortOrders(orders: Order[], sortBy: SortOption) {
+  return orders.slice().sort((left, right) => {
+    if (sortBy === 'oldest') {
+      return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+    }
+
+    if (sortBy === 'delayed') {
+      const delayedDelta = Number(right.delayed) - Number(left.delayed)
+
+      if (delayedDelta !== 0) {
+        return delayedDelta
+      }
+
+      return new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
+    }
+
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+  })
+}
+
+function buildOrderAddress(order: Order) {
+  return order.source === 'delivery'
+    ? order.addressText ?? order.addressLabel ?? 'Endereco nao informado'
+    : order.tableCode ?? channelLabelMap[order.source]
+}
+
+function buildColumnToneClasses(tone: KanbanColumnConfig['tone']) {
+  if (tone === 'cyan') {
+    return {
+      ring: 'ring-sky-400/20',
+      text: 'text-sky-300',
+      border: 'border-sky-400/20',
+      selected: 'border-sky-400/80 shadow-[0_0_0_1px_rgba(56,189,248,0.55),0_18px_46px_rgba(14,165,233,0.16)]',
+      button: 'border-sky-400/35 bg-sky-500/10 text-sky-200 hover:bg-sky-500/16',
+    }
+  }
+
+  if (tone === 'orange') {
+    return {
+      ring: 'ring-orange-400/20',
+      text: 'text-orange-300',
+      border: 'border-orange-400/20',
+      selected: 'border-orange-400/80 shadow-[0_0_0_1px_rgba(251,146,60,0.48),0_18px_46px_rgba(249,115,22,0.14)]',
+      button: 'border-orange-400/35 bg-orange-500/10 text-orange-200 hover:bg-orange-500/16',
+    }
+  }
+
+  return {
+    ring: 'ring-emerald-400/20',
+    text: 'text-emerald-300',
+    border: 'border-emerald-400/20',
+    selected: 'border-emerald-400/80 shadow-[0_0_0_1px_rgba(52,211,153,0.45),0_18px_46px_rgba(16,185,129,0.14)]',
+    button: 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/16',
+  }
 }
 
 export function OrdersPage() {
-  usePageTitle('Pedidos / Delivery')
+  usePageTitle('Central de pedidos')
   const navigate = useNavigate()
   const search = useOrderFiltersStore((state) => state.search)
-  const source = useOrderFiltersStore((state) => state.source)
-  const status = useOrderFiltersStore((state) => state.status)
-  const paymentMethod = useOrderFiltersStore((state) => state.paymentMethod)
-  const delayedOnly = useOrderFiltersStore((state) => state.delayedOnly)
+  const storedSource = useOrderFiltersStore((state) => state.source)
+  const storedStatus = useOrderFiltersStore((state) => state.status)
   const setSearch = useOrderFiltersStore((state) => state.setSearch)
   const setSource = useOrderFiltersStore((state) => state.setSource)
   const setStatus = useOrderFiltersStore((state) => state.setStatus)
-  const setPaymentMethod = useOrderFiltersStore((state) => state.setPaymentMethod)
-  const setDelayedOnly = useOrderFiltersStore((state) => state.setDelayedOnly)
-  const autoAcceptEnabled = useAutoAcceptStore((state) => state.enabled)
-  const setAutoAcceptEnabled = useAutoAcceptStore((state) => state.setEnabled)
+  const resetFilters = useOrderFiltersStore((state) => state.reset)
+  const setSelectedDriverId = useDriversStore((state) => state.setSelectedDriverId)
+  const canUpdateOrders = useCan('orders:update')
+  const selectedSource = isSourceFilter(storedSource) ? storedSource : 'all'
+  const selectedStatus = isKanbanStatus(storedStatus) ? storedStatus : 'all'
+  const [sortBy, setSortBy] = useState<SortOption>('recent')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null)
   const [pendingDispatchOrderId, setPendingDispatchOrderId] = useState<string | null>(null)
-  const canUpdateOrders = useCan('orders:update')
+  const [expandedColumns, setExpandedColumns] = useState<Record<KanbanStatus, boolean>>({
+    in_analysis: false,
+    in_preparation: false,
+    ready: false,
+  })
+  const filterRef = useRef<HTMLDivElement | null>(null)
 
   const ordersQuery = useOrdersQuery({
     filters: {
-      search,
-      source,
-      status,
-      paymentMethod,
-      delayedOnly,
-    },
-  })
-  const countsQuery = useOrdersQuery({
-    filters: {
-      search,
-      source,
+      pageSize: 100,
+      source: selectedSource,
       status: 'all',
-      paymentMethod,
-      delayedOnly,
     },
   })
+  const selectedOrderQuery = useOrderByIdQuery(selectedOrderId)
   const driversQuery = useDriversQuery()
   const updateOrderStatus = useUpdateOrderStatusMutation()
 
-  const visibleOrders = ordersQuery.data?.data ?? []
-  const countOrders = countsQuery.data?.data ?? visibleOrders
-  const stats = countsQuery.data?.summary ?? ordersQuery.data?.summary ?? emptySummary
-  const drivers = useMemo(() => driversQuery.data?.data ?? [], [driversQuery.data?.data])
-  const dispatchableDrivers = useMemo(
-    () => drivers.filter((driver) => (driver.active ?? true) && driver.availability !== 'paused'),
-    [drivers],
+  const allOrders = ordersQuery.data?.data ?? emptyOrders
+  const searchedOrders = useMemo(
+    () => sortOrders(allOrders.filter((order) => matchesSearch(order, search)), sortBy),
+    [allOrders, search, sortBy],
+  )
+  const boardOrders = useMemo(
+    () =>
+      searchedOrders.filter(
+        (order) =>
+          kanbanColumns.some((column) => column.status === order.status) &&
+          (selectedStatus === 'all' || order.status === selectedStatus),
+      ),
+    [searchedOrders, selectedStatus],
+  )
+  const counts = useMemo(
+    () => ({
+      in_analysis: searchedOrders.filter((order) => order.status === 'in_analysis').length,
+      in_preparation: searchedOrders.filter((order) => order.status === 'in_preparation').length,
+      ready: searchedOrders.filter((order) => order.status === 'ready').length,
+      delayed: searchedOrders.filter(
+        (order) => order.delayed && !['completed', 'cancelled'].includes(order.status),
+      ).length,
+    }),
+    [searchedOrders],
+  )
+  const selectedOrder =
+    selectedOrderQuery.data?.data ??
+    allOrders.find((order) => order.id === selectedOrderId) ??
+    null
+  const drivers = driversQuery.data?.data ?? emptyDrivers
+  const dispatchableDrivers = drivers.filter(
+    (driver) => (driver.active ?? true) && driver.availability !== 'paused',
   )
   const pendingDispatchOrder =
-    visibleOrders.find((order) => order.id === pendingDispatchOrderId) ??
-    countOrders.find((order) => order.id === pendingDispatchOrderId) ??
+    allOrders.find((order) => order.id === pendingDispatchOrderId) ??
+    selectedOrder ??
     null
 
-  const tabs = statusTabs.map((tab) => ({
-    ...tab,
-    count: tab.value === 'all' ? countOrders.length : countByStatus(countOrders, tab.value),
-  }))
-  const boardColumns = boardGroups.map((group) => ({
-    ...group,
-    orders: visibleOrders.filter((order) => group.statuses.includes(order.status)),
-  }))
+  useEffect(() => {
+    if (!filtersOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+
+      if (target instanceof Element && target.closest('[data-orders-filter-select="true"]')) {
+        return
+      }
+
+      if (target instanceof Node && !filterRef.current?.contains(target)) {
+        setFiltersOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setFiltersOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [filtersOpen])
+
+  const handleRefresh = () => {
+    void ordersQuery.refetch()
+    if (selectedOrderId) {
+      void selectedOrderQuery.refetch()
+    }
+  }
 
   const handleAction = (orderId: string, action: OrderAction) => {
     if (!canUpdateOrders) {
@@ -186,117 +351,261 @@ export function OrdersPage() {
     )
   }
 
+  const handleTrackDelivery = (order: Order) => {
+    if (order.driverId) {
+      setSelectedDriverId(order.driverId)
+    }
+
+    navigate('/drivers/location')
+  }
+
+  const clearFilters = () => {
+    resetFilters()
+    setSortBy('recent')
+    setFiltersOpen(false)
+  }
+
   return (
-    <PageShell className="text-slate-100">
-      <header className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-slate-400">Acompanhe pedidos em tempo real</p>
-          <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
-            Pedidos / Delivery
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-400">
-            Fluxo operacional para aceite, preparo, despacho e entrega sem poluir a leitura.
-          </p>
+    <PageShell className="min-h-[calc(100vh-72px)] space-y-5 overflow-hidden text-slate-100">
+      <header className="grid gap-4 2xl:grid-cols-[minmax(360px,1fr)_auto] 2xl:items-start">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Buscar pedido, cliente, endereco ou telefone..."
+              className="w-full max-w-2xl"
+              inputClassName="h-12 rounded-2xl border-white/10 bg-[#071525]/90 pl-11 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:text-slate-500 focus:border-sky-400/45"
+            />
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-[#071525]/86 px-4 text-sm font-bold text-slate-100">
+                <span
+                  className={cn(
+                    'h-2.5 w-2.5 rounded-full',
+                    ordersQuery.isFetching ? 'bg-orange-300' : 'bg-emerald-400',
+                  )}
+                />
+                <Wifi className="h-4 w-4 text-slate-400" />
+                {ordersQuery.isFetching ? 'Sincronizando' : 'Ao vivo'}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={ordersQuery.isFetching}
+                className="h-12 rounded-2xl border-white/10 bg-[#071525]/86 px-5 text-slate-100 hover:bg-white/[0.08]"
+              >
+                <RefreshCcw className={cn('h-4 w-4', ordersQuery.isFetching && 'animate-spin')} />
+                Atualizar
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <h1 className="text-3xl font-black text-white sm:text-4xl">
+              Central de pedidos
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">
+              Acompanhe e gerencie os pedidos em tempo real.
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-            <span>
-              <span className="block text-xs uppercase tracking-[0.16em] text-slate-500">
-                Autoaceite
-              </span>
-              <span className="text-sm font-bold text-slate-100">
-                {autoAcceptEnabled ? 'Ativado' : 'Manual'}
-              </span>
-            </span>
-            <Switch checked={autoAcceptEnabled} onCheckedChange={setAutoAcceptEnabled} />
-          </label>
+        <div ref={filterRef} className="relative justify-self-start 2xl:justify-self-end">
           <Button
             type="button"
             variant="outline"
-            onClick={() => ordersQuery.refetch()}
-            disabled={ordersQuery.isFetching}
-            className="h-12 rounded-2xl border-white/10 bg-white/[0.04] text-slate-100 hover:bg-white/[0.08]"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((current) => !current)}
+            className="h-12 rounded-2xl border-white/10 bg-[#071525]/86 px-5 text-slate-100 hover:bg-white/[0.08]"
           >
-            <RefreshCcw className={ordersQuery.isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-            Atualizar
+            <Filter className="h-4 w-4" />
+            Filtros
+            <ChevronDown className={cn('h-4 w-4 transition', filtersOpen && 'rotate-180')} />
           </Button>
+
+          {filtersOpen ? (
+            <div className="absolute right-auto top-14 z-30 w-[min(340px,calc(100vw-32px))] rounded-[22px] border border-white/10 bg-[#071525]/95 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.03] backdrop-blur-xl 2xl:right-0">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                    Tipo de pedido
+                  </label>
+                  <Select
+                    value={selectedSource}
+                    onValueChange={(value) => setSource(value as SourceFilter)}
+                  >
+                    <SelectTrigger className="h-11 border-white/10 bg-[#091827] text-slate-100">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent data-orders-filter-select="true">
+                      {sourceOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                    Status
+                  </label>
+                  <Select
+                    value={selectedStatus}
+                    onValueChange={(value) => setStatus(value as KanbanStatusFilter)}
+                  >
+                    <SelectTrigger className="h-11 border-white/10 bg-[#091827] text-slate-100">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent data-orders-filter-select="true">
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                    Ordenacao
+                  </label>
+                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+                    <SelectTrigger className="h-11 border-white/10 bg-[#091827] text-slate-100">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent data-orders-filter-select="true">
+                      {sortOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={clearFilters}
+                  className="h-10 w-full rounded-xl text-slate-300 hover:bg-white/[0.06]"
+                >
+                  Limpar filtros
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </header>
 
-          <div className="space-y-5">
-            <OrderSummaryCards stats={stats} />
+      <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+        <SummaryChip
+          label="Em analise"
+          value={counts.in_analysis}
+          tone="cyan"
+          icon={<ClipboardList className="h-4 w-4" />}
+        />
+        <SummaryChip
+          label="Producao"
+          value={counts.in_preparation}
+          tone="orange"
+          icon={<Clock3 className="h-4 w-4" />}
+        />
+        <SummaryChip
+          label="Pronto"
+          value={counts.ready}
+          tone="green"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <SummaryChip
+          label="Atrasados"
+          value={counts.delayed}
+          tone="red"
+          icon={<AlertTriangle className="h-4 w-4" />}
+        />
+      </section>
 
-            <OrderFilters
-              search={search}
-              source={source}
-              status={status}
-              paymentMethod={paymentMethod}
-              delayedOnly={delayedOnly}
-              tabs={tabs}
-              onSearchChange={setSearch}
-              onSourceChange={(value) => setSource(value as OrderChannel | 'all')}
-              onStatusChange={(value) => setStatus(value as OrderStatus | 'all')}
-              onPaymentMethodChange={(value) => setPaymentMethod(value as PaymentMethod | 'all')}
-              onDelayedOnlyChange={setDelayedOnly}
-            />
+      {ordersQuery.isLoading ? (
+        <div className="grid gap-4 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="rounded-[24px] border border-white/10 bg-[#061525]/76 p-4">
+              <Skeleton className="mb-4 h-8 w-44 bg-white/10" />
+              <div className="space-y-3">
+                <Skeleton className="h-32 rounded-[18px] bg-white/10" />
+                <Skeleton className="h-32 rounded-[18px] bg-white/10" />
+                <Skeleton className="h-32 rounded-[18px] bg-white/10" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : ordersQuery.isError ? (
+        <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 p-8 text-center">
+          <ClipboardList className="mx-auto h-8 w-8 text-red-300" />
+          <h2 className="mt-4 text-xl font-black text-white">Nao foi possivel carregar pedidos</h2>
+          <p className="mt-2 text-sm text-red-100/80">
+            Verifique a conexao com a API e tente atualizar a operacao.
+          </p>
+          <Button
+            type="button"
+            onClick={handleRefresh}
+            className="mt-5 rounded-xl bg-red-600 text-white hover:bg-red-500"
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      ) : boardOrders.length ? (
+        <section className="overflow-x-auto pb-2 scrollbar-thin">
+          <div className="grid min-w-[980px] gap-4 xl:min-w-0 xl:grid-cols-3">
+            {kanbanColumns.map((column) => {
+              const orders = boardOrders.filter((order) => order.status === column.status)
 
-            {ordersQuery.isLoading ? (
-              <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="rounded-[22px] border border-white/10 bg-[#061525]/76 p-4"
-                  >
-                    <Skeleton className="mb-3 h-8 w-64 bg-white/10" />
-                    <div className="space-y-2.5">
-                      <Skeleton className="h-32 rounded-[18px] bg-white/10" />
-                      <Skeleton className="h-32 rounded-[18px] bg-white/10" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : ordersQuery.isError ? (
-              <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 p-8 text-center">
-                <ClipboardList className="mx-auto h-8 w-8 text-red-300" />
-                <h2 className="mt-4 text-xl font-black text-white">Nao foi possivel carregar pedidos</h2>
-                <p className="mt-2 text-sm text-red-100/80">
-                  Verifique a conexao com a API e tente atualizar a operacao.
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => ordersQuery.refetch()}
-                  className="mt-5 rounded-xl bg-red-600 text-white hover:bg-red-500"
-                >
-                  Tentar novamente
-                </Button>
-              </div>
-            ) : visibleOrders.length ? (
-              <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                {boardColumns.map((column) => (
-                  <OrderGroupColumn
-                    key={column.key}
-                    title={column.title}
-                    subtitle={column.subtitle}
-                    orders={column.orders}
-                    icon={column.icon}
-                    tone={column.tone}
-                    onOpen={(orderId) => navigate(`/orders/${orderId}`)}
-                    onAction={handleAction}
-                    canUpdate={canUpdateOrders}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-[28px] border border-white/10 bg-[#071a2d]/80 p-8">
-                <EmptyState
-                  icon={<ClipboardList className="h-5 w-5" />}
-                  title="Nenhum pedido encontrado"
-                  description="Ajuste busca, filtros ou periodo para encontrar pedidos deste fluxo."
+              return (
+                <KanbanOrderColumn
+                  key={column.status}
+                  column={column}
+                  orders={orders}
+                  selectedOrderId={selectedOrderId}
+                  expanded={expandedColumns[column.status]}
+                  canUpdate={canUpdateOrders}
+                  onToggleExpanded={() =>
+                    setExpandedColumns((current) => ({
+                      ...current,
+                      [column.status]: !current[column.status],
+                    }))
+                  }
+                  onOpen={setSelectedOrderId}
+                  onAction={handleAction}
                 />
-              </div>
-            )}
+              )
+            })}
           </div>
+        </section>
+      ) : (
+        <div className="rounded-[28px] border border-white/10 bg-[#071a2d]/80 p-8">
+          <EmptyState
+            icon={<ClipboardList className="h-5 w-5" />}
+            title="Nenhum pedido encontrado"
+            description="Ajuste busca ou filtros para encontrar pedidos neste fluxo operacional."
+          />
+        </div>
+      )}
+
+      <OrderDrawer
+        order={selectedOrder}
+        open={Boolean(selectedOrderId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedOrderId(null)
+          }
+        }}
+        onAction={handleAction}
+        onTrackDelivery={handleTrackDelivery}
+        canUpdate={canUpdateOrders}
+        busy={updateOrderStatus.isPending}
+      />
 
       <DispatchOrderDialog
         open={Boolean(pendingDispatchOrderId)}
@@ -313,9 +622,9 @@ export function OrdersPage() {
 
       <ConfirmActionDialog
         open={Boolean(pendingCancelId)}
-        title="Cancelar pedido"
-        description="Essa acao registra o cancelamento no historico e remove o pedido do fluxo operacional."
-        confirmLabel="Cancelar pedido"
+        title="Recusar ou cancelar pedido"
+        description="Essa acao registra a alteracao no historico e remove o pedido do fluxo operacional ativo."
+        confirmLabel="Confirmar"
         onOpenChange={(open) => {
           if (!open) {
             setPendingCancelId(null)
@@ -339,5 +648,215 @@ export function OrdersPage() {
         }}
       />
     </PageShell>
+  )
+}
+
+function SummaryChip({
+  label,
+  value,
+  tone,
+  icon,
+}: {
+  label: string
+  value: number
+  tone: 'cyan' | 'orange' | 'green' | 'red'
+  icon: ReactNode
+}) {
+  const toneClass = {
+    cyan: 'border-sky-400/15 bg-sky-500/[0.08] text-sky-300',
+    orange: 'border-orange-400/15 bg-orange-500/[0.08] text-orange-300',
+    green: 'border-emerald-400/15 bg-emerald-500/[0.08] text-emerald-300',
+    red: 'border-red-400/15 bg-red-500/[0.08] text-red-300',
+  }[tone]
+  const valueClass = {
+    cyan: 'text-sky-300',
+    orange: 'text-orange-300',
+    green: 'text-emerald-300',
+    red: 'text-red-300',
+  }[tone]
+
+  return (
+    <article className="rounded-[18px] border border-white/10 bg-[#071525]/82 px-4 py-3 shadow-[0_18px_52px_rgba(0,0,0,0.14)]">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className={cn('flex h-8 w-8 items-center justify-center rounded-xl border', toneClass)}>
+            {icon}
+          </span>
+          <p className="text-sm font-black text-slate-100">{label}</p>
+        </div>
+        <p className={cn('font-mono text-2xl font-black tabular-nums', valueClass)}>
+          {value}
+        </p>
+      </div>
+    </article>
+  )
+}
+
+function KanbanOrderColumn({
+  column,
+  orders,
+  selectedOrderId,
+  expanded,
+  canUpdate,
+  onToggleExpanded,
+  onOpen,
+  onAction,
+}: {
+  column: KanbanColumnConfig
+  orders: Order[]
+  selectedOrderId: string | null
+  expanded: boolean
+  canUpdate: boolean
+  onToggleExpanded: () => void
+  onOpen: (orderId: string) => void
+  onAction: (orderId: string, action: OrderAction) => void
+}) {
+  const toneClasses = buildColumnToneClasses(column.tone)
+  const visibleOrders = expanded ? orders : orders.slice(0, visiblePerColumn)
+
+  return (
+    <section
+      className={cn(
+        'flex min-h-[520px] min-w-0 flex-col rounded-[24px] border bg-[#061525]/78 p-3.5 shadow-[0_20px_70px_rgba(0,0,0,0.20)] ring-1 backdrop-blur-xl',
+        toneClasses.border,
+        toneClasses.ring,
+      )}
+    >
+      <header className="mb-3 flex items-start justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn('h-2.5 w-2.5 rounded-full', column.dotClass)} />
+            <h2 className="truncate text-sm font-black text-white">{column.title}</h2>
+            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 font-mono text-xs font-black text-slate-200">
+              {orders.length}
+            </span>
+          </div>
+          <p className="mt-1 text-xs font-medium text-slate-500">{column.description}</p>
+        </div>
+        <CircleDot className={cn('h-4 w-4 shrink-0', toneClasses.text)} />
+      </header>
+
+      <div className="flex-1 space-y-3">
+        {visibleOrders.map((order) => (
+          <KanbanOrderCard
+            key={order.id}
+            order={order}
+            column={column}
+            selected={order.id === selectedOrderId}
+            canUpdate={canUpdate}
+            onOpen={onOpen}
+            onAction={onAction}
+          />
+        ))}
+
+        {!orders.length ? (
+          <div className="rounded-[18px] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center">
+            <p className="text-sm font-semibold text-slate-500">Nenhum pedido nesta etapa.</p>
+          </div>
+        ) : null}
+      </div>
+
+      {orders.length > visiblePerColumn ? (
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="mt-3 flex h-10 items-center justify-center gap-2 rounded-xl text-xs font-black text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
+        >
+          {expanded ? 'Mostrar menos' : 'Ver mais pedidos'}
+          <ChevronDown className={cn('h-4 w-4 transition', expanded && 'rotate-180')} />
+        </button>
+      ) : null}
+    </section>
+  )
+}
+
+function KanbanOrderCard({
+  order,
+  column,
+  selected,
+  canUpdate,
+  onOpen,
+  onAction,
+}: {
+  order: Order
+  column: KanbanColumnConfig
+  selected: boolean
+  canUpdate: boolean
+  onOpen: (orderId: string) => void
+  onAction: (orderId: string, action: OrderAction) => void
+}) {
+  const toneClasses = buildColumnToneClasses(column.tone)
+  const primaryAction = getPrimaryOrderAction(order)
+  const itemCount = getOrderItemCountLabel(order)
+  const address = buildOrderAddress(order)
+  const canRunAction = Boolean(primaryAction.action) && canUpdate
+
+  return (
+    <article
+      className={cn(
+        'group rounded-[18px] border border-white/10 bg-[#091827]/86 p-3 text-left shadow-[0_12px_32px_rgba(0,0,0,0.16)] transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-[#0b1f34]',
+        selected && toneClasses.selected,
+      )}
+    >
+      <button type="button" className="block w-full text-left" onClick={() => onOpen(order.id)}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className={cn('font-mono text-sm font-black', toneClasses.text)}>{order.number}</p>
+            <div className="mt-2 flex min-w-0 items-center gap-2">
+              <h3 className="truncate text-sm font-black text-white">{order.customerName}</h3>
+              <span className="shrink-0 rounded-lg bg-white/[0.06] px-2 py-0.5 text-[10px] font-black text-slate-300 ring-1 ring-white/10">
+                {channelLabelMap[order.source]}
+              </span>
+            </div>
+          </div>
+          <span className="shrink-0 font-mono text-xs font-semibold text-slate-400">
+            {formatElapsedShort(order.createdAt)}
+          </span>
+        </div>
+
+        <p className="mt-3 flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
+          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+          <span className="truncate">{address}</span>
+        </p>
+
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3 text-xs text-slate-400">
+            <span className="inline-flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5 text-slate-500" />
+              {itemCount}
+            </span>
+            {order.delayed ? (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-red-500/12 px-2 py-1 font-black text-red-300 ring-1 ring-red-400/20">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Atrasado
+              </span>
+            ) : null}
+          </div>
+          <span className="font-mono text-sm font-black text-slate-100">
+            {formatCurrency(order.total)}
+          </span>
+        </div>
+      </button>
+
+      <div className="mt-3 flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={Boolean(primaryAction.action) && !canRunAction}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (primaryAction.action) {
+              onAction(order.id, primaryAction.action)
+              return
+            }
+
+            onOpen(order.id)
+          }}
+          className={cn('h-8 rounded-lg px-3 text-xs font-black shadow-none', toneClasses.button)}
+        >
+          {primaryAction.label}
+        </Button>
+      </div>
+    </article>
   )
 }

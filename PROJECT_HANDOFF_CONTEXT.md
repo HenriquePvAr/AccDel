@@ -1,137 +1,257 @@
-# Cain Delivery - Handoff Tecnico Completo
+# Cain Delivery - Contexto Canonico Para IA
 
-Atualizado em: 2026-05-07  
-Objetivo deste arquivo: permitir que outro chat/assistente entenda o projeto com o mesmo contexto operacional e tecnico acumulado ate aqui, sem precisar reconstruir tudo por tentativa e erro.
+Atualizado em: 2026-05-14  
+Objetivo: este arquivo deve permitir que qualquer IA entenda o sistema, continue o trabalho com seguranca e evite reabrir decisoes ja tomadas.
 
-## 1. Visao geral do produto
+## 1. Resumo executivo
 
-O projeto deixou de ser apenas um painel admin e hoje deve ser entendido como a base de uma plataforma de operacao para restaurante/delivery, com estes eixos:
+Cain Delivery e uma plataforma operacional para restaurantes e delivery.
 
-1. Admin / Operacao web
-2. API backend real
-3. Tracking e ETA de motoboys
-4. Base inicial do app do motoboy
-5. Estrutura futura para app do cliente, app do garcom, motor comercial, fidelidade e assinatura
+Nao e apenas um CRUD administrativo. O produto deve parecer e funcionar como uma central de operacao em tempo real para:
 
-Hoje o foco implementado de verdade esta no **Admin/Operacao** + **API real** + **tracking/ETA**.  
-O **app do motoboy** esta em implementacao inicial dentro de `apps/driver-app`.
+- pedidos
+- cozinha / KDS
+- salao / mesas
+- caixa
+- motoboys
+- tracking
+- ETA
+- despacho
+- catalogo
+- relatorios
+- administracao da loja
 
-## 2. Estrutura real do repositorio
+O foco principal e operacao real: fluxo de pedidos, estado consistente, API como fonte principal, tracking logistico e experiencia premium dark.
+
+Regra de ouro para qualquer IA:
+
+- Nao empurrar mock como solucao.
+- Nao esconder erro de TypeScript com `any`.
+- Nao criar tela bonita nova se o problema for funcional.
+- Nao remover funcionalidade real apenas para compilar.
+- Sempre preferir API real, Prisma e contratos existentes.
+
+## 2. Estado atual verificado
+
+Estado validado em 2026-05-14:
+
+- Admin web compila com `npm run build`.
+- API compila com `npm run api:build`.
+- App do motoboy passa no typecheck com `npm run driver:typecheck`.
+- Lint geral passa com `npm run lint`, mas ainda exibe warnings.
+- API lint passa com `npm run api:lint`.
+- Driver app lint passa com `npm run driver:lint`.
+
+Scripts que existem no `package.json` raiz:
+
+- `npm run dev`
+- `npm run build`
+- `npm run lint`
+- `npm run preview`
+- `npm run driver:dev`
+- `npm run driver:web`
+- `npm run driver:build`
+- `npm run driver:lint`
+- `npm run driver:typecheck`
+- `npm run api:dev`
+- `npm run api:build`
+- `npm run api:lint`
+- `npm run api:prisma:generate`
+- `npm run api:prisma:migrate`
+- `npm run api:seed`
+
+Scripts que nao existem atualmente:
+
+- `npm run web:typecheck`
+- `npm run web:build`
+- `npm run typecheck`
+
+Para typecheck/build do admin, usar `npm run build`, pois ele roda `tsc -b && vite build`.
+
+## 3. Estrutura do repositorio
 
 Raiz:
 
-- `src/` -> frontend admin web em React + Vite
-- `apps/api/` -> backend real em NestJS + Fastify + Prisma + PostgreSQL
-- `apps/driver-app/` -> novo app mobile do motoboy em Expo / React Native
-- `public/` -> assets publicos do admin
-- `docs/` -> material auxiliar antigo, nao e a fonte principal
+- `src/` - admin web em React + Vite
+- `apps/api/` - API real em NestJS + Prisma
+- `apps/driver-app/` - app do motoboy em Expo / React Native
+- `public/` - assets publicos do admin
+- `PROJECT_HANDOFF_CONTEXT.md` - este arquivo, fonte principal para handoff entre IAs
 
-Arquivos importantes na raiz:
+Arquivos raiz importantes:
 
 - `package.json`
-- `.env`
-- `.env.example`
 - `vite.config.ts`
 - `tailwind.config.js`
 - `eslint.config.js`
+- `.env`
+- `.env.example`
 
-Arquivos importantes do backend:
+Backend:
 
 - `apps/api/package.json`
 - `apps/api/prisma/schema.prisma`
 - `apps/api/prisma/seed.ts`
-- `apps/api/.env.example`
 - `apps/api/src/app.module.ts`
+- `apps/api/src/shared/store-context.ts`
 
-Arquivos importantes do mobile driver app:
+Driver app:
 
 - `apps/driver-app/package.json`
 - `apps/driver-app/app.json`
-- `apps/driver-app/.env.example`
 - `apps/driver-app/App.tsx`
+- `apps/driver-app/src/types/assets.d.ts`
 
-## 3. Stack atual
+## 4. Stack
 
-### Frontend admin
+Admin web:
 
-- React 19
+- React
 - TypeScript
 - Vite
 - Tailwind CSS
 - Radix UI
 - Zustand
 - TanStack Query
-- Recharts
 - Framer Motion
+- Recharts
 - Lucide React
 - MapLibre GL JS
+- react-virtual / TanStack Virtual
 
-### Backend
+API:
 
-- Node.js
-- NestJS 11
-- Fastify
+- NestJS
+- TypeScript
 - Prisma
 - PostgreSQL
-- Zod para validacao de contratos
+- Zod
 - JWT auth
 
-### Mapa / tracking / ETA
+Tracking / rotas:
 
 - MapLibre GL JS no admin
-- base de mapa open source / OpenStreetMap-friendly
-- OSRM para calculo de rota e ETA
-- fallback de rota quando OSRM falha
+- OpenStreetMap / OpenFreeMap como base conceitual
+- OSRM para rota e ETA
+- arquitetura preparada para fallback e futuro Valhalla
 
-### App do motoboy
+Driver app:
 
-- Expo SDK 54
-- React Native 0.81
-- React 19
+- Expo
+- React Native
+- React
+- TypeScript
 - TanStack Query
 - AsyncStorage
 - Expo Location
-- Expo Linear Gradient
 - Lucide React Native
 
-## 4. Shell visual e identidade
+## 5. Direcao visual
 
-O admin ja tem um shell visual consolidado e esse shell deve ser preservado:
+O admin ja tem linguagem visual consolidada. Preserve.
 
-- fundo dark navy/preto
-- cards escuros premium
-- acento laranja Cain
-- bordas suaves e brilho controlado
-- sidebar fixa escura
-- topbar consistente
-- `PageShell`, `SectionHeader`, `StatCard`, `Card`, `Button` e derivados formam o design system base
+Direcao:
 
-Arquivos importantes do design system atual:
+- dark premium
+- operacional/logistico
+- moderno
+- estilo Linear / Stripe / Uber Fleet
+- glassmorphism leve
+- glow operacional controlado
+- bordas suaves
+- motion refinado
 
-- `src/styles/globals.css`
-- `src/components/ui/button.tsx`
-- `src/components/ui/card.tsx`
+Evitar:
+
+- visual gamer
+- dashboard bootstrap
+- CRUD generico
+- cards gigantes sem funcao
+- excesso de cores vibrantes
+- landing pages desnecessarias
+
+Paleta conceitual:
+
+- fundo azul petroleo/preto
+- laranja operacional
+- azul realtime
+- verde status operacional
+- amarelo alerta
+- vermelho atraso/critico
+
+Componentes base:
+
 - `src/components/shared/PageShell.tsx`
 - `src/components/shared/SectionHeader.tsx`
+- `src/components/shared/EmptyState.tsx`
 - `src/components/shared/StatCard.tsx`
+- `src/components/ui/button.tsx`
+- `src/components/ui/card.tsx`
+- `src/styles/globals.css`
 
-Asset visual oficial do login/admin:
+## 6. Arquitetura mental do sistema
 
-- `public/auth/login-brand-panel.png`
+Fluxo principal:
 
-Esse mesmo asset ja foi copiado para o app do motoboy em:
+1. Admin cria ou recebe pedidos.
+2. `orders` e a fonte de verdade operacional.
+3. Cozinha consome pedidos em preparo/prontos.
+4. Salao consome mesas/sessoes/pedidos.
+5. Caixa registra movimentos ligados a vendas.
+6. Motoboys consomem entregas e enviam localizacao.
+7. Tracking calcula rota/ETA.
+8. Relatorios consolidam pedidos, caixa, entregas e operacao.
+9. Realtime invalida queries e atualiza telas sem refresh manual.
 
-- `apps/driver-app/assets/brand/login-brand-panel.png`
+Regra importante:
 
-## 5. Navegacao real do admin
+- Nao criar segunda fonte de verdade para pedido, status, rota ou ETA.
+- Se um modulo precisa de estado de pedido, deve consumir `orders` ou endpoint derivado da API.
 
-Fonte de verdade da navegacao:
+## 7. Modulos implementados
+
+Modulos com backend real ou base real:
+
+- Auth admin
+- Users list
+- Orders
+- Customers
+- Kitchen
+- Dining / mesas / sessoes
+- Waiters
+- Drivers
+- Driver locations
+- Driver routes
+- Delivery assignments
+- ETA snapshots
+- Cash
+- Catalog categories
+- Catalog products
+- Reports
+- Store settings
+- Operational settings
+- SSE realtime para feed logistico/admin
+
+Modulos ainda incompletos:
+
+- Users CRUD completo ainda nao existe. Existe `GET /users` real.
+- Promotions ainda nao tem modelo/endpoints Prisma reais.
+- Coupons ainda nao tem modelo/endpoints Prisma reais.
+- App do cliente nao existe.
+- Motor comercial completo nao existe.
+- Fidelidade/cashback/assinatura nao existem.
+- WebSocket completo ainda nao e a espinha dorsal de todo o sistema.
+- Background tracking mobile de producao ainda precisa validacao em device real.
+
+## 8. Rotas do admin
+
+Fonte:
 
 - `src/app/navigation.ts`
 - `src/app/router/index.tsx`
 - `src/app/layout/AdminLayout.tsx`
 
-Rotas internas reais hoje:
+Rotas principais:
 
 - `/dashboard`
 - `/orders`
@@ -156,111 +276,24 @@ Rotas internas reais hoje:
 - `/settings/preferences`
 - `/login`
 
-## 6. Estado real dos modulos
+## 9. Backend e banco
 
-### Modulos reais com backend integrado
-
-- Auth admin
-- Orders
-- Catalogo: categorias/produtos
-- Cash
-- Drivers
-- Waiters
-- Dining / tables / sessions
-- Kitchen
-- Reports operacionais
-- Settings da loja / settings operacionais
-- Tracking/ETA de motoboy
-
-### Modulos ainda front-only, mockados ou parciais
-
-- `settings/users` ainda esta mockado no frontend; nao existe hoje um modulo backend real de usuarios CRUD
-- `catalog/promotions` ainda nao esta fechado como dominio real
-- `catalog/coupons` ainda nao esta fechado como dominio real
-- app do cliente nao existe ainda
-- motor comercial completo (promocoes/fidelidade/cashback/assinatura) nao existe ainda
-- realtime por websocket ainda nao e a base principal; o projeto usa polling/refresh e alguns mocks internos
-
-### Paginas importantes que ja estao operacionais no admin
-
-- Pedidos / Delivery
-- Detalhe do pedido
-- Novo pedido
-- Salao / Mesas
-- Garcons
-- Motoboys
-- Localizacao dos motoboys com mapa real
-- Cozinha / KDS operacional
-- Caixa
-- Historico de pedidos
-- Relatorios
-- Produtos
-- Login admin
-
-## 7. Auth e permissoes
-
-Modulo:
-
-- `apps/api/src/modules/auth`
-
-Endpoints reais:
-
-- `POST /auth/login`
-- `GET /auth/me`
-
-Tecnologia:
-
-- JWT access token
-- senha com hash bcrypt
-- sessao baseada em `storeUser`
-
-Roles reais hoje:
-
-- `owner`
-- `manager`
-- `attendant`
-- `cashier`
-- `kitchen`
-- `waiter`
-- `driver`
-- `supervisor`
-
-Fonte da matriz de permissoes:
-
-- `apps/api/src/modules/auth/auth.permissions.ts`
-
-Observacao importante:
-
-- role `driver` hoje tem permissao `drivers:view`
-- por causa disso foram adicionados endpoints `drivers/me/...` para o app do motoboy nao depender de endpoints administrativos por ID
-
-## 8. Banco e modelagem real
-
-Fonte de verdade:
+Fonte de verdade do banco:
 
 - `apps/api/prisma/schema.prisma`
 
-Enums principais:
+Store fixa de desenvolvimento:
 
-- `OrderStatus`
-- `OrderChannel`
-- `PaymentMethod`
-- `AdminRole`
-- `DriverAvailabilityStatus`
-- `WaiterOperationalStatus`
-- `DiningTableStatus`
-- `TableSessionStatus`
-- `DriverLocationSource`
-- `DeliveryAssignmentStatus`
+- `DEFAULT_STORE_ID = 'store_main'`
+- arquivo: `apps/api/src/shared/store-context.ts`
 
-Modelos principais implementados:
+Modelos principais:
 
 - `Store`
 - `User`
 - `StoreUser`
 - `DriverProfile`
 - `WaiterProfile`
-- `WaiterHistoryEntry`
 - `Customer`
 - `CustomerAddress`
 - `Category`
@@ -280,64 +313,75 @@ Modelos principais implementados:
 - `TableSessionItem`
 - `TableSessionEvent`
 
-Store padrao fixa do projeto:
+Enums importantes:
 
-- `DEFAULT_STORE_ID = 'store_main'`
-- arquivo: `apps/api/src/shared/store-context.ts`
+- `AdminRole`
+- `UserStatus`
+- `OrderStatus`
+- `OrderChannel`
+- `PaymentMethod`
+- `DriverAvailabilityStatus`
+- `DriverLocationSource`
+- `DeliveryAssignmentStatus`
+- `DiningTableStatus`
+- `TableSessionStatus`
+- `WaiterOperationalStatus`
 
-## 9. Seed e contas de desenvolvimento
+## 10. Auth e permissoes
 
-Fonte:
+Modulo:
 
-- `apps/api/prisma/seed.ts`
+- `apps/api/src/modules/auth`
 
-Loja seed:
+Endpoints:
 
-- nome: `Cain Delivery`
-- trade name: `Cain Burger House`
-- cidade: `Manaus`
-- coordenadas da loja: `-3.1019, -60.0217`
+- `POST /auth/login`
+- `GET /auth/me`
 
-Senha padrao dos usuarios seed:
+Permissoes:
 
-- `Demo@123456`
+- fonte: `apps/api/src/modules/auth/auth.permissions.ts`
 
-Contas principais seed:
+Roles:
 
-- `owner@cain.local`
-- `manager@cain.local`
-- `attendant@cain.local`
-- `cashier@cain.local`
-- `kitchen@cain.local`
-- `waiter@cain.local`
-- `driver@cain.local`
-- `ana.driver@cain.local`
-- `igo.driver@cain.local`
-- `rafa.driver@cain.local`
-- `supervisor@cain.local`
+- `owner`
+- `manager`
+- `attendant`
+- `cashier`
+- `kitchen`
+- `waiter`
+- `driver`
+- `supervisor`
 
-Motoboy seed principal em entrega:
+O app do motoboy deve usar a mesma auth JWT. Nao criar auth paralela.
 
-- usuario: `driver@cain.local`
-- nome: `Diego Paz`
-- status seed: `delivering`
-- pedido seed em rota: `#1004`
+## 11. Endpoints reais por dominio
 
-Pedido delivery seed importante:
+### Auth
 
-- `ord_1004`
-- numero `#1004`
-- status `out_for_delivery`
-- `driverId = usr_driver_diego`
-- assignment ativa: `assign_1004_diego`
+- `POST /auth/login`
+- `GET /auth/me`
 
-## 10. Backend real por dominio
+### Users
+
+Modulo:
+
+- `apps/api/src/modules/users`
+
+Endpoint real:
+
+- `GET /users`
+
+Observacao:
+
+- A tela `src/pages/UsersSettingsPage.tsx` consome esse endpoint.
+- Ainda nao existe CRUD completo de usuarios.
 
 ### Orders
 
-Controller:
+Modulo:
 
-- `apps/api/src/modules/orders/orders.controller.ts`
+- `apps/api/src/modules/orders`
 
 Endpoints:
 
@@ -346,19 +390,54 @@ Endpoints:
 - `POST /orders`
 - `PATCH /orders/:id/status`
 - `POST /orders/:id/repeat`
-- `GET /orders/:id/tracking` (publico)
+- `GET /orders/:id/tracking`
 
-Observacoes:
+Status esperados:
 
-- `accept` leva pedido para `in_preparation`
-- `ready` leva para `ready`
-- `dispatch` leva para `out_for_delivery` e vincula motoboy
-- `complete` finaliza
-- `cancel` cancela
+- `in_analysis`
+- `in_preparation`
+- `ready`
+- `out_for_delivery`
+- `completed`
+- `cancelled`
 
-### Catalogo
+Acoes principais:
 
-Endpoints reais existentes para categorias/produtos:
+- `accept`
+- `start_preparation`
+- `ready`
+- `dispatch`
+- `complete`
+- `cancel`
+
+### Customers
+
+Modulo:
+
+- `apps/api/src/modules/customers`
+
+Endpoint:
+
+- `GET /customers`
+
+### Kitchen
+
+Modulo:
+
+- `apps/api/src/modules/kitchen`
+
+Endpoints:
+
+- `GET /kitchen/queue`
+- `PATCH /kitchen/orders/:id/ready`
+
+### Catalog
+
+Modulo:
+
+- `apps/api/src/modules/catalog`
+
+Endpoints reais para categorias/produtos:
 
 - `GET /catalog/categories`
 - `GET /catalog/products`
@@ -367,34 +446,37 @@ Endpoints reais existentes para categorias/produtos:
 - `PATCH /catalog/products/:id/sold-out`
 - `PATCH /catalog/products/:id/channels`
 
-### Cash
+Nao existem ainda endpoints reais para:
 
-Endpoints:
+- `promotions`
+- `coupons`
 
-- `GET /cash/register`
-- `POST /cash/register/movement`
-- `POST /cash/register/close`
+No admin, em modo API, promocoes e cupons nao devem exibir mock como se fosse dado real. Hoje retornam lista vazia e empty state honesto.
 
 ### Drivers
 
-Controller:
+Modulo:
 
-- `apps/api/src/modules/drivers/drivers.controller.ts`
+- `apps/api/src/modules/drivers`
 
 Endpoints administrativos:
 
 - `GET /drivers`
 - `GET /drivers/locations/active`
+- `GET /drivers/stream/live`
 - `GET /drivers/:id`
 - `GET /drivers/:id/tracking-policy`
 - `GET /drivers/:id/location`
 - `GET /drivers/:id/route`
+- `GET /drivers/:id/dispatch-candidates`
+- `POST /drivers/:id/route-preview`
 - `POST /drivers`
 - `POST /drivers/:id/location`
 - `POST /drivers/:id/simulate-location`
 - `PATCH /drivers/:id`
+- `PATCH /drivers/:id/queue`
 
-Endpoints especificos do app do motoboy adicionados agora:
+Endpoints do app do motoboy:
 
 - `GET /drivers/me/app-state`
 - `GET /drivers/me/tracking-policy`
@@ -405,17 +487,15 @@ Endpoints especificos do app do motoboy adicionados agora:
 - `POST /drivers/me/delivery/start`
 - `POST /drivers/me/delivery/complete`
 
-Observacoes importantes:
+Regra:
 
-- `drivers/me/*` exige que o usuario autenticado seja role `driver`
-- o app do motoboy deve usar os endpoints `me`, nao os endpoints administrativos por ID
-- `POST /drivers/me/location` usa a mesma regra de tracking seguro do backend
+- O app do motoboy deve usar `drivers/me/*`, nao endpoints administrativos por ID.
 
 ### Dining
 
-Controller:
+Modulo:
 
-- `apps/api/src/modules/dining/dining.controller.ts`
+- `apps/api/src/modules/dining`
 
 Endpoints:
 
@@ -434,9 +514,9 @@ Endpoints:
 
 ### Waiters
 
-Controller:
+Modulo:
 
-- `apps/api/src/modules/waiters/waiters.controller.ts`
+- `apps/api/src/modules/waiters`
 
 Endpoints:
 
@@ -446,226 +526,335 @@ Endpoints:
 - `PATCH /waiters/:id`
 - `PATCH /waiters/:id/status`
 
-### Kitchen
+### Cash
 
-Controller:
+Modulo:
 
-- `apps/api/src/modules/kitchen/kitchen.controller.ts`
+- `apps/api/src/modules/cash`
 
 Endpoints:
 
-- `GET /kitchen/queue`
-- `PATCH /kitchen/orders/:id/ready`
+- `GET /cash/register`
+- `POST /cash/register/movement`
+- `POST /cash/register/close`
 
 ### Reports
 
-Controller:
+Modulo:
 
-- `apps/api/src/modules/reports/reports.controller.ts`
+- `apps/api/src/modules/reports`
 
-Endpoints:
+Endpoint:
 
 - `GET /reports/operational`
 
 ### Settings
 
-Controller:
+Modulo:
 
-- `apps/api/src/modules/settings/settings.controller.ts`
+- `apps/api/src/modules/settings`
 
-Endpoints reais hoje:
+Endpoints:
 
 - `GET /settings/store`
 - `PATCH /settings/store/operational`
 
-Observacao:
+## 12. Frontend admin: padroes de dados
 
-- `settings/users` ainda nao tem backend real
+Contratos:
 
-## 11. Tracking, rota e ETA
+- `src/contracts`
 
-Arquivo central:
+Services:
+
+- `src/services`
+
+Queries/mutations:
+
+- `src/hooks/queries`
+
+Tipos de dominio:
+
+- `src/types/domain.ts`
+
+Regra:
+
+- UI nao deve importar `src/mocks` diretamente.
+- Produto deve consumir hooks de query.
+- Hooks devem consumir services.
+- Services devem consumir API quando `VITE_DATA_SOURCE` nao for `mock`.
+
+`shouldUseApi`:
+
+- arquivo: `src/services/http/api-client.ts`
+- valor: `VITE_DATA_SOURCE !== 'mock'`
+
+Modo API:
+
+- fonte principal deve ser backend real.
+
+Modo mock:
+
+- permitido apenas para demo/desenvolvimento explicito.
+- nao deve ser silencioso em tela de produto.
+
+## 13. Realtime
+
+Arquivos importantes:
+
+- `src/app/providers/AppProviders.tsx`
+- `src/services/realtime/admin-realtime-stream.ts`
+- `src/services/realtime/events.ts`
+- `src/services/realtime/mock-realtime.ts`
+- `apps/api/src/shared/realtime/admin-realtime.service.ts`
+
+Estado atual:
+
+- Em modo API, o admin usa SSE via `GET /drivers/stream/live`.
+- Em modo mock, o admin usa `mockRealtimeBus`.
+- Eventos de realtime invalidam queries do React Query.
+
+Eventos conhecidos no frontend:
+
+- `order.created`
+- `order.updated`
+- `order.status_changed`
+- `driver.location_updated`
+- `driver.queue_updated`
+- `driver.status_updated`
+- `cash.updated`
+- `catalog.product_updated`
+- `dining.session_updated`
+
+Atencao:
+
+- O realtime ainda nao cobre todo o produto como espinha dorsal completa.
+- O proximo passo arquitetural e ampliar eventos reais e reduzir dependencias de polling/manual refetch.
+
+## 14. Tracking, rota e ETA
+
+Servico central de rotas:
 
 - `apps/api/src/shared/routing/routing.service.ts`
 
-Provider principal:
+Provider:
 
 - OSRM
-- base URL default: `https://router.project-osrm.org`
-- sobrescrevivel por `OSRM_BASE_URL`
+- env opcional: `OSRM_BASE_URL`
 
-Comportamento:
+Fallback:
 
-- se OSRM responder corretamente, provider = `osrm`
-- se OSRM falhar, o sistema cai para `fallback`
-- fallback calcula distancia por haversine e tempo estimado com velocidade media simplificada
+- Se OSRM falhar, a API calcula distancia aproximada por haversine e ETA simplificado.
 
-Arquivos principais do tracking:
+Entidades importantes:
 
-- `apps/api/src/modules/drivers/drivers.service.ts`
-- `apps/api/src/modules/orders/orders.service.ts`
+- `driver_locations`
+- `delivery_assignments`
+- `eta_snapshots`
 
-Regras reais importantes:
+Regras de tracking:
 
-1. Localizacao automatica so e aceita quando o motoboy esta em entrega ativa.
-2. O backend exige:
-   - membership ativa
-   - user status `active`
-   - `driverProfile.active === true`
-   - `driverProfile.availability === 'delivering'`
-   - pelo menos um pedido delivery com status `out_for_delivery`
-3. Se o payload vier com status `available` ou `paused`, o backend bloqueia tracking automatico.
-4. `getDriverTrackingPolicy` retorna hoje:
-   - `trackingEnabled`
-   - `intervalSeconds = 60`
-   - `minDistanceMeters = 35`
-   - `reason`
-   - `currentOrderId`
-5. `getDriverRoute` devolve:
-   - localizacao da loja
-   - localizacao atual do motoboy
-   - lista de paradas
-   - geometria da rota
-   - ETA total
-   - distancia total
-   - provider
-6. `getOrderTracking` e publico e nao expoe rota completa nem outros clientes.
+- Motoboy so deve enviar localizacao quando estiver em entrega.
+- Intervalo esperado: aproximadamente 1 minuto.
+- Evitar tracking desnecessario.
+- Backend deve bloquear tracking automatico fora de entrega ativa.
 
-## 12. Mapa real no admin
+Mapa admin:
+
+- pagina: `src/pages/DriverLocationPage.tsx`
+- componentes: `src/features/drivers/components`
+- mapa: MapLibre GL JS
+
+Funcionalidades atuais:
+
+- mapa realtime
+- markers de motoboys
+- marcador da loja
+- rota desenhada
+- ETA
+- distancia restante
+- tracking automatico/simulado
+- preview de rota
+- central de despacho
+- lista virtualizada
+- painel operacional
+- modal de despacho
+- calculo de impacto operacional
+- reorder de rota base via fila do motoboy
+
+Pendencias importantes:
+
+- smooth movement real completo
+- consumir rota ja percorrida
+- snap leve na via
+- clustering inteligente
+- replay operacional
+- otimizacao multi-stop mais avancada
+
+## 15. Novo pedido
 
 Pagina:
 
-- `/drivers/location`
+- `src/pages/NewOrderPage.tsx`
 
-Stack:
+Store:
 
-- MapLibre GL JS
-- base de mapa open source
-- OSRM para rota/ETA
+- `src/stores/new-order-store.ts`
 
-Status atual:
+Estado atual:
 
-- o mapa real ja aparece e funciona
-- loja aparece
-- motoboys aparecem
-- rota aparece quando ha coordenadas suficientes
-- popups/cards mostram dados operacionais
+- Nao nasce mais com `cus_1` / `addr_1`.
+- Cliente e endereco precisam vir da API/clientes carregados.
+- Rascunho e salvo automaticamente via Zustand persist.
+- Botao fake de cupom foi removido.
+- Botao fake de "Salvar rascunho" foi removido e substituido por indicacao passiva de auto-save.
 
-## 13. Cozinha / KDS
+Atencao:
 
-Status:
+- Motor real de cupons ainda nao existe.
+- Nao reintroduzir input/botao de cupom ate haver backend/contrato real.
 
-- modulo real, nao placeholder
-- consome pedidos em preparo e prontos
-- mostra SLA / atraso / canal / cliente-mesa / itens
-- permite marcar pedido como pronto
-- reflete de volta no fluxo de pedidos
+## 16. Promocoes e cupons
 
-Arquivos centrais:
+Paginas:
 
-- `src/pages/KitchenPage.tsx`
-- `src/services/kitchen/kitchen-service.ts`
-- `src/hooks/queries/kitchen.ts`
-- `apps/api/src/modules/kitchen/*`
+- `src/pages/PromotionsPage.tsx`
+- `src/pages/CouponsPage.tsx`
 
-## 14. Users settings: estado real
+Estado atual:
+
+- Em modo API, nao usam mock silencioso.
+- Como nao ha backend real, exibem empty state honesto.
+
+Service:
+
+- `src/services/catalog/catalog-service.ts`
+
+Pendente para virar produto real:
+
+1. Criar modelos Prisma para promotion/coupon.
+2. Criar migrations.
+3. Criar contracts Zod na API.
+4. Criar controllers/services Nest.
+5. Criar contracts frontend.
+6. Atualizar services frontend para chamar API.
+7. Implementar criacao/edicao/validacao.
+8. Integrar cupons ao fluxo de novo pedido.
+
+## 17. Users
 
 Pagina:
 
 - `src/pages/UsersSettingsPage.tsx`
 
-Estado real atual:
+Backend:
 
-- ainda renderiza `usersMock`
-- nao existe hoje um modulo backend `users` no `apps/api/src/modules`
-- portanto o CRUD real de usuarios administrativos nao esta fechado
+- `apps/api/src/modules/users`
 
-Isso e importante para qualquer novo chat nao assumir que essa parte ja esta pronta.
+Frontend:
 
-## 15. App do motoboy: estado atual exato
+- `src/contracts/users`
+- `src/services/users/users-service.ts`
+- `src/hooks/queries/users.ts`
+
+Estado atual:
+
+- `GET /users` real existe e lista usuarios da loja via Prisma.
+- Tela de usuarios nao usa mais `usersMock`.
+
+Pendente:
+
+- CRUD completo de usuarios.
+- Edicao de role.
+- Ativacao/desativacao pela tela.
+- Reset de senha/convite.
+- Auditoria de permissoes.
+
+## 18. App do motoboy
 
 Diretorio:
 
 - `apps/driver-app`
 
-Stack:
+Objetivo:
 
-- Expo / React Native
+- App operacional do motoboy, nao painel admin.
+- Deve usar auth real e endpoints `drivers/me/*`.
+- Deve enviar localizacao somente quando policy permitir.
 
-Scripts:
-
-- `npm --prefix apps/driver-app run start`
-- `npm --prefix apps/driver-app run web`
-- `npm --prefix apps/driver-app run build`
-- `npm --prefix apps/driver-app run lint`
-- `npm --prefix apps/driver-app run typecheck`
-
-Arquivos criados nesta rodada:
+Arquivos importantes:
 
 - `apps/driver-app/App.tsx`
-- `apps/driver-app/src/lib/theme.ts`
-- `apps/driver-app/src/lib/format.ts`
-- `apps/driver-app/src/types/api.ts`
+- `apps/driver-app/src/screens/driver-login-screen.tsx`
+- `apps/driver-app/src/screens/driver-home-screen.tsx`
 - `apps/driver-app/src/api/client.ts`
 - `apps/driver-app/src/api/auth.ts`
 - `apps/driver-app/src/api/driver.ts`
-- `apps/driver-app/src/providers/auth-context.ts`
-- `apps/driver-app/src/providers/auth-provider.tsx`
-- `apps/driver-app/src/hooks/use-driver-auth.ts`
-- `apps/driver-app/src/hooks/use-driver-state.ts`
 - `apps/driver-app/src/hooks/use-tracking-scheduler.ts`
-- `apps/driver-app/src/components/action-pill.tsx`
-- `apps/driver-app/src/components/delivery-stop-row.tsx`
-- `apps/driver-app/src/components/metric-chip.tsx`
-- `apps/driver-app/src/components/section-card.tsx`
-- `apps/driver-app/src/screens/driver-login-screen.tsx`
-- `apps/driver-app/src/screens/driver-home-screen.tsx`
-- `apps/driver-app/assets/brand/login-brand-panel.png`
+- `apps/driver-app/src/types/assets.d.ts`
 
-O que o app ja tenta fazer:
+Correcao importante:
 
-- login real com `/auth/login`
-- sessao persistida com AsyncStorage
-- validacao de sessao com `/auth/me`
-- tela de login com acabamento premium dark alinhado ao login do admin
-- home operacional do motoboy
-- leitura do estado atual via `GET /drivers/me/app-state`
-- acoes:
-  - iniciar entrega
-  - finalizar entrega
-  - pausar/disponivel
-- scheduler de localizacao com `expo-location`
-- envio automatico de localizacao em intervalo baseado na policy
-- invalida o estado no React Query apos envio
+- Imports de imagem `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg` sao tipados em `apps/driver-app/src/types/assets.d.ts`.
 
-Status de validacao do mobile neste momento:
+Validado:
 
-- backend necessario para o app foi adicionado e `api:build` + `api:lint` passaram
-- `apps/driver-app` ja foi scaffoldado e `typecheck` passou
-- o app ainda estava em fase de ajuste fino de lint/validacao final quando este handoff foi gerado
-- portanto o app do motoboy deve ser entendido como **WIP funcional**, nao como modulo completamente homologado
+- `npm run driver:typecheck` passa.
+- `npm run driver:lint` passa.
 
-## 16. Env e execucao local
+Pendente:
 
-### Frontend admin
+- Validar runtime em device/emulador.
+- Validar permissao real de localizacao.
+- Validar background tracking em plataforma real.
+- Validar fluxo iniciar/finalizar entrega ponta a ponta com admin aberto.
 
-Arquivo exemplo:
+## 19. Seeds e credenciais de desenvolvimento
 
-- `.env.example`
+Seed:
 
-Valores:
+- `apps/api/prisma/seed.ts`
+
+Loja:
+
+- nome: Cain Delivery
+- trade name: Cain Burger House
+- cidade: Manaus
+- coordenadas aproximadas: latitude `-3.1019`, longitude `-60.0217`
+
+Senha padrao seed:
+
+- `Demo@123456`
+
+Contas seed comuns:
+
+- `owner@cain.local`
+- `manager@cain.local`
+- `attendant@cain.local`
+- `cashier@cain.local`
+- `kitchen@cain.local`
+- `waiter@cain.local`
+- `driver@cain.local`
+- `ana.driver@cain.local`
+- `igo.driver@cain.local`
+- `rafa.driver@cain.local`
+- `supervisor@cain.local`
+
+Motoboy seed principal:
+
+- email: `driver@cain.local`
+- nome: Diego Paz
+- papel: `driver`
+
+## 20. Ambiente
+
+Admin `.env`:
 
 - `VITE_API_BASE_URL=http://localhost:3333`
 - `VITE_API_URL=http://localhost:3333`
 - `VITE_DATA_SOURCE=api`
 
-### Backend
-
-Arquivo exemplo:
-
-- `apps/api/.env.example`
-
-Valores principais:
+API `.env`:
 
 - `DATABASE_URL`
 - `DIRECT_URL`
@@ -673,89 +862,223 @@ Valores principais:
 - `WEB_ORIGIN=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173`
 - `JWT_ACCESS_SECRET`
 - `JWT_ACCESS_EXPIRES_IN=8h`
+- `OSRM_BASE_URL` opcional
 
-### Driver app
-
-Arquivo exemplo:
-
-- `apps/driver-app/.env.example`
-
-Valor:
+Driver app `.env`:
 
 - `EXPO_PUBLIC_API_BASE_URL=http://localhost:3333`
 
-Observacao importante para device fisico:
+Atencao para celular fisico:
 
-- em celular real, `localhost` nao aponta para a maquina do backend
-- nesse caso sera necessario trocar para o IP local da maquina
+- `localhost` no celular aponta para o proprio celular.
+- Para device real, usar IP local da maquina que roda a API.
 
-## 17. Comandos principais
+## 21. Comandos de desenvolvimento
 
-Na raiz:
+Instalar dependencias:
 
-- `npm run dev`
-- `npm run build`
-- `npm run lint`
-- `npm run preview`
-- `npm run api:dev`
-- `npm run api:build`
-- `npm run api:lint`
-- `npm run api:prisma:migrate`
-- `npm run api:seed`
-- `npm run driver:dev`
-- `npm run driver:web`
-- `npm run driver:build`
-- `npm run driver:lint`
-- `npm run driver:typecheck`
+```bash
+npm install
+```
 
-## 18. Estado de qualidade conhecido
+Rodar API:
 
-Ultimas validacoes conhecidas antes deste handoff:
+```bash
+npm run api:dev
+```
 
-- frontend admin: build e lint ja passaram em rodadas anteriores
-- backend API: build e lint passaram apos a adicao dos endpoints `drivers/me/*`
-- kitchen estava funcional em runtime
-- mapa de motoboys estava aparecendo e funcionando em `/drivers/location`
-- driver app: `typecheck` passou; lint/build final do mobile ainda precisam ser reexecutados apos os ultimos ajustes
+Rodar admin:
 
-## 19. Pendencias reais
+```bash
+npm run dev
+```
 
-Pendencias importantes, sem romantizacao:
+Rodar app do motoboy:
 
-1. `settings/users` ainda nao tem backend CRUD real.
-2. `promotions` e `coupons` ainda nao foram levados para backend real.
-3. app do cliente nao existe.
-4. app do motoboy esta em implementacao inicial e precisa de validacao final de runtime.
-5. tracking do motoboy ainda deve ser entendido como base inicial; background tracking real de producao ainda pode exigir evolucao adicional.
-6. realtime amplo via websocket/SSE ainda nao e a espinha dorsal do sistema.
-7. motor comercial completo de fidelidade/cashback/assinatura ainda nao foi implementado.
+```bash
+npm run driver:dev
+```
 
-## 20. Melhor forma de continuar o projeto em outro chat
+Build/typecheck admin:
 
-Se outro chat for continuar daqui, ele deve partir destas premissas:
+```bash
+npm run build
+```
 
-1. Nao refazer admin shell, auth ou modulos core.
-2. Tratar `orders`, `catalog`, `cash`, `drivers`, `waiters`, `dining`, `kitchen`, `reports`, `settings/store` como base ja real.
-3. Tratar `settings/users`, `promotions`, `coupons`, app cliente e motor comercial como frentes ainda abertas.
-4. Tratar `apps/driver-app` como a frente atual em progresso.
-5. Preservar o visual premium dark do admin como linguagem oficial do produto.
-6. Reaproveitar auth JWT existente; nao criar auth paralela para mobile.
-7. Usar os endpoints `drivers/me/*` no app do motoboy, nao os endpoints administrativos por ID.
+Build API:
 
-## 21. Recomendacao imediata de continuidade
+```bash
+npm run api:build
+```
 
-Se a proxima conversa for continuar a execucao, a ordem mais segura e:
+Typecheck driver app:
 
-1. finalizar lint/build do `apps/driver-app`
-2. validar login do motoboy em runtime
-3. validar `GET /drivers/me/app-state`
-4. validar `POST /drivers/me/location`
-5. validar `POST /drivers/me/delivery/start`
-6. validar `POST /drivers/me/delivery/complete`
-7. abrir `/drivers/location` no admin e confirmar reflexo do tracking
+```bash
+npm run driver:typecheck
+```
 
----
+Lint:
 
-Se for necessario pedir continuidade em outro chat, a frase mais util e:
+```bash
+npm run lint
+npm run api:lint
+npm run driver:lint
+```
 
-> "Use `PROJECT_HANDOFF_CONTEXT.md` como fonte principal de verdade do estado atual. Preserve a arquitetura atual. O foco agora e continuar a partir do ponto exato descrito no handoff, sem reabrir frentes ja fechadas."
+Prisma:
+
+```bash
+npm run api:prisma:generate
+npm run api:prisma:migrate
+npm run api:seed
+```
+
+## 22. Ultimas validacoes conhecidas
+
+Em 2026-05-14:
+
+```bash
+npm run build
+```
+
+Resultado:
+
+- passou
+- observacao: Vite avisou sobre chunks grandes, principalmente `DriverLocationPage`
+
+```bash
+npm run api:build
+```
+
+Resultado:
+
+- passou
+
+```bash
+npm run driver:typecheck
+```
+
+Resultado:
+
+- passou
+
+```bash
+npm run lint
+```
+
+Resultado:
+
+- passou com warnings
+
+Warnings conhecidos:
+
+- `DriverCompactList.tsx`: React Compiler avisa sobre `useVirtualizer`.
+- `DriverMapPanel.tsx`: cleanup de ref em animation frame.
+- `DriverOrdersModal.tsx`: `assignedStops` poderia ser memoizado antes de outros `useMemo`.
+
+```bash
+npm run api:lint
+npm run driver:lint
+```
+
+Resultado:
+
+- ambos passaram
+
+## 23. O que foi estabilizado recentemente
+
+Admin web:
+
+- corrigido build/typecheck em `DeliveryDetailsPanel.tsx`
+- corrigido build/typecheck em `DriverMapPanel.tsx`
+- corrigido build/typecheck em `DriverLocationPage.tsx`
+- corrigida tipagem de eventos realtime
+- corrigida sincronizacao de draft de rota para satisfazer lint/React Compiler
+
+Driver app:
+
+- adicionada declaracao de assets em `apps/driver-app/src/types/assets.d.ts`
+- corrigido problema de import de imagem em `driver-home-screen.tsx` e `driver-login-screen.tsx`
+
+Mocks/produto:
+
+- `UsersSettingsPage` deixou de usar `usersMock`.
+- Criado `GET /users` real.
+- Promocoes/cupons nao mostram mais mock em modo API.
+- Novo pedido nao tem mais cupom fake nem botao fake de salvar rascunho.
+- Novo pedido nao inicia mais com IDs seed fixos.
+
+Realtime:
+
+- `AppProviders` agora usa SSE em modo API.
+- `mockRealtimeBus` fica para modo mock.
+
+## 24. Pendencias reais de produto
+
+Alta prioridade:
+
+1. Criar backend real para promocoes.
+2. Criar backend real para cupons.
+3. Integrar cupom real ao novo pedido.
+4. Finalizar CRUD/convite de usuarios.
+5. Evoluir realtime para ser base transversal do admin.
+6. Melhorar smooth movement de motoboys.
+7. Fazer rota consumir trecho ja percorrido.
+8. Validar app do motoboy em device real.
+9. Testar ponta a ponta pedido -> cozinha -> pronto -> despacho -> entrega -> finalizacao.
+
+Media prioridade:
+
+1. Otimizacao multi-stop real.
+2. Reorder drag-and-drop com impacto operacional.
+3. Clustering inteligente no mapa.
+4. Analytics logisticos.
+5. Heatmap operacional.
+6. Previsao de atraso.
+
+Futuro:
+
+1. IA operacional.
+2. Recomendacao automatica de motoboy.
+3. Previsao de demanda.
+4. Valhalla.
+5. App do cliente.
+6. Fidelidade/cashback/assinatura.
+
+## 25. Regras para futuras IAs
+
+Antes de editar:
+
+1. Leia este arquivo.
+2. Leia `package.json`.
+3. Leia o modulo especifico antes de mudar.
+4. Rode `rg` antes de assumir que algo nao existe.
+5. Preserve padroes do projeto.
+
+Ao implementar:
+
+1. Use contratos existentes.
+2. Prefira API real.
+3. Se faltar backend, diga claramente e implemente backend se a tarefa pedir produto real.
+4. Nao coloque mock em tela de produto sem deixar explicito.
+5. Nao use `any` para calar erro.
+6. Nao comente codigo quebrado para compilar.
+7. Nao remova feature real para passar build.
+8. Nao redesenhe UI sem necessidade.
+9. Rode os scripts reais do `package.json`.
+
+Ao finalizar:
+
+1. Informe comandos rodados.
+2. Informe o que passou.
+3. Informe warnings/residuos.
+4. Informe pendencias reais sem maquiagem.
+
+## 26. Melhor pedido para continuar em outro chat
+
+Use esta frase:
+
+```text
+Use PROJECT_HANDOFF_CONTEXT.md como fonte principal de verdade do projeto Cain Delivery. Preserve a arquitetura atual, nao reintroduza mocks silenciosos e continue a partir do estado verificado em 2026-05-14.
+```
+

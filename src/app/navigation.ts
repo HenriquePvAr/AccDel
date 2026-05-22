@@ -38,6 +38,7 @@ export const navigationGroups: NavigationGroup[] = [
     items: [
       { label: 'Pedidos', to: '/orders', icon: Receipt, permission: 'orders:view' },
       { label: 'Novo pedido', to: '/orders/new', icon: ShoppingCart, permission: 'orders:create' },
+      { label: 'Clientes', to: '/customers', icon: Users, permission: 'orders:create' },
       { label: 'Salao / Mesas', to: '/dining/tables', icon: UtensilsCrossed, permission: 'dining:view' },
       { label: 'Garcons', to: '/dining/waiters', icon: Users, permission: 'dining:view' },
       { label: 'Cozinha', to: '/kitchen', icon: CookingPot, permission: 'kitchen:view' },
@@ -70,6 +71,7 @@ export const navigationGroups: NavigationGroup[] = [
       { label: 'Loja', to: '/settings/store', icon: Settings2, permission: 'settings:store:view' },
       { label: 'Usuarios', to: '/settings/users', icon: Users, permission: 'users:view' },
       { label: 'Delivery', to: '/settings/delivery', icon: Truck, permission: 'settings:delivery:view' },
+      { label: 'Pagamentos', to: '/settings/payments', icon: CreditCard, permission: 'settings:preferences:view' },
       { label: 'Preferencias', to: '/settings/preferences', icon: Settings2, permission: 'settings:preferences:view' },
     ],
   },

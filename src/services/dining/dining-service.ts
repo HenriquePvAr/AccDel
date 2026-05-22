@@ -1,6 +1,8 @@
 import type {
   AddTableSessionItemRequest,
   AddTableSessionItemResponse,
+  AddTableSessionItemsRequest,
+  AddTableSessionItemsResponse,
   CloseTableSessionRequest,
   CloseTableSessionResponse,
   GetDiningTableByIdRequest,
@@ -205,6 +207,7 @@ export const diningService = {
         quantity: request.quantity,
         notes: request.notes,
         waiterId: request.waiterId,
+        options: request.options,
       })
       mockRealtimeBus.emit('dining.session_updated', {
         sessionId: response.data.id,
@@ -220,15 +223,39 @@ export const diningService = {
         return database
       }
 
-      const totalPrice = product.price * request.quantity
+      const options =
+        product.optionGroups
+          ?.flatMap((group) =>
+            (request.options ?? [])
+              .filter((option) => option.groupId === group.id)
+              .map((option) => {
+                const catalogOption = group.options.find((entry) => entry.id === option.optionId)
+
+                return catalogOption
+                  ? {
+                      id: catalogOption.id,
+                      groupId: group.id,
+                      groupName: group.name,
+                      name: catalogOption.name,
+                      quantity: option.quantity,
+                      price: catalogOption.priceDelta,
+                    }
+                  : null
+              }),
+          )
+          .filter((option): option is NonNullable<typeof option> => Boolean(option)) ?? []
+      const unitPrice =
+        product.price + options.reduce((sum, option) => sum + option.price * option.quantity, 0)
+      const totalPrice = unitPrice * request.quantity
       session.items.push({
         id: crypto.randomUUID(),
         productId: product.id,
         name: product.name,
         quantity: request.quantity,
-        unitPrice: product.price,
+        unitPrice,
         totalPrice,
         notes: request.notes,
+        options,
       })
       session.subtotal += totalPrice
       session.total += totalPrice
@@ -247,6 +274,105 @@ export const diningService = {
     })
 
     const updated = nextDb.dining.sessions.find((entry) => entry.id === request.sessionId)!
+    mockRealtimeBus.emit('dining.session_updated', {
+      sessionId: updated.id,
+      tableId: updated.tableId,
+    })
+    return simulateAsync({ data: updated })
+  },
+
+  async addSessionItems(
+    request: AddTableSessionItemsRequest,
+  ): Promise<AddTableSessionItemsResponse> {
+    if (shouldUseApi) {
+      const response = await apiClient.post<
+        AddTableSessionItemsResponse,
+        Omit<AddTableSessionItemsRequest, 'sessionId'>
+      >(`/dining/sessions/${request.sessionId}/add-items`, {
+        items: request.items,
+      })
+      mockRealtimeBus.emit('dining.session_updated', {
+        sessionId: response.data.id,
+        tableId: response.data.tableId,
+      })
+      return response
+    }
+
+    let updatedSessionId = request.sessionId
+    const nextDb = mutateDemoDatabase((database) => {
+      for (const item of request.items) {
+        const session = database.dining.sessions.find((entry) => entry.id === request.sessionId)
+        const product = database.catalog.products.find((entry) => entry.id === item.productId)
+        if (!session || !product) {
+          continue
+        }
+
+        updatedSessionId = session.id
+        const options =
+          product.optionGroups
+            ?.flatMap((group) =>
+              (item.options ?? [])
+                .filter((option) => option.groupId === group.id)
+                .map((option) => {
+                  const catalogOption = group.options.find((entry) => entry.id === option.optionId)
+
+                  return catalogOption
+                    ? {
+                        id: catalogOption.id,
+                        groupId: group.id,
+                        groupName: group.name,
+                        name: catalogOption.name,
+                        quantity: option.quantity,
+                        price: catalogOption.priceDelta,
+                      }
+                    : null
+                }),
+            )
+            .filter((option): option is NonNullable<typeof option> => Boolean(option)) ?? []
+        const unitPrice =
+          product.price + options.reduce((sum, option) => sum + option.price * option.quantity, 0)
+        const totalPrice = unitPrice * item.quantity
+        session.items.push({
+          id: crypto.randomUUID(),
+          productId: product.id,
+          name: product.name,
+          quantity: item.quantity,
+          unitPrice,
+          totalPrice,
+          notes: item.notes,
+          options,
+          createdAt: new Date().toISOString(),
+          createdByName: 'Operacao',
+        })
+        session.subtotal += totalPrice
+        session.total += totalPrice
+        session.status = 'open'
+        session.timeline.push({
+          id: crypto.randomUUID(),
+          label: `${item.quantity}x ${product.name} lancado(s)`,
+          actor: 'Operacao',
+          at: new Date().toISOString(),
+        })
+        const table = database.dining.tables.find((entry) => entry.id === session.tableId)
+        if (table) {
+          table.status = 'occupied'
+        }
+      }
+
+      const session = database.dining.sessions.find((entry) => entry.id === request.sessionId)
+      if (session) {
+        session.timeline.push({
+          id: crypto.randomUUID(),
+          label: `${request.items.length} item(ns) enviados para cozinha`,
+          actor: 'Operacao',
+          at: new Date().toISOString(),
+        })
+      }
+
+      return database
+    })
+
+    const updated = nextDb.dining.sessions.find((entry) => entry.id === updatedSessionId)!
     mockRealtimeBus.emit('dining.session_updated', {
       sessionId: updated.id,
       tableId: updated.tableId,

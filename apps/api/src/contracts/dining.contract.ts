@@ -45,6 +45,19 @@ export const addTableSessionItemSchema = z.object({
   quantity: z.number().int().min(1).max(20),
   notes: z.string().trim().max(280).optional(),
   waiterId: z.string().optional(),
+  options: z
+    .array(
+      z.object({
+        groupId: z.string().trim().min(1),
+        optionId: z.string().trim().min(1),
+        quantity: z.number().int().positive().default(1),
+      }),
+    )
+    .optional(),
+})
+
+export const addTableSessionItemsSchema = z.object({
+  items: z.array(addTableSessionItemSchema).min(1).max(30),
 })
 
 export const updateTableSessionSchema = z.object({
@@ -76,6 +89,7 @@ export type SaveDiningTablePayload = z.infer<typeof saveDiningTableSchema>
 export type UpdateDiningTableStatusPayload = z.infer<typeof updateDiningTableStatusSchema>
 export type OpenTableSessionPayload = z.infer<typeof openTableSessionSchema>
 export type AddTableSessionItemPayload = z.infer<typeof addTableSessionItemSchema>
+export type AddTableSessionItemsPayload = z.infer<typeof addTableSessionItemsSchema>
 export type UpdateTableSessionPayload = z.infer<typeof updateTableSessionSchema>
 export type CloseTableSessionPayload = z.infer<typeof closeTableSessionSchema>
 export type TransferTableSessionPayload = z.infer<typeof transferTableSessionSchema>

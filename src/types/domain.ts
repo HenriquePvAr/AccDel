@@ -66,6 +66,7 @@ export type PaymentMethod =
   | 'meal_voucher'
   | 'payment_link'
 
+export type PaymentProvider = 'manual' | 'pix' | 'picpay'
 export type PaymentStatus = 'paid' | 'pending' | 'refunded'
 export type PriorityLevel = 'normal' | 'priority' | 'vip'
 export type TableStatus = 'free' | 'occupied' | 'reserved' | 'closing' | 'closed'
@@ -89,6 +90,25 @@ export interface StoreProfile {
   estimatedDineInTimeMinutes?: number
   estimatedCounterTimeMinutes?: number
   estimatedPickupTimeMinutes?: number
+}
+
+export interface PaymentMethodConfig {
+  id: string
+  name: string
+  method?: PaymentMethod
+  provider: PaymentProvider
+  active: boolean
+  fixed: boolean
+  requiresReceipt: boolean
+  autoCashEntry: boolean
+  channels: ProductChannel[]
+  sortOrder: number
+  externalEnabled: boolean
+  externalPaymentId?: string
+  qrCodePayload?: string
+  qrCodeUrl?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface AppUser {
@@ -122,16 +142,28 @@ export interface CustomerAddress {
   reference?: string
 }
 
+export interface CustomerLastOrderSummary {
+  id: string
+  number: string
+  total: number
+  createdAt: string
+  items: string[]
+}
+
 export interface Customer {
   id: string
   name: string
   phone: string
+  notes?: string
   tags: string[]
   addresses: CustomerAddress[]
+  lastOrders?: CustomerLastOrderSummary[]
 }
 
 export interface OrderItemOption {
   id: string
+  groupId?: string
+  groupName?: string
   name: string
   quantity: number
   price: number
@@ -160,6 +192,14 @@ export interface OrderDriverSummary {
   phone: string
 }
 
+export interface OrderDiscountBreakdown {
+  promotionName?: string
+  promotionDiscount?: number
+  couponCode?: string
+  couponDiscount?: number
+  subtotalBeforeDiscount?: number
+}
+
 export interface Order {
   id: string
   number: string
@@ -175,6 +215,9 @@ export interface Order {
   subtotal: number
   deliveryFee: number
   discount: number
+  couponCode?: string
+  promotionName?: string
+  discountBreakdown?: OrderDiscountBreakdown
   createdAt: string
   dueAt: string
   estimatedPrepTimeMinutes?: number
@@ -222,6 +265,9 @@ export interface TableSessionItem {
   unitPrice: number
   totalPrice: number
   notes?: string
+  options: OrderItemOption[]
+  createdAt?: string
+  createdByName?: string
 }
 
 export interface TableSession {
@@ -252,6 +298,26 @@ export interface ChannelAvailability {
   priceOverride?: number
 }
 
+export interface ProductOption {
+  id: string
+  name: string
+  description?: string
+  priceDelta: number
+  active: boolean
+  sortOrder: number
+}
+
+export interface ProductOptionGroup {
+  id: string
+  name: string
+  description?: string
+  required: boolean
+  minSelections: number
+  maxSelections: number
+  sortOrder: number
+  options: ProductOption[]
+}
+
 export interface Product {
   id: string
   categoryId: string
@@ -262,7 +328,9 @@ export interface Product {
   featured: boolean
   active: boolean
   preparationStation: string
+  sortOrder: number
   availability: ChannelAvailability[]
+  optionGroups?: ProductOptionGroup[]
   tags: string[]
 }
 
@@ -270,30 +338,57 @@ export interface Category {
   id: string
   name: string
   description: string
+  active: boolean
+  icon?: string
+  color?: string
+  visibleOnPos: boolean
+  visibleOnDigitalMenu: boolean
   sortOrder: number
+  productCount?: number
 }
 
 export interface Promotion {
   id: string
   name: string
-  label: string
-  type: 'automatic' | 'combo' | 'happy_hour'
-  channel: ProductChannel | 'all'
-  startsAt: string
-  endsAt: string
-  status: 'active' | 'scheduled'
+  description?: string
+  type: 'percent' | 'fixed' | 'combo'
+  discountValue?: number
+  rules?: PromotionRules
+  channels: ProductChannel[]
+  productIds: string[]
+  categoryIds: string[]
+  startsAt?: string
+  endsAt?: string
+  status: 'active' | 'inactive' | 'scheduled' | 'expired'
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface PromotionRules {
+  requiredItems: number
+  participantType: 'category' | 'product'
+  participantId?: string
+  sizeLabel?: string
+  flavorLimitPerItem?: number
+  finalPrice?: number
+  notes?: string
 }
 
 export interface Coupon {
   id: string
   code: string
+  description?: string
   type: 'percent' | 'fixed'
   value: number
   minOrderAmount: number
-  channel: ProductChannel | 'all'
-  validUntil: string
+  maxUses?: number
+  channels: ProductChannel[]
+  validFrom?: string
+  validUntil?: string
   uses: number
-  status: 'active' | 'scheduled' | 'expired'
+  status: 'active' | 'inactive' | 'scheduled' | 'expired'
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface DeliveryStop {
