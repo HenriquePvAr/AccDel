@@ -31,6 +31,8 @@ export const adminPermissions = [
   'settings:preferences:manage',
   'users:view',
   'users:manage',
+  'ai_attendant:view',
+  'ai_attendant:manage',
 ] as const
 
 export type AdminPermission = (typeof adminPermissions)[number]

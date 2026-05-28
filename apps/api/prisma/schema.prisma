@@ -159,6 +159,73 @@ enum DeliveryAssignmentStatus {
   cancelled
 }
 
+// ── AI Attendant enums ──────────────────────────────────────────────
+
+enum WhatsappSessionStatus {
+  disconnected
+  waiting_qr
+  connecting
+  connected
+  expired
+  error
+}
+
+enum WhatsappMessageDirection {
+  inbound
+  outbound
+}
+
+enum WhatsappMessageSenderType {
+  customer
+  ai
+  human
+  system
+}
+
+enum WhatsappMessageStatus {
+  received
+  queued
+  sent
+  failed
+}
+
+enum AiConversationStatus {
+  open
+  waiting_ai
+  waiting_human
+  human_assigned
+  closed
+}
+
+enum AiAttendantMode {
+  off
+  suggestion
+  automatic
+  hybrid
+}
+
+enum AiAttendantTone {
+  professional
+  friendly
+  casual
+  premium
+}
+
+enum AiKnowledgeEntryType {
+  store_info
+  faq
+  policy
+  delivery_area
+  payment
+  custom
+}
+
+enum AiOrderDraftStatus {
+  suggested
+  approved
+  discarded
+}
+
 model Store {
   id                String   @id @default(uuid())
   name              String
@@ -194,6 +261,12 @@ model Store {
   promotions    Promotion[]
   coupons       Coupon[]
   paymentMethodConfigs PaymentMethodConfig[]
+  whatsappSessions     WhatsappSession[]
+  whatsappMessages     WhatsappMessage[]
+  aiConversations      AiConversation[]
+  aiKnowledgeEntries   AiKnowledgeEntry[]
+  aiProviderConfigs    AiProviderConfig[]
+  aiAttendantSettings  AiAttendantSettings[]
 
   @@map("stores")
 }
@@ -303,9 +376,10 @@ model Customer {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  addresses CustomerAddress[]
-  orders    Order[]
+  store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  addresses       CustomerAddress[]
+  orders          Order[]
+  aiConversations AiConversation[]
 
   @@index([storeId, phone])
   @@map("customers")
@@ -845,4 +919,176 @@ model TableSessionEvent {
 
   @@index([sessionId, createdAt])
   @@map("table_session_events")
+}
+
+// ── AI Attendant models ─────────────────────────────────────────────
+
+model WhatsappSession {
+  id                   String                @id @default(uuid())
+  storeId              String                @map("store_id")
+  provider             String
+  sessionName          String                @map("session_name")
+  phoneNumber          String?               @map("phone_number")
+  displayName          String?               @map("display_name")
+  status               WhatsappSessionStatus @default(disconnected)
+  qrCode               String?               @map("qr_code")
+  qrCodeExpiresAt      DateTime?             @map("qr_code_expires_at")
+  lastConnectedAt      DateTime?             @map("last_connected_at")
+  lastDisconnectedAt   DateTime?             @map("last_disconnected_at")
+  lastError            String?               @map("last_error")
+  isEnabled            Boolean               @default(true) @map("is_enabled")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  store         Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  messages      WhatsappMessage[]
+  conversations AiConversation[]
+
+  @@index([storeId, status])
+  @@map("whatsapp_sessions")
+}
+
+model WhatsappMessage {
+  id                String                    @id @default(uuid())
+  storeId           String                    @map("store_id")
+  sessionId         String                    @map("session_id")
+  conversationId    String?                   @map("conversation_id")
+  externalMessageId String?                   @map("external_message_id")
+  fromNumber        String                    @map("from_number")
+  toNumber          String                    @map("to_number")
+  direction         WhatsappMessageDirection
+  senderType        WhatsappMessageSenderType
+  body              String
+  rawPayload        Json?                     @map("raw_payload")
+  status            WhatsappMessageStatus     @default(received)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+
+  store        Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  session      WhatsappSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  conversation AiConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([fromNumber, createdAt])
+  @@map("whatsapp_messages")
+}
+
+model AiConversation {
+  id                 String               @id @default(uuid())
+  storeId            String               @map("store_id")
+  whatsappSessionId  String               @map("whatsapp_session_id")
+  customerId         String?              @map("customer_id")
+  whatsappNumber     String               @map("whatsapp_number")
+  customerName       String?              @map("customer_name")
+  status             AiConversationStatus @default(open)
+  assignedUserId     String?              @map("assigned_user_id")
+  lastMessageAt      DateTime?            @map("last_message_at")
+  lastAiResponseAt   DateTime?            @map("last_ai_response_at")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  whatsappSession  WhatsappSession  @relation(fields: [whatsappSessionId], references: [id], onDelete: Cascade)
+  customer         Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  messages         AiMessage[]
+  whatsappMessages WhatsappMessage[]
+  orderDrafts      AiOrderDraft[]
+
+  @@index([storeId, status, lastMessageAt])
+  @@index([whatsappSessionId, whatsappNumber])
+  @@index([customerId])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String                    @id @default(uuid())
+  conversationId String                    @map("conversation_id")
+  direction      WhatsappMessageDirection
+  senderType     WhatsappMessageSenderType
+  body           String
+  rawPayload     Json?                     @map("raw_payload")
+  status         WhatsappMessageStatus     @default(received)
+  createdAt      DateTime                  @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+model AiKnowledgeEntry {
+  id        String                @id @default(uuid())
+  storeId   String                @map("store_id")
+  type      AiKnowledgeEntryType
+  title     String
+  content   String
+  isActive  Boolean               @default(true) @map("is_active")
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt DateTime              @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, type, isActive])
+  @@map("ai_knowledge_entries")
+}
+
+model AiProviderConfig {
+  id              String   @id @default(uuid())
+  storeId         String   @map("store_id")
+  provider        String
+  apiKeyEncrypted String?  @map("api_key_encrypted")
+  modelName       String?  @map("model_name")
+  isEnabled       Boolean  @default(false) @map("is_enabled")
+  lastError       String?  @map("last_error")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, provider])
+  @@map("ai_provider_configs")
+}
+
+model AiAttendantSettings {
+  id                           String          @id @default(uuid())
+  storeId                      String          @unique @map("store_id")
+  isEnabled                    Boolean         @default(false) @map("is_enabled")
+  mode                         AiAttendantMode @default(off)
+  minDelaySeconds              Int             @default(8) @map("min_delay_seconds")
+  maxDelaySeconds              Int             @default(25) @map("max_delay_seconds")
+  messageGroupingSeconds       Int             @default(6) @map("message_grouping_seconds")
+  answerOnlyDuringBusinessHours Boolean        @default(true) @map("answer_only_during_business_hours")
+  transferOnLowConfidence       Boolean        @default(true) @map("transfer_on_low_confidence")
+  transferOnComplaint           Boolean        @default(true) @map("transfer_on_complaint")
+  transferOnCancellation        Boolean        @default(true) @map("transfer_on_cancellation")
+  tone                         AiAttendantTone @default(friendly)
+  useEmojis                    Boolean         @default(true) @map("use_emojis")
+  callCustomerByName           Boolean         @default(true) @map("call_customer_by_name")
+  greetingMessage              String?         @map("greeting_message")
+  outOfHoursMessage            String?         @map("out_of_hours_message")
+  humanHandoffMessage          String?         @map("human_handoff_message")
+  createdAt                    DateTime        @default(now()) @map("created_at")
+  updatedAt                    DateTime        @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("ai_attendant_settings")
+}
+
+model AiOrderDraft {
+  id             String             @id @default(uuid())
+  conversationId String             @map("conversation_id")
+  customerId     String?            @map("customer_id")
+  rawText        String             @map("raw_text")
+  parsedItems    Json               @default("[]") @map("parsed_items")
+  missingFields  Json               @default("[]") @map("missing_fields")
+  status         AiOrderDraftStatus @default(suggested)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, status])
+  @@map("ai_order_drafts")
 }

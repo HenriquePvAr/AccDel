@@ -41,6 +41,8 @@ export type AdminPermission =
   | 'settings:preferences:manage'
   | 'users:view'
   | 'users:manage'
+  | 'ai_attendant:view'
+  | 'ai_attendant:manage'
 
 export type OrderStatus =
   | 'in_analysis'

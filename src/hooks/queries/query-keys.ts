@@ -54,4 +54,15 @@ export const queryKeys = {
   reports: {
     snapshot: (filters?: unknown) => ['reports', 'snapshot', filters] as const,
   },
+  aiAttendant: {
+    overview: ['ai-attendant', 'overview'] as const,
+    settings: ['ai-attendant', 'settings'] as const,
+    knowledge: ['ai-attendant', 'knowledge'] as const,
+    whatsappSession: ['ai-attendant', 'whatsapp-session'] as const,
+    whatsappQr: ['ai-attendant', 'whatsapp-qr'] as const,
+    whatsappStatus: ['ai-attendant', 'whatsapp-status'] as const,
+    conversations: ['ai-attendant', 'conversations'] as const,
+    conversationDetail: (id: string) => ['ai-attendant', 'conversation', id] as const,
+    orderDrafts: ['ai-attendant', 'order-drafts'] as const,
+  },
 } as const

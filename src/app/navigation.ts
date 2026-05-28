@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BookOpenText,
+  Bot,
   ChartColumn,
   ChartNoAxesCombined,
   CookingPot,
@@ -61,6 +62,7 @@ export const navigationGroups: NavigationGroup[] = [
     label: 'Gestao',
     items: [
       { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard, permission: 'dashboard:view' },
+      { label: 'Atendente IA', to: '/ai-attendant', icon: Bot, permission: 'ai_attendant:view' },
       { label: 'Historico', to: '/history/orders', icon: ChartColumn, permission: 'history:view' },
       { label: 'Relatorios', to: '/reports', icon: ChartNoAxesCombined, permission: 'reports:view' },
     ],

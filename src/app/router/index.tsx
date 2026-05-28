@@ -58,6 +58,9 @@ const PaymentSettingsPage = lazy(() =>
 const PreferencesSettingsPage = lazy(() =>
   import('@/pages/PreferencesSettingsPage').then((module) => ({ default: module.PreferencesSettingsPage })),
 )
+const AiAttendantPage = lazy(() =>
+  import('@/pages/AiAttendantPage').then((module) => ({ default: module.AiAttendantPage })),
+)
 
 function withSuspense(node: ReactNode) {
   return (
@@ -101,6 +104,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DefaultAdminRedirect /> },
       { path: 'dashboard', element: protectedPage('dashboard:view', <DashboardPage />) },
+      { path: 'ai-attendant', element: protectedPage('ai_attendant:view', <AiAttendantPage />) },
       { path: 'orders', element: protectedPage('orders:view', <OrdersPage />) },
       { path: 'orders/new', element: protectedPage('orders:create', <NewOrderPage />) },
       { path: 'customers', element: protectedPage('orders:create', <CustomersPage />) },

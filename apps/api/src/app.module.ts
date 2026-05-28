@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 
+import { AiAttendantModule } from './modules/ai-attendant/ai-attendant.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { CashModule } from './modules/cash/cash.module'
 import { CatalogModule } from './modules/catalog/catalog.module'
@@ -37,6 +38,7 @@ import { RealtimeModule } from './shared/realtime/realtime.module'
     ReportsModule,
     SettingsModule,
     UsersModule,
+    AiAttendantModule,
   ],
 })
 export class AppModule {}
