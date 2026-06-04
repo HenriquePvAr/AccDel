@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import type { ProductsListFilters, UpdateProductChannelAvailabilityRequest } from '@/contracts'
+import type {
+  ApplyOptionGroupToCategoryRequest,
+  CatalogMenuSourceFilters,
+  ProductsListFilters,
+  SaveOptionGroupRequest,
+  UpdateOptionAvailabilityRequest,
+  UpdateProductChannelAvailabilityRequest,
+  UpdateProductOptionGroupLinkRequest,
+} from '@/contracts'
 import { catalogService } from '@/services'
 import { queryKeys } from '@/hooks/queries/query-keys'
 import { useToastStore } from '@/stores/toast-store'
@@ -17,6 +25,37 @@ export function useProductsQuery(filters?: ProductsListFilters) {
   return useQuery({
     queryKey: queryKeys.catalog.products(filters ?? {}),
     queryFn: () => catalogService.listProducts(filters),
+  })
+}
+
+export function useCatalogMenuSourceQuery(filters: CatalogMenuSourceFilters) {
+  return useQuery({
+    queryKey: queryKeys.catalog.menuSource(filters),
+    queryFn: () => catalogService.getMenuSource(filters),
+  })
+}
+
+export function useOptionGroupsQuery() {
+  return useQuery({
+    queryKey: queryKeys.catalog.optionGroups,
+    queryFn: () => catalogService.listOptionGroups(),
+  })
+}
+
+export function useSaveOptionGroupMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (group: SaveOptionGroupRequest['group']) =>
+      catalogService.saveOptionGroup({ group }),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['catalog'] })
+      useToastStore.getState().pushToast({
+        title: 'Grupo de opcoes salvo',
+        description: `${response.data.name} foi persistido na fonte unica do catalogo.`,
+        variant: 'success',
+      })
+    },
   })
 }
 
@@ -142,6 +181,57 @@ export function useUpdateProductChannelMutation() {
       useToastStore.getState().pushToast({
         title: 'Canal atualizado',
         description: 'A disponibilidade por canal foi persistida pela fonte de dados ativa.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
+export function useUpdateOptionAvailabilityMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: UpdateOptionAvailabilityRequest) =>
+      catalogService.updateOptionAvailability(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalog'] })
+      useToastStore.getState().pushToast({
+        title: 'Opcao atualizada',
+        description: 'A disponibilidade global ja reflete no pedido, cardapio e IA.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
+export function useApplyOptionGroupToCategoryMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: ApplyOptionGroupToCategoryRequest) =>
+      catalogService.applyOptionGroupToCategory(request),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['catalog'] })
+      useToastStore.getState().pushToast({
+        title: 'Grupo aplicado',
+        description: `${response.data.affectedProducts} produto(s) receberam a aplicacao automatica quando faltava vinculo.`,
+        variant: 'success',
+      })
+    },
+  })
+}
+
+export function useUpdateProductOptionGroupLinkMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: UpdateProductOptionGroupLinkRequest) =>
+      catalogService.updateProductOptionGroupLink(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalog'] })
+      useToastStore.getState().pushToast({
+        title: 'Aplicacao personalizada',
+        description: 'O produto foi atualizado dentro da fonte unica do catalogo.',
         variant: 'success',
       })
     },

@@ -84,11 +84,15 @@ export function resolveProductOptionSelection(
 
     for (const selection of selectionsForGroup) {
       const option = link.group.options.find(
-        (entry) => entry.id === selection.optionId && entry.active,
+        (entry) =>
+          entry.id === selection.optionId &&
+          entry.active &&
+          entry.available &&
+          !entry.soldOut,
       )
 
       if (!option) {
-        throw new BadRequestException(`Opcao invalida para ${product.name}.`)
+        throw new BadRequestException(`Opcao indisponivel para ${product.name}.`)
       }
 
       resolvedOptions.push({

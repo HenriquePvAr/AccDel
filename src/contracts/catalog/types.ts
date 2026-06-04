@@ -1,4 +1,12 @@
-import type { Category, Coupon, Product, ProductChannel, Promotion } from '@/types'
+import type {
+  CatalogMenuSource,
+  CatalogOptionGroup,
+  Category,
+  Coupon,
+  Product,
+  ProductChannel,
+  Promotion,
+} from '@/types'
 
 import type { ListResponse, PaginationParams } from '@/contracts/common'
 
@@ -13,6 +21,17 @@ export type ListCategoriesResponse = ListResponse<Category>
 export type ListProductsResponse = ListResponse<Product>
 export type ListPromotionsResponse = ListResponse<Promotion>
 export type ListCouponsResponse = ListResponse<Coupon>
+export type ListOptionGroupsResponse = ListResponse<CatalogOptionGroup>
+
+export interface CatalogMenuSourceFilters {
+  channel: ProductChannel
+  includeUnavailable?: boolean
+  public?: boolean
+}
+
+export interface CatalogMenuSourceResponse {
+  data: CatalogMenuSource
+}
 
 export interface SaveCategoryRequest {
   category: Category
@@ -68,6 +87,64 @@ export interface UpdateProductChannelAvailabilityRequest {
 }
 
 export interface UpdateProductChannelAvailabilityResponse {
+  data: Product
+}
+
+export interface SaveOptionGroupRequest {
+  group: {
+    id?: string
+    name: string
+    description?: string
+    sortOrder: number
+    options: Array<Omit<CatalogOptionGroup['options'][number], 'id'> & { id?: string }>
+  }
+}
+
+export interface SaveOptionGroupResponse {
+  data: CatalogOptionGroup
+}
+
+export interface UpdateOptionAvailabilityRequest {
+  optionId: string
+  active?: boolean
+  available?: boolean
+  soldOut?: boolean
+}
+
+export interface UpdateOptionAvailabilityResponse {
+  data: CatalogOptionGroup
+}
+
+export interface ApplyOptionGroupToCategoryRequest {
+  groupId: string
+  categoryId: string
+  required: boolean
+  minSelections: number
+  maxSelections: number
+  sortOrder: number
+  description?: string
+}
+
+export interface ApplyOptionGroupToCategoryResponse {
+  data: {
+    categoryId: string
+    groupId: string
+    affectedProducts: number
+  }
+}
+
+export interface UpdateProductOptionGroupLinkRequest {
+  productId: string
+  groupId: string
+  enabled: boolean
+  required: boolean
+  minSelections: number
+  maxSelections: number
+  sortOrder: number
+  description?: string
+}
+
+export interface UpdateProductOptionGroupLinkResponse {
   data: Product
 }
 

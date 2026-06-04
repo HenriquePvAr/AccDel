@@ -6,6 +6,25 @@ export function mapStoreSettings(store: {
   city: string
   state: string
   brandAccent: string
+  logoUrl: string | null
+  phone: string | null
+  publicWhatsapp: string | null
+  addressLine: string | null
+  neighborhood: string | null
+  businessHours: string | null
+  businessDays: string[]
+  greetingMessage: string | null
+  outOfHoursMessage: string | null
+  cancellationPolicy: string | null
+  generalNotes: string | null
+  defaultDeliveryFee: { toNumber(): number }
+  minimumOrderAmount: { toNumber(): number }
+  deliveryEnabled: boolean
+  pickupEnabled: boolean
+  counterEnabled: boolean
+  dineInEnabled: boolean
+  digitalMenuEnabled: boolean
+  whatsappAiEnabled: boolean
   autoAcceptEnabled: boolean
   estimatedPrepTimeMinutes: number
   estimatedDeliveryTimeMinutes: number
@@ -21,12 +40,53 @@ export function mapStoreSettings(store: {
     city: store.city,
     state: store.state,
     brandAccent: store.brandAccent,
+    logoUrl: store.logoUrl,
+    phone: store.phone,
+    publicWhatsapp: store.publicWhatsapp,
+    addressLine: store.addressLine,
+    neighborhood: store.neighborhood,
+    businessHours: store.businessHours,
+    businessDays: store.businessDays,
+    greetingMessage: store.greetingMessage,
+    outOfHoursMessage: store.outOfHoursMessage,
+    cancellationPolicy: store.cancellationPolicy,
+    generalNotes: store.generalNotes,
+    defaultDeliveryFee: store.defaultDeliveryFee.toNumber(),
+    minimumOrderAmount: store.minimumOrderAmount.toNumber(),
+    deliveryEnabled: store.deliveryEnabled,
+    pickupEnabled: store.pickupEnabled,
+    counterEnabled: store.counterEnabled,
+    dineInEnabled: store.dineInEnabled,
+    digitalMenuEnabled: store.digitalMenuEnabled,
+    whatsappAiEnabled: store.whatsappAiEnabled,
     autoAcceptEnabled: store.autoAcceptEnabled,
     estimatedPrepTimeMinutes: store.estimatedPrepTimeMinutes,
     estimatedDeliveryTimeMinutes: store.estimatedDeliveryTimeMinutes,
     estimatedDineInTimeMinutes: store.estimatedDineInTimeMinutes,
     estimatedCounterTimeMinutes: store.estimatedCounterTimeMinutes,
     estimatedPickupTimeMinutes: store.estimatedPickupTimeMinutes,
+  }
+}
+
+export function mapDeliveryZone(zone: {
+  id: string
+  neighborhood: string
+  fee: { toNumber(): number }
+  active: boolean
+  sortOrder: number
+  estimatedDeliveryTimeMinutes: number | null
+  createdAt: Date
+  updatedAt: Date
+}) {
+  return {
+    id: zone.id,
+    neighborhood: zone.neighborhood,
+    fee: zone.fee.toNumber(),
+    active: zone.active,
+    sortOrder: zone.sortOrder,
+    estimatedDeliveryTimeMinutes: zone.estimatedDeliveryTimeMinutes,
+    createdAt: zone.createdAt.toISOString(),
+    updatedAt: zone.updatedAt.toISOString(),
   }
 }
 

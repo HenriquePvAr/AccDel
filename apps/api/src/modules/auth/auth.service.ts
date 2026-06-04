@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt'
 import { compare } from 'bcryptjs'
 
 import type { LoginPayload } from '@/contracts/auth.contract'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
 import { getPermissionsForRole } from './auth.permissions'
@@ -21,7 +21,7 @@ export class AuthService {
   async login(payload: LoginPayload) {
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         active: true,
         user: {
           email: payload.email.trim().toLowerCase(),
@@ -80,7 +80,7 @@ export class AuthService {
   async getCurrentUser(userId: string) {
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         userId,
         active: true,
         user: {

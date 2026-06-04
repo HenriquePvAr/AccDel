@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   CreateCustomerRequest,
   CreateOrderRequest,
+  CreatePublicOrderRequest,
   GetOrderTrackingRequest,
   ListOrdersRequest,
   ListCustomersRequest,
@@ -45,6 +46,13 @@ export function useCustomersQuery(
     enabled: options?.enabled ?? true,
     queryKey: queryKeys.customers.list(request?.filters ?? {}),
     queryFn: () => customerService.listCustomers(request),
+  })
+}
+
+export function useCustomerMetricsSummaryQuery() {
+  return useQuery({
+    queryKey: queryKeys.customers.metricsSummary,
+    queryFn: () => customerService.getMetricsSummary(),
   })
 }
 
@@ -101,6 +109,24 @@ export function useCreateOrderMutation() {
       useToastStore.getState().pushToast({
         title: 'Pedido criado',
         description: 'O pedido ja entrou no fluxo operacional.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
+export function useCreatePublicOrderMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: CreatePublicOrderRequest) => orderService.createPublicOrder(request),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
+      useToastStore.getState().pushToast({
+        title: 'Pedido enviado',
+        description: `${response.data.number} entrou no Cain Delivery.`,
         variant: 'success',
       })
     },

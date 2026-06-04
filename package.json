@@ -18,6 +18,9 @@
     "api:lint": "npm --prefix apps/api run lint",
     "api:prisma:generate": "npm --prefix apps/api run prisma:generate",
     "api:prisma:migrate": "npm --prefix apps/api run prisma:migrate",
+    "api:prisma:migrate:dev": "npm --prefix apps/api run prisma:migrate:dev",
+    "api:prisma:deploy": "npm --prefix apps/api run prisma:deploy",
+    "api:prisma:status": "npm --prefix apps/api run prisma:status",
     "api:seed": "npm --prefix apps/api run seed"
   },
   "dependencies": {

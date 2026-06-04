@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
 
 import {
+  saveDeliveryZoneSchema,
   savePaymentMethodConfigSchema,
   updateOperationalSettingsSchema,
+  type SaveDeliveryZonePayload,
   type SavePaymentMethodConfigPayload,
   type UpdateOperationalSettingsPayload,
 } from '@/contracts/settings.contract'
@@ -53,5 +55,30 @@ export class SettingsController {
     body: SavePaymentMethodConfigPayload,
   ) {
     return this.settingsService.updatePaymentMethod(id, body)
+  }
+
+  @Get('delivery-zones')
+  @Permissions('settings:store:view')
+  listDeliveryZones() {
+    return this.settingsService.listDeliveryZones()
+  }
+
+  @Post('delivery-zones')
+  @Permissions('settings:store:manage')
+  createDeliveryZone(
+    @Body(new ZodValidationPipe(saveDeliveryZoneSchema))
+    body: SaveDeliveryZonePayload,
+  ) {
+    return this.settingsService.saveDeliveryZone(body)
+  }
+
+  @Patch('delivery-zones/:id')
+  @Permissions('settings:store:manage')
+  updateDeliveryZone(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(saveDeliveryZoneSchema))
+    body: SaveDeliveryZonePayload,
+  ) {
+    return this.settingsService.updateDeliveryZone(id, body)
   }
 }

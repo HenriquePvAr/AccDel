@@ -1,15 +1,21 @@
 import type {
   AiAttendantOverview,
+  AiAttendantDashboard,
   AiAttendantSettings,
   AiConversation,
   AiKnowledgeEntry,
   AiOrderDraft,
+  PreparedAiOrderDraft,
   CreateKnowledgeEntryPayload,
   SendConversationMessagePayload,
+  TestChatMessagePayload,
+  TestChatMessageResult,
   TestReplyPayload,
   TestReplyResult,
+  TestWhatsappSendPayload,
   UpdateAiAttendantSettingsPayload,
   UpdateKnowledgeEntryPayload,
+  WhatsappIntegrationLog,
   WhatsappQrCodeResult,
   WhatsappSession,
   WhatsappStatusResult,
@@ -21,6 +27,10 @@ export const aiAttendantService = {
 
   async getOverview(): Promise<AiAttendantOverview> {
     return apiClient.get<AiAttendantOverview>('/ai-attendant/overview')
+  },
+
+  async getDashboard(): Promise<AiAttendantDashboard> {
+    return apiClient.get<AiAttendantDashboard>('/ai-attendant/dashboard')
   },
 
   // ── Settings ────────────────────────────────────────────────────────
@@ -60,6 +70,14 @@ export const aiAttendantService = {
     return apiClient.post<TestReplyResult>('/ai-attendant/test-reply', payload)
   },
 
+  async testChatMessage(payload: TestChatMessagePayload): Promise<TestChatMessageResult> {
+    return apiClient.post<TestChatMessageResult>('/ai-attendant/test-chat/message', payload)
+  },
+
+  async sendTestWhatsappMessage(payload: TestWhatsappSendPayload): Promise<AiConversation> {
+    return apiClient.post<AiConversation>('/ai-attendant/test-whatsapp/send', payload)
+  },
+
   // ── WhatsApp Session ────────────────────────────────────────────────
 
   async getSession(): Promise<WhatsappSession | null> {
@@ -88,6 +106,10 @@ export const aiAttendantService = {
     return apiClient.post<{ sessionId: string; status: string; message?: string }>(
       '/ai-attendant/whatsapp/session/restart',
     )
+  },
+
+  async getWhatsappLogs(): Promise<WhatsappIntegrationLog[]> {
+    return apiClient.get<WhatsappIntegrationLog[]>('/ai-attendant/whatsapp/logs')
   },
 
   // ── Conversations ───────────────────────────────────────────────────
@@ -131,5 +153,15 @@ export const aiAttendantService = {
 
   async discardOrderDraft(id: string): Promise<AiOrderDraft> {
     return apiClient.post<AiOrderDraft>(`/ai-attendant/order-drafts/${id}/discard`)
+  },
+
+  async prepareOrderDraft(id: string): Promise<PreparedAiOrderDraft> {
+    return apiClient.post<PreparedAiOrderDraft>(`/ai-attendant/order-drafts/${id}/prepare-order`)
+  },
+
+  async markOrderDraftConverted(id: string, orderId: string): Promise<AiOrderDraft> {
+    return apiClient.post<AiOrderDraft>(`/ai-attendant/order-drafts/${id}/mark-converted`, {
+      orderId,
+    })
   },
 }

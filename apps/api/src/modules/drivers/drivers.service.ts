@@ -21,7 +21,7 @@ import {
   type GeoCoordinate,
   type RouteEtaResult,
 } from '@/shared/routing/routing.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 import { mapDriver, mapDriverLocation } from './drivers.mapper'
 
@@ -36,7 +36,7 @@ export class DriversService {
   async listDrivers() {
     const memberships = await this.prisma.storeUser.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'driver',
       },
       include: {
@@ -50,7 +50,7 @@ export class DriversService {
     const driverIds = memberships.map((membership) => membership.userId)
     const orders = await this.prisma.order.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId: {
           in: driverIds,
         },
@@ -61,7 +61,7 @@ export class DriversService {
     })
     const assignments = await this.prisma.deliveryAssignment.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId: {
           in: driverIds,
         },
@@ -88,7 +88,7 @@ export class DriversService {
   async getDriverById(driverId: string) {
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'driver',
         userId: driverId,
       },
@@ -104,7 +104,7 @@ export class DriversService {
 
     const orders = await this.prisma.order.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
       },
       orderBy: {
@@ -113,7 +113,7 @@ export class DriversService {
     })
     const assignments = await this.prisma.deliveryAssignment.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
       },
       orderBy: {
@@ -139,7 +139,7 @@ export class DriversService {
         status: driver.active ? 'active' : 'inactive',
         stores: {
           create: {
-            storeId: DEFAULT_STORE_ID,
+            storeId: getCurrentStoreId(),
             role: 'driver',
             active: driver.active,
             driverProfile: {
@@ -174,7 +174,7 @@ export class DriversService {
     const { driver } = payload
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'driver',
         userId: driverId,
       },
@@ -202,7 +202,7 @@ export class DriversService {
     await this.prisma.storeUser.update({
       where: {
         storeId_userId: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           userId: driverId,
         },
       },
@@ -233,7 +233,7 @@ export class DriversService {
   async listActiveLocations() {
     const locations = await this.prisma.driverLocation.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         isActive: true,
       },
       orderBy: {
@@ -253,7 +253,7 @@ export class DriversService {
 
     const location = await this.prisma.driverLocation.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
       },
       orderBy: [
@@ -290,7 +290,7 @@ export class DriversService {
     const location = await this.prisma.$transaction(async (transaction) => {
       await transaction.driverLocation.updateMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           driverId,
           isActive: true,
         },
@@ -301,7 +301,7 @@ export class DriversService {
 
       const created = await transaction.driverLocation.create({
         data: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           driverId,
           driverProfileId: profile.id,
           orderId: trackingContext.orderId,
@@ -354,7 +354,7 @@ export class DriversService {
   async simulateDriverLocation(driverId: string, payload: SimulateDriverLocationPayload) {
     const current = await this.prisma.driverLocation.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
         isActive: true,
       },
@@ -420,7 +420,7 @@ export class DriversService {
     })
 
     await this.persistEtaSnapshots({
-      storeId: DEFAULT_STORE_ID,
+      storeId: getCurrentStoreId(),
       driverId,
       origin: response.origin,
       route: response.route,
@@ -440,7 +440,7 @@ export class DriversService {
       this.getDriverRoute(driverId),
       this.prisma.order.findMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           source: 'delivery',
           status: 'ready',
         },
@@ -636,7 +636,7 @@ export class DriversService {
       incomingOrderIds.map((orderId, index) =>
         this.prisma.deliveryAssignment.updateMany({
           where: {
-            storeId: DEFAULT_STORE_ID,
+            storeId: getCurrentStoreId(),
             driverId,
             orderId,
             status: 'active',
@@ -670,7 +670,7 @@ export class DriversService {
       ? await this.prisma.order.findFirst({
           where: {
             id: currentStop.orderId,
-            storeId: DEFAULT_STORE_ID,
+            storeId: getCurrentStoreId(),
           },
           include: {
             items: true,
@@ -802,7 +802,7 @@ export class DriversService {
   private async findDriverMembership(driverId: string) {
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'driver',
         userId: driverId,
       },
@@ -822,7 +822,7 @@ export class DriversService {
   private async getStore() {
     return this.prisma.store.findUniqueOrThrow({
       where: {
-        id: DEFAULT_STORE_ID,
+        id: getCurrentStoreId(),
       },
     })
   }
@@ -830,7 +830,7 @@ export class DriversService {
   private async getActiveDeliveryOrders(driverId: string) {
     return this.prisma.order.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
         source: 'delivery',
         status: 'out_for_delivery',
@@ -844,7 +844,7 @@ export class DriversService {
   private async getActiveAssignmentsForDriver(driverId: string) {
     return this.prisma.deliveryAssignment.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
         status: 'active',
         order: {
@@ -867,7 +867,7 @@ export class DriversService {
   ) {
     const existingAssignments = await this.prisma.deliveryAssignment.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
         orderId: {
           in: orders.map((order) => order.id),
@@ -894,7 +894,7 @@ export class DriversService {
 
     await this.prisma.deliveryAssignment.createMany({
       data: missingOrders.map((order, index) => ({
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         orderId: order.id,
         driverId,
         storeUserId,
@@ -908,7 +908,7 @@ export class DriversService {
 
     return this.prisma.deliveryAssignment.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
         orderId: {
           in: orders.map((order) => order.id),
@@ -996,7 +996,7 @@ export class DriversService {
     const membership = await this.findDriverMembership(driverId)
     const activeAssignments = await this.prisma.deliveryAssignment.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
         status: 'active',
         order: {
@@ -1031,7 +1031,7 @@ export class DriversService {
       activeAssignments[0]
     const previousLocation = await this.prisma.driverLocation.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
         isActive: true,
       },
@@ -1053,7 +1053,7 @@ export class DriversService {
       this.getStore(),
       this.prisma.driverLocation.findFirst({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           driverId,
           isActive: true,
         },
@@ -1162,7 +1162,7 @@ export class DriversService {
     const previewOrder = await this.prisma.order.findFirst({
       where: {
         id: payload.previewOrderId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         source: 'delivery',
         status: 'ready',
       },

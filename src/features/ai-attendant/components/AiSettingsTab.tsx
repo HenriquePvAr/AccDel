@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Save, Settings, SlidersHorizontal } from 'lucide-react'
+import { Bot, Save, Settings, ShieldCheck, ShoppingBasket, SlidersHorizontal } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -15,16 +15,26 @@ import {
 import { useToastStore } from '@/stores/toast-store'
 import type {
   AiAttendantMode,
+  AiResponseLength,
   AiAttendantSettings,
   AiAttendantTone,
   UpdateAiAttendantSettingsPayload,
 } from '@/contracts/ai-attendant'
 
-import { aiModeLabels, aiModes, aiToneLabels, aiTones } from './ai-attendant-labels'
+import {
+  aiModeLabels,
+  aiModes,
+  aiResponseLengthLabels,
+  aiResponseLengths,
+  aiToneLabels,
+  aiTones,
+} from './ai-attendant-labels'
 
 interface SettingsFormState {
   isEnabled: boolean
   mode: AiAttendantMode
+  assistantName: string
+  mainPrompt: string
   minDelaySeconds: number
   maxDelaySeconds: number
   messageGroupingSeconds: number
@@ -32,9 +42,19 @@ interface SettingsFormState {
   transferOnLowConfidence: boolean
   transferOnComplaint: boolean
   transferOnCancellation: boolean
+  transferOnHumanRequest: boolean
   tone: AiAttendantTone
   useEmojis: boolean
   callCustomerByName: boolean
+  responseLength: AiResponseLength
+  neverInventPrice: boolean
+  neverInventProduct: boolean
+  neverInventPromotion: boolean
+  neverPromiseDeliveryTime: boolean
+  allowTestWhatsappSend: boolean
+  defaultTestWhatsappNumber: string
+  upsellEnabled: boolean
+  upsellMaxSuggestions: number
   greetingMessage: string
   outOfHoursMessage: string
   humanHandoffMessage: string
@@ -78,9 +98,20 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
       return
     }
 
+    if (form.assistantName.trim().length < 2 || form.mainPrompt.trim().length < 20) {
+      pushToast({
+        title: 'Revise o comportamento da IA',
+        description: 'Nome do atendente e prompt principal precisam estar preenchidos.',
+        variant: 'warning',
+      })
+      return
+    }
+
     const payload: UpdateAiAttendantSettingsPayload = {
       isEnabled: form.isEnabled,
       mode: form.isEnabled ? form.mode : 'off',
+      assistantName: form.assistantName.trim(),
+      mainPrompt: form.mainPrompt.trim(),
       minDelaySeconds: form.minDelaySeconds,
       maxDelaySeconds: form.maxDelaySeconds,
       messageGroupingSeconds: form.messageGroupingSeconds,
@@ -88,9 +119,19 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
       transferOnLowConfidence: form.transferOnLowConfidence,
       transferOnComplaint: form.transferOnComplaint,
       transferOnCancellation: form.transferOnCancellation,
+      transferOnHumanRequest: form.transferOnHumanRequest,
       tone: form.tone,
       useEmojis: form.useEmojis,
       callCustomerByName: form.callCustomerByName,
+      responseLength: form.responseLength,
+      neverInventPrice: form.neverInventPrice,
+      neverInventProduct: form.neverInventProduct,
+      neverInventPromotion: form.neverInventPromotion,
+      neverPromiseDeliveryTime: form.neverPromiseDeliveryTime,
+      allowTestWhatsappSend: form.allowTestWhatsappSend,
+      defaultTestWhatsappNumber: normalizeNullableText(form.defaultTestWhatsappNumber),
+      upsellEnabled: form.upsellEnabled,
+      upsellMaxSuggestions: form.upsellMaxSuggestions,
       greetingMessage: normalizeNullableText(form.greetingMessage),
       outOfHoursMessage: normalizeNullableText(form.outOfHoursMessage),
       humanHandoffMessage: normalizeNullableText(form.humanHandoffMessage),
@@ -161,27 +202,107 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
             }
           />
 
-          <div className="space-y-2">
-            <label className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
-              Tom de voz
-            </label>
-            <Select
-              value={form.tone}
-              onValueChange={(value) =>
-                setForm((current) => ({ ...current, tone: value as AiAttendantTone }))
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot className="h-5 w-5 text-primary" />
+            Comportamento da IA
+          </CardTitle>
+          <CardDescription>
+            Esses dados ficam no banco e o backend monta o system prompt final para o Groq.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[1fr_220px_220px]">
+            <div className="space-y-2">
+              <label htmlFor="ai-assistant-name" className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Nome do atendente
+              </label>
+              <Input
+                id="ai-assistant-name"
+                value={form.assistantName}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, assistantName: event.target.value }))
+                }
+                maxLength={80}
+                placeholder="Atendente Cain"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Tom de voz
+              </label>
+              <Select
+                value={form.tone}
+                onValueChange={(value) =>
+                  setForm((current) => ({ ...current, tone: value as AiAttendantTone }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiTones.map((tone) => (
+                    <SelectItem key={tone} value={tone}>
+                      {aiToneLabels[tone]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Tamanho
+              </label>
+              <Select
+                value={form.responseLength}
+                onValueChange={(value) =>
+                  setForm((current) => ({ ...current, responseLength: value as AiResponseLength }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiResponseLengths.map((length) => (
+                    <SelectItem key={length} value={length}>
+                      {aiResponseLengthLabels[length]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <TextAreaField
+            label="Prompt principal"
+            value={form.mainPrompt}
+            onChange={(value) => setForm((current) => ({ ...current, mainPrompt: value }))}
+            placeholder="Voce e um atendente virtual de delivery..."
+            rows={9}
+            maxLength={4000}
+          />
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ToggleRow
+              label="Usar emojis"
+              description="Permite emojis quando o tom escolhido combinar com a conversa."
+              checked={form.useEmojis}
+              onCheckedChange={(checked) => setForm((current) => ({ ...current, useEmojis: checked }))}
+            />
+            <ToggleRow
+              label="Chamar cliente pelo nome"
+              description="Usa o nome quando o cliente estiver identificado."
+              checked={form.callCustomerByName}
+              onCheckedChange={(checked) =>
+                setForm((current) => ({ ...current, callCustomerByName: checked }))
               }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {aiTones.map((tone) => (
-                  <SelectItem key={tone} value={tone}>
-                    {aiToneLabels[tone]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
         </CardContent>
       </Card>
@@ -228,24 +349,77 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Personalizacao e transferencia</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingBasket className="h-5 w-5 text-primary" />
+            Venda assistida
+          </CardTitle>
           <CardDescription>
-            Preferencias usadas na geracao de respostas e nas regras de escalonamento.
+            Regras comerciais usadas pelo backend para sugerir combos e adicionais com base no banco.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <ToggleRow
+            label="Upsell ativo"
+            description="Permite sugerir combos, cupons e adicionais somente quando existirem dados reais no catálogo."
+            checked={form.upsellEnabled}
+            onCheckedChange={(checked) =>
+              setForm((current) => ({ ...current, upsellEnabled: checked }))
+            }
+          />
+          <NumberField
+            label="Max. sugestoes"
+            value={form.upsellMaxSuggestions}
+            min={0}
+            max={6}
+            suffix="itens"
+            onChange={(value) =>
+              setForm((current) => ({ ...current, upsellMaxSuggestions: value }))
+            }
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            Regras de seguranca
+          </CardTitle>
+          <CardDescription>
+            Limites que entram no system prompt e nas regras de transferencia do pipeline.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <ToggleRow
-            label="Usar emojis"
-            description="Permite emojis quando o tom escolhido combinar com a conversa."
-            checked={form.useEmojis}
-            onCheckedChange={(checked) => setForm((current) => ({ ...current, useEmojis: checked }))}
+            label="Nunca inventar preco"
+            description="Se nao houver preco oficial, a IA deve dizer que nao encontrou."
+            checked={form.neverInventPrice}
+            onCheckedChange={(checked) =>
+              setForm((current) => ({ ...current, neverInventPrice: checked }))
+            }
           />
           <ToggleRow
-            label="Chamar cliente pelo nome"
-            description="Usa o nome quando o cliente estiver identificado."
-            checked={form.callCustomerByName}
+            label="Nunca inventar produto"
+            description="Produtos fora do cardapio real devem ser tratados como nao encontrados."
+            checked={form.neverInventProduct}
             onCheckedChange={(checked) =>
-              setForm((current) => ({ ...current, callCustomerByName: checked }))
+              setForm((current) => ({ ...current, neverInventProduct: checked }))
+            }
+          />
+          <ToggleRow
+            label="Nunca inventar promocao"
+            description="A IA so pode citar promocoes e cupons ativos no banco."
+            checked={form.neverInventPromotion}
+            onCheckedChange={(checked) =>
+              setForm((current) => ({ ...current, neverInventPromotion: checked }))
+            }
+          />
+          <ToggleRow
+            label="Nunca prometer prazo sem regra"
+            description="Sem regra de entrega cadastrada, pergunta bairro/endereco em vez de prometer."
+            checked={form.neverPromiseDeliveryTime}
+            onCheckedChange={(checked) =>
+              setForm((current) => ({ ...current, neverPromiseDeliveryTime: checked }))
             }
           />
           <ToggleRow
@@ -272,6 +446,51 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
               setForm((current) => ({ ...current, transferOnCancellation: checked }))
             }
           />
+          <ToggleRow
+            label="Transferir pedido de atendente"
+            description="Quando o cliente pedir humano, a conversa sai do fluxo automatico."
+            checked={form.transferOnHumanRequest}
+            onCheckedChange={(checked) =>
+              setForm((current) => ({ ...current, transferOnHumanRequest: checked }))
+            }
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Testes e modo seguro</CardTitle>
+          <CardDescription>
+            Controla envio real para numero de teste. Isso nao habilita disparo em massa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <ToggleRow
+            label="Permitir envio para numero de teste"
+            description="Quando desligado, o backend bloqueia o endpoint de teste WhatsApp real."
+            checked={form.allowTestWhatsappSend}
+            onCheckedChange={(checked) =>
+              setForm((current) => ({ ...current, allowTestWhatsappSend: checked }))
+            }
+          />
+
+          <div className="space-y-2">
+            <label htmlFor="default-test-whatsapp-number" className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+              Numero de teste padrao
+            </label>
+            <Input
+              id="default-test-whatsapp-number"
+              value={form.defaultTestWhatsappNumber}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  defaultTestWhatsappNumber: event.target.value,
+                }))
+              }
+              placeholder="5592999999999"
+              maxLength={32}
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -318,6 +537,8 @@ function mapSettingsToForm(settings: AiAttendantSettings): SettingsFormState {
   return {
     isEnabled: settings.isEnabled,
     mode: settings.mode,
+    assistantName: settings.assistantName,
+    mainPrompt: settings.mainPrompt,
     minDelaySeconds: settings.minDelaySeconds,
     maxDelaySeconds: settings.maxDelaySeconds,
     messageGroupingSeconds: settings.messageGroupingSeconds,
@@ -325,9 +546,19 @@ function mapSettingsToForm(settings: AiAttendantSettings): SettingsFormState {
     transferOnLowConfidence: settings.transferOnLowConfidence,
     transferOnComplaint: settings.transferOnComplaint,
     transferOnCancellation: settings.transferOnCancellation,
+    transferOnHumanRequest: settings.transferOnHumanRequest,
     tone: settings.tone,
     useEmojis: settings.useEmojis,
     callCustomerByName: settings.callCustomerByName,
+    responseLength: settings.responseLength,
+    neverInventPrice: settings.neverInventPrice,
+    neverInventProduct: settings.neverInventProduct,
+    neverInventPromotion: settings.neverInventPromotion,
+    neverPromiseDeliveryTime: settings.neverPromiseDeliveryTime,
+    allowTestWhatsappSend: settings.allowTestWhatsappSend,
+    defaultTestWhatsappNumber: settings.defaultTestWhatsappNumber ?? '',
+    upsellEnabled: settings.upsellEnabled,
+    upsellMaxSuggestions: settings.upsellMaxSuggestions,
     greetingMessage: settings.greetingMessage ?? '',
     outOfHoursMessage: settings.outOfHoursMessage ?? '',
     humanHandoffMessage: settings.humanHandoffMessage ?? '',
@@ -391,10 +622,19 @@ interface TextAreaFieldProps {
   label: string
   value: string
   placeholder: string
+  rows?: number
+  maxLength?: number
   onChange: (value: string) => void
 }
 
-function TextAreaField({ label, value, placeholder, onChange }: TextAreaFieldProps) {
+function TextAreaField({
+  label,
+  value,
+  placeholder,
+  rows = 5,
+  maxLength = 500,
+  onChange,
+}: TextAreaFieldProps) {
   return (
     <div className="space-y-2">
       <label className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
@@ -403,8 +643,8 @@ function TextAreaField({ label, value, placeholder, onChange }: TextAreaFieldPro
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        rows={5}
-        maxLength={500}
+        rows={rows}
+        maxLength={maxLength}
         className="min-h-32 w-full resize-y rounded-xl border border-white/10 bg-[#071525] px-3 py-2 text-sm leading-6 text-slate-100 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-primary/70 focus:ring-2 focus:ring-primary/20"
         placeholder={placeholder}
       />

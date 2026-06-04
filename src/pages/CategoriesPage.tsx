@@ -22,21 +22,27 @@ import {
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import type { SaveOptionGroupRequest } from '@/contracts'
 import { ProductFormDrawer } from '@/features/catalog/components/ProductFormDrawer'
 import {
   useCategoriesQuery,
   useDeleteCategoryMutation,
+  useApplyOptionGroupToCategoryMutation,
+  useOptionGroupsQuery,
   useProductsQuery,
   useSaveCategoryMutation,
+  useSaveOptionGroupMutation,
   useSaveProductMutation,
   useToggleCategorySoldOutMutation,
+  useUpdateOptionAvailabilityMutation,
   useUpdateProductChannelMutation,
+  useUpdateProductOptionGroupLinkMutation,
 } from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { useCan } from '@/hooks/use-permissions'
 import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { Category, Product, ProductChannel } from '@/types'
+import type { CatalogOptionGroup, Category, Product, ProductChannel } from '@/types'
 import {
   ArrowDown,
   ArrowUp,
@@ -44,6 +50,7 @@ import {
   Boxes,
   Eye,
   EyeOff,
+  ListPlus,
   PackagePlus,
   Pencil,
   Plus,
@@ -76,28 +83,82 @@ function categoryIsSoldOut(products: Product[]) {
   return products.length > 0 && products.every(productIsSoldOut)
 }
 
+function parsePriceInput(value: string) {
+  const parsed = Number(value.replace(',', '.'))
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+}
+
+function cloneOptionForSave(
+  option:
+    | CatalogOptionGroup['options'][number]
+    | SaveOptionGroupRequest['group']['options'][number],
+): SaveOptionGroupRequest['group']['options'][number] {
+  const isTemporaryId = option.id?.startsWith('new-') ?? false
+
+  return {
+    ...(option.id && !isTemporaryId ? { id: option.id } : {}),
+    name: option.name,
+    description: option.description,
+    image: option.image,
+    priceDelta: option.priceDelta,
+    active: option.active,
+    available: option.available,
+    soldOut: option.soldOut,
+    sortOrder: option.sortOrder,
+  }
+}
+
+function resolveGroupDefaults(
+  group: CatalogOptionGroup,
+  categoryId: string,
+  products: Product[],
+) {
+  const categoryLink = group.categoryLinks.find((link) => link.categoryId === categoryId)
+  const productLink = products
+    .flatMap((product) => product.optionGroups ?? [])
+    .find((link) => link.id === group.id)
+
+  return {
+    required: productLink?.required ?? categoryLink?.required ?? false,
+    minSelections: productLink?.minSelections ?? categoryLink?.minSelections ?? 0,
+    maxSelections: productLink?.maxSelections ?? categoryLink?.maxSelections ?? 1,
+    sortOrder: productLink?.sortOrder ?? categoryLink?.sortOrder ?? group.sortOrder,
+    description: productLink?.description ?? categoryLink?.description,
+  }
+}
+
 export function CategoriesPage() {
   usePageTitle('Categorias')
   const canManageCategories = useCan('catalog:categories:manage')
   const canManageProducts = useCan('catalog:products:manage')
   const categoriesQuery = useCategoriesQuery()
   const productsQuery = useProductsQuery({ pageSize: 200 })
+  const optionGroupsQuery = useOptionGroupsQuery()
   const saveCategoryMutation = useSaveCategoryMutation()
   const deleteCategoryMutation = useDeleteCategoryMutation()
   const saveProductMutation = useSaveProductMutation()
+  const saveOptionGroupMutation = useSaveOptionGroupMutation()
   const updateProductChannelMutation = useUpdateProductChannelMutation()
   const toggleCategorySoldOutMutation = useToggleCategorySoldOutMutation()
+  const updateOptionAvailabilityMutation = useUpdateOptionAvailabilityMutation()
+  const applyOptionGroupToCategoryMutation = useApplyOptionGroupToCategoryMutation()
+  const updateProductOptionGroupLinkMutation = useUpdateProductOptionGroupLinkMutation()
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [editingProductId, setEditingProductId] = useState<string | 'new' | null>(null)
   const [productToMoveId, setProductToMoveId] = useState('')
   const [categorySearch, setCategorySearch] = useState('')
+  const [selectedOptionGroupId, setSelectedOptionGroupId] = useState('')
 
   const categories = useMemo(
     () => [...(categoriesQuery.data?.data ?? [])].sort((left, right) => left.sortOrder - right.sortOrder),
     [categoriesQuery.data?.data],
   )
   const products = useMemo(() => productsQuery.data?.data ?? [], [productsQuery.data?.data])
+  const optionGroups = useMemo(
+    () => optionGroupsQuery.data?.data ?? [],
+    [optionGroupsQuery.data?.data],
+  )
   const filteredCategories = useMemo(
     () =>
       categories.filter((category) =>
@@ -126,6 +187,18 @@ export function CategoriesPage() {
       : null
   const nextSortOrder = categories.reduce((max, category) => Math.max(max, category.sortOrder), 0) + 1
   const selectedCategorySoldOut = categoryIsSoldOut(selectedProducts)
+  const linkedOptionGroupIds = useMemo(
+    () =>
+      new Set(
+        selectedProducts.flatMap((product) => product.optionGroups?.map((group) => group.id) ?? []),
+      ),
+    [selectedProducts],
+  )
+  const selectedOptionGroup =
+    optionGroups.find((group) => group.id === selectedOptionGroupId) ??
+    optionGroups.find((group) => linkedOptionGroupIds.has(group.id)) ??
+    optionGroups[0] ??
+    null
 
   function saveCategory(category: Category) {
     saveCategoryMutation.mutate(category, {
@@ -377,14 +450,22 @@ export function CategoriesPage() {
           products={selectedProducts}
           availableProducts={productsOutsideCategory}
           selectedProductToMove={productToMoveId}
+          optionGroups={optionGroups}
+          selectedOptionGroup={selectedOptionGroup}
+          selectedOptionGroupId={selectedOptionGroupId}
           busy={
             saveProductMutation.isPending ||
             updateProductChannelMutation.isPending ||
-            toggleCategorySoldOutMutation.isPending
+            toggleCategorySoldOutMutation.isPending ||
+            saveOptionGroupMutation.isPending ||
+            updateOptionAvailabilityMutation.isPending ||
+            applyOptionGroupToCategoryMutation.isPending ||
+            updateProductOptionGroupLinkMutation.isPending
           }
           canManageProducts={canManageProducts}
           soldOut={selectedCategorySoldOut}
           onSelectProductToMove={setProductToMoveId}
+          onSelectOptionGroup={setSelectedOptionGroupId}
           onAddExistingProduct={() => {
             const product = products.find((entry) => entry.id === productToMoveId)
             if (product && selectedCategory) {
@@ -407,6 +488,43 @@ export function CategoriesPage() {
           }
           onToggleProductSoldOut={(product) => setProductSoldOut(product, !productIsSoldOut(product))}
           onToggleCategorySoldOut={toggleSelectedCategorySoldOut}
+          onApplyOptionGroupToCategory={(group) => {
+            if (!selectedCategory) {
+              return
+            }
+
+            const defaults = resolveGroupDefaults(group, selectedCategory.id, selectedProducts)
+            applyOptionGroupToCategoryMutation.mutate({
+              groupId: group.id,
+              categoryId: selectedCategory.id,
+              required: defaults.required,
+              minSelections: defaults.minSelections,
+              maxSelections: defaults.maxSelections,
+              sortOrder: defaults.sortOrder,
+              description: defaults.description,
+            })
+          }}
+          onSaveOptionGroup={async (group) => {
+            const response = await saveOptionGroupMutation.mutateAsync(group)
+            setSelectedOptionGroupId(response.data.id)
+            return response.data
+          }}
+          onToggleOptionSoldOut={(optionId, soldOut) =>
+            updateOptionAvailabilityMutation.mutate({ optionId, soldOut })
+          }
+          onToggleProductOptionGroup={(product, group, enabled) => {
+            const defaults = resolveGroupDefaults(group, selectedCategory?.id ?? '', selectedProducts)
+            updateProductOptionGroupLinkMutation.mutate({
+              productId: product.id,
+              groupId: group.id,
+              enabled,
+              required: defaults.required,
+              minSelections: defaults.minSelections,
+              maxSelections: defaults.maxSelections,
+              sortOrder: defaults.sortOrder,
+              description: defaults.description,
+            })
+          }}
         />
       </div>
 
@@ -462,10 +580,14 @@ interface CategoryProductsPanelProps {
   products: Product[]
   availableProducts: Product[]
   selectedProductToMove: string
+  optionGroups: CatalogOptionGroup[]
+  selectedOptionGroup: CatalogOptionGroup | null
+  selectedOptionGroupId: string
   busy: boolean
   canManageProducts: boolean
   soldOut: boolean
   onSelectProductToMove: (productId: string) => void
+  onSelectOptionGroup: (groupId: string) => void
   onAddExistingProduct: () => void
   onCreateProduct: () => void
   onEditProduct: (productId: string) => void
@@ -474,6 +596,14 @@ interface CategoryProductsPanelProps {
   onToggleProductActive: (product: Product) => void
   onToggleProductSoldOut: (product: Product) => void
   onToggleCategorySoldOut: (soldOut: boolean) => void
+  onApplyOptionGroupToCategory: (group: CatalogOptionGroup) => void
+  onSaveOptionGroup: (group: SaveOptionGroupRequest['group']) => Promise<CatalogOptionGroup>
+  onToggleOptionSoldOut: (optionId: string, soldOut: boolean) => void
+  onToggleProductOptionGroup: (
+    product: Product,
+    group: CatalogOptionGroup,
+    enabled: boolean,
+  ) => void
 }
 
 function CategoryProductsPanel({
@@ -482,10 +612,14 @@ function CategoryProductsPanel({
   products,
   availableProducts,
   selectedProductToMove,
+  optionGroups,
+  selectedOptionGroup,
+  selectedOptionGroupId,
   busy,
   canManageProducts,
   soldOut,
   onSelectProductToMove,
+  onSelectOptionGroup,
   onAddExistingProduct,
   onCreateProduct,
   onEditProduct,
@@ -494,6 +628,10 @@ function CategoryProductsPanel({
   onToggleProductActive,
   onToggleProductSoldOut,
   onToggleCategorySoldOut,
+  onApplyOptionGroupToCategory,
+  onSaveOptionGroup,
+  onToggleOptionSoldOut,
+  onToggleProductOptionGroup,
 }: CategoryProductsPanelProps) {
   if (!category) {
     return (
@@ -579,6 +717,21 @@ function CategoryProductsPanel({
           </Button>
         </div>
       </div>
+
+      <CategoryOptionGroupsPanel
+        category={category}
+        products={products}
+        optionGroups={optionGroups}
+        selectedGroup={selectedOptionGroup}
+        selectedGroupId={selectedOptionGroupId}
+        busy={busy}
+        canManageProducts={canManageProducts}
+        onSelectGroup={onSelectOptionGroup}
+        onApplyGroup={onApplyOptionGroupToCategory}
+        onSaveOptionGroup={onSaveOptionGroup}
+        onToggleOptionSoldOut={onToggleOptionSoldOut}
+        onToggleProductGroup={onToggleProductOptionGroup}
+      />
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin">
         {products.length ? (
@@ -716,6 +869,541 @@ function InfoPill({ label, active }: { label: string; active: boolean }) {
     >
       {label}
     </span>
+  )
+}
+
+interface CategoryOptionGroupsPanelProps {
+  category: Category
+  products: Product[]
+  optionGroups: CatalogOptionGroup[]
+  selectedGroup: CatalogOptionGroup | null
+  selectedGroupId: string
+  busy: boolean
+  canManageProducts: boolean
+  onSelectGroup: (groupId: string) => void
+  onApplyGroup: (group: CatalogOptionGroup) => void
+  onSaveOptionGroup: (group: SaveOptionGroupRequest['group']) => Promise<CatalogOptionGroup>
+  onToggleOptionSoldOut: (optionId: string, soldOut: boolean) => void
+  onToggleProductGroup: (
+    product: Product,
+    group: CatalogOptionGroup,
+    enabled: boolean,
+  ) => void
+}
+
+function CategoryOptionGroupsPanel({
+  category,
+  products,
+  optionGroups,
+  selectedGroup,
+  selectedGroupId,
+  busy,
+  canManageProducts,
+  onSelectGroup,
+  onApplyGroup,
+  onSaveOptionGroup,
+  onToggleOptionSoldOut,
+  onToggleProductGroup,
+}: CategoryOptionGroupsPanelProps) {
+  return (
+    <div className="border-b border-white/10 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-100">Sabores e opcoes da categoria</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Controle global de disponibilidade e aplicacao por produto usando o catalogo real.
+          </p>
+        </div>
+        {selectedGroup ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!canManageProducts || busy || !products.length}
+            onClick={() => onApplyGroup(selectedGroup)}
+          >
+            Aplicar a categoria
+          </Button>
+        ) : null}
+      </div>
+
+      <QuickOptionComposer
+        key={category.id}
+        category={category}
+        selectedGroup={selectedGroup}
+        productsCount={products.length}
+        busy={busy}
+        canManageProducts={canManageProducts}
+        onSelectGroup={onSelectGroup}
+        onApplyGroup={onApplyGroup}
+        onSaveOptionGroup={onSaveOptionGroup}
+      />
+
+      {optionGroups.length ? (
+        <div className="mt-3 space-y-4">
+          <Select
+            value={selectedGroup?.id ?? (selectedGroupId || undefined)}
+            onValueChange={onSelectGroup}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Escolha um grupo de opcoes" />
+            </SelectTrigger>
+            <SelectContent>
+              {optionGroups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {selectedGroup ? (
+            <>
+              <OptionGroupInlineEditor
+                group={selectedGroup}
+                busy={busy}
+                canManageProducts={canManageProducts}
+                onSelectGroup={onSelectGroup}
+                onSaveOptionGroup={onSaveOptionGroup}
+              />
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    Disponibilidade global
+                  </p>
+                  <Badge
+                    variant={
+                      selectedGroup.categoryLinks.some((link) => link.categoryId === category.id)
+                        ? 'success'
+                        : 'default'
+                    }
+                  >
+                    {selectedGroup.categoryLinks.some((link) => link.categoryId === category.id)
+                      ? 'Aplicacao automatica'
+                      : 'Nao aplicado a categoria'}
+                  </Badge>
+                </div>
+                <div className="grid gap-2">
+                  {selectedGroup.options.map((option) => {
+                    const orderable = option.active && option.available && !option.soldOut
+
+                    return (
+                      <div
+                        key={option.id}
+                        className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-white/10 bg-[#050f1c] px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-100">
+                            {option.name}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {option.description || 'Sem descricao'}
+                            {option.priceDelta > 0 ? ` · +${formatCurrency(option.priceDelta)}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={orderable ? 'success' : 'danger'}>
+                            {orderable ? 'Disponivel' : 'Esgotado'}
+                          </Badge>
+                          <Switch
+                            checked={orderable}
+                            disabled={!canManageProducts || busy}
+                            onCheckedChange={(checked) =>
+                              onToggleOptionSoldOut(option.id, !checked)
+                            }
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Aplicacao por produto
+                </p>
+                <div className="grid gap-2">
+                  {products.length ? (
+                    products.map((product) => {
+                      const linked = product.optionGroups?.some((group) => group.id === selectedGroup.id) ?? false
+
+                      return (
+                        <div
+                          key={product.id}
+                          className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-white/10 bg-[#050f1c] px-3 py-2"
+                        >
+                          <span className="truncate text-sm text-slate-100">{product.name}</span>
+                          <Switch
+                            checked={linked}
+                            disabled={!canManageProducts || busy}
+                            onCheckedChange={(checked) =>
+                              onToggleProductGroup(product, selectedGroup, checked)
+                            }
+                          />
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <p className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-sm text-muted-foreground">
+                      Crie produtos nesta categoria para personalizar aplicacao.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-2xl border border-dashed border-white/10 px-3 py-4 text-sm text-muted-foreground">
+          Nenhum grupo de opcoes cadastrado no catalogo real.
+        </p>
+      )}
+    </div>
+  )
+}
+
+interface QuickOptionComposerProps {
+  category: Category
+  selectedGroup: CatalogOptionGroup | null
+  productsCount: number
+  busy: boolean
+  canManageProducts: boolean
+  onSelectGroup: (groupId: string) => void
+  onApplyGroup: (group: CatalogOptionGroup) => void
+  onSaveOptionGroup: (group: SaveOptionGroupRequest['group']) => Promise<CatalogOptionGroup>
+}
+
+function QuickOptionComposer({
+  category,
+  selectedGroup,
+  productsCount,
+  busy,
+  canManageProducts,
+  onSelectGroup,
+  onApplyGroup,
+  onSaveOptionGroup,
+}: QuickOptionComposerProps) {
+  const [groupName, setGroupName] = useState(`Sabores de ${category.name}`)
+  const [optionName, setOptionName] = useState('')
+  const [optionPrice, setOptionPrice] = useState('0')
+  const [optionDescription, setOptionDescription] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const trimmedOptionName = optionName.trim()
+  const targetGroupName = selectedGroup?.name ?? groupName.trim()
+
+  async function handleSubmit() {
+    if (!canManageProducts || busy || isSaving || trimmedOptionName.length < 2) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const currentOptions = selectedGroup?.options.map(cloneOptionForSave) ?? []
+      const saved = await onSaveOptionGroup({
+        ...(selectedGroup?.id ? { id: selectedGroup.id } : {}),
+        name: targetGroupName || `Sabores de ${category.name}`,
+        description:
+          selectedGroup?.description ??
+          `Opcoes operacionais aplicadas na categoria ${category.name}.`,
+        sortOrder: selectedGroup?.sortOrder ?? 0,
+        options: [
+          ...currentOptions,
+          {
+            id: '',
+            name: trimmedOptionName,
+            description: optionDescription.trim() || undefined,
+            image: undefined,
+            priceDelta: parsePriceInput(optionPrice),
+            active: true,
+            available: true,
+            soldOut: false,
+            sortOrder: currentOptions.length + 1,
+          },
+        ],
+      })
+      onSelectGroup(saved.id)
+      onApplyGroup(saved)
+      setOptionName('')
+      setOptionPrice('0')
+      setOptionDescription('')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-3">
+      <div className="mb-3 flex items-start gap-3">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
+          <ListPlus className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-100">
+            Criar sabor ou opcao sem sair da categoria
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Salva no banco real e aplica na categoria selecionada. Produtos novos tambem recebem
+            grupos com aplicacao automatica.
+          </p>
+        </div>
+      </div>
+
+      {!selectedGroup ? (
+        <label className="mb-2 block space-y-1 text-xs font-medium text-slate-300">
+          Grupo
+          <Input
+            value={groupName}
+            onChange={(event) => setGroupName(event.target.value)}
+            placeholder="Ex.: Sabores de Pizza"
+          />
+        </label>
+      ) : (
+        <p className="mb-2 rounded-xl border border-white/10 bg-[#050f1c] px-3 py-2 text-xs text-slate-400">
+          Novo item sera salvo em <strong className="text-slate-100">{selectedGroup.name}</strong>.
+        </p>
+      )}
+
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1.4fr)_96px_auto]">
+        <Input
+          value={optionName}
+          onChange={(event) => setOptionName(event.target.value)}
+          placeholder="Nome do sabor/opcao"
+          disabled={!canManageProducts || busy || isSaving}
+        />
+        <Input
+          value={optionPrice}
+          onChange={(event) => setOptionPrice(event.target.value)}
+          placeholder="+ R$"
+          inputMode="decimal"
+          disabled={!canManageProducts || busy || isSaving}
+        />
+        <Button
+          type="button"
+          disabled={
+            !canManageProducts ||
+            busy ||
+            isSaving ||
+            trimmedOptionName.length < 2 ||
+            (!selectedGroup && targetGroupName.length < 2)
+          }
+          onClick={() => void handleSubmit()}
+        >
+          <Plus className="h-4 w-4" />
+          Salvar e aplicar
+        </Button>
+      </div>
+      <Input
+        value={optionDescription}
+        onChange={(event) => setOptionDescription(event.target.value)}
+        className="mt-2"
+        placeholder="Descricao opcional para cardapio e IA"
+        disabled={!canManageProducts || busy || isSaving}
+      />
+      {!productsCount ? (
+        <p className="mt-2 text-xs leading-5 text-amber-100">
+          A categoria ainda nao tem produtos. A regra fica salva e sera aplicada quando os produtos
+          forem criados.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+interface OptionGroupInlineEditorProps {
+  group: CatalogOptionGroup
+  busy: boolean
+  canManageProducts: boolean
+  onSelectGroup: (groupId: string) => void
+  onSaveOptionGroup: (group: SaveOptionGroupRequest['group']) => Promise<CatalogOptionGroup>
+}
+
+function OptionGroupInlineEditor({
+  group,
+  busy,
+  canManageProducts,
+  onSelectGroup,
+  onSaveOptionGroup,
+}: OptionGroupInlineEditorProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [draft, setDraft] = useState<SaveOptionGroupRequest['group']>(() => ({
+    id: group.id,
+    name: group.name,
+    description: group.description,
+    sortOrder: group.sortOrder,
+    options: group.options.map(cloneOptionForSave),
+  }))
+  const [isSaving, setIsSaving] = useState(false)
+
+  function startEditing() {
+    setDraft({
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      sortOrder: group.sortOrder,
+      options: group.options.map(cloneOptionForSave),
+    })
+    setIsEditing(true)
+  }
+
+  function updateOption(
+    optionId: string,
+    patch: Partial<SaveOptionGroupRequest['group']['options'][number]>,
+  ) {
+    setDraft((current) => ({
+      ...current,
+      options: current.options.map((option) =>
+        option.id === optionId ? { ...option, ...patch } : option,
+      ),
+    }))
+  }
+
+  async function saveDraft() {
+    if (!canManageProducts || busy || isSaving || draft.name.trim().length < 2) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const saved = await onSaveOptionGroup({
+        ...draft,
+        name: draft.name.trim(),
+        description: draft.description?.trim() || undefined,
+        options: draft.options
+          .filter((option) => option.name.trim().length > 0)
+          .map((option, index) => ({
+            ...cloneOptionForSave(option),
+            name: option.name.trim(),
+            description: option.description?.trim() || undefined,
+            priceDelta: Math.max(0, Number(option.priceDelta) || 0),
+            sortOrder: index + 1,
+          })),
+      })
+      onSelectGroup(saved.id)
+      setIsEditing(false)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (!isEditing) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Grupo selecionado
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-100">{group.name}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canManageProducts || busy}
+            onClick={startEditing}
+          >
+            <Pencil className="h-4 w-4" />
+            Editar nomes/precos
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl border border-orange-300/20 bg-orange-400/[0.06] p-3">
+      <div className="grid gap-2">
+        <Input
+          value={draft.name}
+          onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+          placeholder="Nome do grupo"
+        />
+        <Input
+          value={draft.description ?? ''}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, description: event.target.value }))
+          }
+          placeholder="Descricao do grupo"
+        />
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {draft.options.map((option) => {
+          const optionId = option.id ?? `${option.name}-${option.sortOrder}`
+
+          return (
+            <div
+              key={optionId}
+              className="grid gap-2 rounded-xl border border-white/10 bg-[#050f1c] p-2 md:grid-cols-[minmax(0,1fr)_96px_auto]"
+            >
+              <Input
+                value={option.name}
+                onChange={(event) => updateOption(optionId, { name: event.target.value })}
+                placeholder="Nome"
+              />
+              <Input
+                value={String(option.priceDelta)}
+                onChange={(event) =>
+                  updateOption(optionId, { priceDelta: parsePriceInput(event.target.value) })
+                }
+                inputMode="decimal"
+                placeholder="+ R$"
+              />
+              <label className="flex items-center justify-between gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300">
+                Ativa
+                <Switch
+                  checked={option.active}
+                  onCheckedChange={(checked) =>
+                    updateOption(optionId, {
+                      active: checked,
+                      available: checked,
+                      soldOut: !checked,
+                    })
+                  }
+                />
+              </label>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mt-3 flex flex-wrap justify-between gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() =>
+            setDraft((current) => ({
+              ...current,
+              options: [
+                ...current.options,
+                {
+                  id: `new-${crypto.randomUUID()}`,
+                  name: '',
+                  description: undefined,
+                  image: undefined,
+                  priceDelta: 0,
+                  active: true,
+                  available: true,
+                  soldOut: false,
+                  sortOrder: current.options.length + 1,
+                },
+              ],
+            }))
+          }
+        >
+          <Plus className="h-4 w-4" />
+          Adicionar linha
+        </Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+            Cancelar
+          </Button>
+          <Button type="button" disabled={busy || isSaving} onClick={() => void saveDraft()}>
+            Salvar grupo
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 

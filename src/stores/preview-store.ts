@@ -1,5 +1,4 @@
 import { createAppJSONStorage } from '@/lib/storage'
-import { previewCartMock } from '@/mocks'
 import type { PreviewCartItem, ProductChannel } from '@/types'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -20,7 +19,7 @@ export const usePreviewStore = create<PreviewState>()(
     (set) => ({
       channel: 'digital_menu',
       selectedCategoryId: 'cat_burgers',
-      cartItems: structuredClone(previewCartMock),
+      cartItems: [],
       setChannel: (value) => set({ channel: value }),
       setSelectedCategoryId: (value) => set({ selectedCategoryId: value }),
       addCartItem: (item) =>
@@ -55,7 +54,7 @@ export const usePreviewStore = create<PreviewState>()(
       clearCart: () => set({ cartItems: [] }),
     }),
     {
-      name: 'cain-admin-preview',
+      name: 'cain-admin-preview-v2',
       storage: createAppJSONStorage(),
     },
   ),

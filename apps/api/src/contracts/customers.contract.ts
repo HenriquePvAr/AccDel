@@ -36,3 +36,5 @@ export const updateCustomerSchema = z.object({
 export type ListCustomersQuery = z.infer<typeof listCustomersQuerySchema>
 export type CreateCustomerPayload = z.infer<typeof createCustomerSchema>
 export type UpdateCustomerPayload = z.infer<typeof updateCustomerSchema>
+
+export type CustomerSegment = 'new' | 'recurring' | 'vip' | 'inactive'

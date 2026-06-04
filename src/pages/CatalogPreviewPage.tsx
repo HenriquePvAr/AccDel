@@ -7,16 +7,12 @@ import { SectionHeader } from '@/components/shared/SectionHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  useCategoriesQuery,
-  useProductsQuery,
-  usePromotionsQuery,
-} from '@/hooks/queries'
+import { useCatalogMenuSourceQuery } from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { usePreviewStore } from '@/stores'
-import type { Category, Product, ProductChannel, Promotion } from '@/types'
+import type { CatalogMenuCategory, CatalogMenuProduct, ProductChannel, Promotion } from '@/types'
 import {
   AlertTriangle,
   Clock3,
@@ -40,8 +36,8 @@ function channelLabel(channel: ProductChannel) {
   return channel === 'digital_menu' ? 'Cardapio digital' : 'Delivery'
 }
 
-function getProductStatus(product: Product, channel: ProductChannel) {
-  const availability = product.availability.find((entry) => entry.channel === channel)
+function getProductStatus(product: CatalogMenuProduct) {
+  const availability = product.channelAvailability
   if (!product.active) {
     return { label: 'inativo', tone: 'neutral' as const, available: false }
   }
@@ -55,7 +51,11 @@ function getProductStatus(product: Product, channel: ProductChannel) {
   return { label: 'disponivel', tone: 'success' as const, available: true }
 }
 
-function productMatchesSearch(product: Product, category: Category | undefined, search: string) {
+function productMatchesSearch(
+  product: CatalogMenuProduct,
+  category: CatalogMenuCategory | undefined,
+  search: string,
+) {
   const normalized = search.trim().toLowerCase()
   if (!normalized) {
     return true
@@ -71,9 +71,6 @@ function productMatchesSearch(product: Product, category: Category | undefined, 
 
 export function CatalogPreviewPage() {
   usePageTitle('Previa do cardapio digital')
-  const categoriesQuery = useCategoriesQuery()
-  const productsQuery = useProductsQuery({ pageSize: 200 })
-  const promotionsQuery = usePromotionsQuery()
   const [mode, setMode] = useState<PreviewMode>('desktop')
   const [search, setSearch] = useState('')
   const [
@@ -97,28 +94,24 @@ export function CatalogPreviewPage() {
       state.clearCart,
     ]),
   )
-  const isLoading =
-    categoriesQuery.isLoading || productsQuery.isLoading || promotionsQuery.isLoading
-  const allCategories = useMemo(
-    () => categoriesQuery.data?.data ?? [],
-    [categoriesQuery.data?.data],
-  )
-  const allProducts = useMemo(() => productsQuery.data?.data ?? [], [productsQuery.data?.data])
-  const promotions = (promotionsQuery.data?.data ?? []).filter(
-    (promotion) => promotion.status === 'active' && promotion.channels.includes(channel),
-  )
+  const menuSourceQuery = useCatalogMenuSourceQuery({
+    channel,
+    includeUnavailable: true,
+  })
+  const isLoading = menuSourceQuery.isLoading
+  const source = menuSourceQuery.data?.data
   const categories = useMemo(
-    () =>
-      allCategories.filter(
-        (category) =>
-          category.active &&
-          (channel !== 'digital_menu' || category.visibleOnDigitalMenu),
-      ),
-    [allCategories, channel],
+    () => source?.categories.filter((category) => category.visibleForChannel) ?? [],
+    [source?.categories],
   )
+  const allProducts = useMemo(
+    () => categories.flatMap((category) => category.products),
+    [categories],
+  )
+  const promotions = source?.promotions ?? []
   const categoryById = useMemo(
-    () => new Map(allCategories.map((category) => [category.id, category])),
-    [allCategories],
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
   )
   const selectedCategory =
     categories.find((category) => category.id === selectedCategoryId) ?? categories[0] ?? null
@@ -149,12 +142,12 @@ export function CatalogPreviewPage() {
       (category) => !allProducts.some((product) => product.categoryId === category.id),
     ).length
     const unavailableProducts = allProducts.filter((product) => {
-      const status = getProductStatus(product, channel)
+      const status = getProductStatus(product)
       return visibleCategoryIds.has(product.categoryId) && !status.available
     }).length
 
     return { productsWithoutImage, emptyCategories, unavailableProducts }
-  }, [allProducts, categories, channel, visibleCategoryIds])
+  }, [allProducts, categories, visibleCategoryIds])
   const cartTotal = cartItems.reduce((total, item) => total + item.price * item.quantity, 0)
 
   return (
@@ -334,7 +327,7 @@ export function CatalogPreviewPage() {
                       )}
                     >
                       {previewProducts.map((product) => {
-                        const status = getProductStatus(product, channel)
+                        const status = getProductStatus(product)
                         const category = categoryById.get(product.categoryId)
 
                         return (
@@ -371,6 +364,25 @@ export function CatalogPreviewPage() {
                                   {formatCurrency(product.price)}
                                 </span>
                               </div>
+                              {product.optionGroups.length ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {product.optionGroups.flatMap((group) =>
+                                    group.options.slice(0, 5).map((option) => (
+                                      <span
+                                        key={`${group.id}-${option.id}`}
+                                        className={cn(
+                                          'rounded-full border px-2 py-1 text-[11px] font-semibold',
+                                          option.orderable !== false
+                                            ? 'border-cyan-200 bg-cyan-50 text-cyan-700'
+                                            : 'border-red-200 bg-red-50 text-red-700',
+                                        )}
+                                      >
+                                        {option.name}
+                                      </span>
+                                    )),
+                                  )}
+                                </div>
+                              ) : null}
                               <div className="flex items-center justify-between gap-3">
                                 <ClientStatusBadge status={status} />
                                 {status.available ? (

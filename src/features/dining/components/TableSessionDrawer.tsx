@@ -683,6 +683,12 @@ function ProductConfigPanel({
   const groups = product.optionGroups ?? []
 
   function toggleOption(group: ProductOptionGroup, optionId: string) {
+    const option = group.options.find((entry) => entry.id === optionId)
+    if (!option || !isOptionOrderable(option)) {
+      setError(option ? `${option.name} esta indisponivel no catalogo.` : 'Opcao indisponivel.')
+      return
+    }
+
     setError(null)
     setSelectedOptions((current) => {
       const currentGroup = current[group.id] ?? []
@@ -717,7 +723,7 @@ function ProductConfigPanel({
       (selectedOptions[group.id] ?? []).flatMap((optionId) => {
         const option = group.options.find((entry) => entry.id === optionId)
 
-        return option
+        return option && isOptionOrderable(option)
           ? [
               {
                 id: option.id,
@@ -774,15 +780,19 @@ function ProductConfigPanel({
             <div className="grid gap-2 sm:grid-cols-2">
               {group.options.map((option) => {
                 const selected = selectedOptions[group.id]?.includes(option.id) ?? false
+                const disabled = !isOptionOrderable(option)
 
                 return (
                   <button
                     key={option.id}
                     type="button"
+                    disabled={disabled}
                     onClick={() => toggleOption(group, option.id)}
                     className={cn(
                       'rounded-xl border px-3 py-2 text-left text-sm transition',
-                      selected
+                      disabled
+                        ? 'cursor-not-allowed border-white/10 bg-white/[0.02] text-slate-600'
+                        : selected
                         ? 'border-cyan-300/50 bg-cyan-300/10 text-cyan-50'
                         : 'border-white/10 bg-white/[0.04] text-slate-100',
                     )}
@@ -792,6 +802,9 @@ function ProductConfigPanel({
                       <span className="ml-2 font-mono text-xs text-orange-200">
                         + {formatCurrency(option.priceDelta)}
                       </span>
+                    ) : null}
+                    {disabled ? (
+                      <span className="mt-1 block text-xs text-red-200">Indisponivel</span>
                     ) : null}
                   </button>
                 )
@@ -811,6 +824,10 @@ function ProductConfigPanel({
       </div>
     </div>
   )
+}
+
+function isOptionOrderable(option: { active: boolean; available: boolean; soldOut: boolean }) {
+  return option.active && option.available && !option.soldOut
 }
 
 function CurrentConsumptionCard({

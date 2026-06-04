@@ -24,6 +24,7 @@ import { CashSummaryCard } from '@/features/cash/components/CashSummaryCard'
 import {
   useCashRegisterQuery,
   useCloseCashRegisterMutation,
+  useOpenCashRegisterMutation,
   useRegisterCashMovementMutation,
 } from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
@@ -42,8 +43,11 @@ const movementTypeOptions: Array<{ value: CashMovementType; label: string; descr
 export function CashRegisterPage() {
   usePageTitle('Caixa')
   const cashQuery = useCashRegisterQuery()
+  const openRegister = useOpenCashRegisterMutation()
   const registerMovement = useRegisterCashMovementMutation()
   const closeRegister = useCloseCashRegisterMutation()
+  const [openCashDialog, setOpenCashDialog] = useState(false)
+  const [openingAmount, setOpeningAmount] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
   const [movementOpen, setMovementOpen] = useState(false)
   const [movementType, setMovementType] = useState<CashMovementType>('supply')
@@ -62,17 +66,43 @@ export function CashRegisterPage() {
         actions={
           canManageCash ? (
             <>
-              <Button variant="secondary" onClick={() => setMovementOpen(true)}>
+              {!register || register.status === 'closed' ? (
+                <Button onClick={() => setOpenCashDialog(true)}>Abrir caixa</Button>
+              ) : null}
+              <Button
+                variant="secondary"
+                onClick={() => setMovementOpen(true)}
+                disabled={!register || register.status !== 'open'}
+              >
                 Registrar movimento
               </Button>
-              <Button onClick={() => setConfirmClose(true)}>Fechar caixa</Button>
+              <Button
+                onClick={() => setConfirmClose(true)}
+                disabled={!register || register.status !== 'open'}
+              >
+                Fechar caixa
+              </Button>
             </>
           ) : null
         }
       />
 
-      {!register || cashQuery.isLoading ? (
+      {cashQuery.isLoading ? (
         <Skeleton className="h-[120px] rounded-[24px]" />
+      ) : cashQuery.isError || !register ? (
+        <Card>
+          <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-black text-white">Nenhum caixa aberto</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Abra um caixa para registrar vendas, sangrias, suprimentos e fechamento do turno.
+              </p>
+            </div>
+            {canManageCash ? (
+              <Button onClick={() => setOpenCashDialog(true)}>Abrir caixa</Button>
+            ) : null}
+          </CardContent>
+        </Card>
       ) : (
         <CashSummaryCard register={register} />
       )}
@@ -146,6 +176,39 @@ export function CashRegisterPage() {
               }}
             >
               Confirmar fechamento
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openCashDialog} onOpenChange={setOpenCashDialog}>
+        <DialogContent>
+          <DialogHeader className="text-left">
+            <DialogTitle>Abrir caixa</DialogTitle>
+            <DialogDescription>
+              Informe o valor inicial contado no caixa fisico. Use zero se nao houver fundo.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="number"
+            min={0}
+            value={openingAmount}
+            onChange={(event) => setOpeningAmount(event.target.value)}
+            placeholder="Valor inicial"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setOpenCashDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={openRegister.isPending}
+              onClick={() => {
+                openRegister.mutate(Number(openingAmount || 0))
+                setOpenCashDialog(false)
+                setOpeningAmount('')
+              }}
+            >
+              Abrir caixa
             </Button>
           </div>
         </DialogContent>

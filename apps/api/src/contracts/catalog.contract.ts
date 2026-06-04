@@ -21,6 +21,11 @@ export const listProductsQuerySchema = paginationQuerySchema.extend({
   activeOnly: optionalBooleanQuerySchema,
 })
 
+export const catalogMenuSourceQuerySchema = z.object({
+  channel: productChannelSchema.default('digital_menu'),
+  includeUnavailable: optionalBooleanQuerySchema,
+})
+
 export const saveProductSchema = z.object({
   product: z.object({
     id: z.string().optional(),
@@ -70,6 +75,52 @@ export const channelAvailabilitySchema = z.object({
 export const categorySoldOutSchema = z.object({
   channels: z.array(productChannelSchema).min(1),
   soldOut: z.boolean(),
+})
+
+const optionSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(2),
+  description: z.string().nullable().optional(),
+  image: z.string().nullable().optional(),
+  priceDelta: z.number().default(0),
+  active: z.boolean().default(true),
+  available: z.boolean().default(true),
+  soldOut: z.boolean().default(false),
+  sortOrder: z.number().int().nonnegative().default(0),
+})
+
+export const saveOptionGroupSchema = z.object({
+  group: z.object({
+    id: z.string().optional(),
+    name: z.string().trim().min(2),
+    description: z.string().nullable().optional(),
+    sortOrder: z.number().int().nonnegative().default(0),
+    options: z.array(optionSchema).default([]),
+  }),
+})
+
+export const optionAvailabilitySchema = z.object({
+  active: z.boolean().optional(),
+  available: z.boolean().optional(),
+  soldOut: z.boolean().optional(),
+})
+
+export const applyOptionGroupToCategorySchema = z.object({
+  categoryId: z.string().trim().min(1),
+  required: z.boolean().default(false),
+  minSelections: z.number().int().nonnegative().default(0),
+  maxSelections: z.number().int().positive().default(1),
+  sortOrder: z.number().int().nonnegative().default(0),
+  description: z.string().nullable().optional(),
+})
+
+export const productOptionGroupLinkSchema = z.object({
+  enabled: z.boolean(),
+  required: z.boolean().default(false),
+  minSelections: z.number().int().nonnegative().default(0),
+  maxSelections: z.number().int().positive().default(1),
+  sortOrder: z.number().int().nonnegative().default(0),
+  description: z.string().nullable().optional(),
 })
 
 export const promotionRuleSchema = z.object({
@@ -128,12 +179,17 @@ export const validateCouponSchema = z.object({
 })
 
 export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>
+export type CatalogMenuSourceQuery = z.infer<typeof catalogMenuSourceQuerySchema>
 export type SaveProductPayload = z.infer<typeof saveProductSchema>
 export type SaveCategoryPayload = z.infer<typeof saveCategorySchema>
 export type ReorderCategoryPayload = z.infer<typeof reorderCategorySchema>
 export type SoldOutPayload = z.infer<typeof soldOutSchema>
 export type ChannelAvailabilityPayload = z.infer<typeof channelAvailabilitySchema>
 export type CategorySoldOutPayload = z.infer<typeof categorySoldOutSchema>
+export type SaveOptionGroupPayload = z.infer<typeof saveOptionGroupSchema>
+export type OptionAvailabilityPayload = z.infer<typeof optionAvailabilitySchema>
+export type ApplyOptionGroupToCategoryPayload = z.infer<typeof applyOptionGroupToCategorySchema>
+export type ProductOptionGroupLinkPayload = z.infer<typeof productOptionGroupLinkSchema>
 export type PromotionRulePayload = z.infer<typeof promotionRuleSchema>
 export type SavePromotionPayload = z.infer<typeof savePromotionSchema>
 export type ListCommercialQuery = z.infer<typeof listCommercialQuerySchema>

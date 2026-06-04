@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
+  History,
   Loader2,
+  MessageCircle,
   Power,
   QrCode,
   RefreshCcw,
@@ -20,13 +22,23 @@ import {
   useDisconnectWhatsappSessionMutation,
   useRestartWhatsappSessionMutation,
   useStartWhatsappSessionMutation,
+  useWhatsappLogsQuery,
   useWhatsappQrCodeQuery,
   useWhatsappSessionQuery,
 } from '@/hooks/queries/ai-attendant'
 
-import { formatDateTime, whatsappStatusLabels } from './ai-attendant-labels'
+import {
+  formatDateTime,
+  integrationLogStatusLabels,
+  integrationLogTypeLabels,
+  whatsappStatusLabels,
+} from './ai-attendant-labels'
 
-export function AiWhatsappTab() {
+interface AiWhatsappTabProps {
+  onOpenConversations?: () => void
+}
+
+export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
   const { data: session, isLoading } = useWhatsappSessionQuery()
   const startSessionMutation = useStartWhatsappSessionMutation()
   const disconnectMutation = useDisconnectWhatsappSessionMutation()
@@ -35,9 +47,16 @@ export function AiWhatsappTab() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   const providerUnconfigured = session?.provider === 'unconfigured'
-  const qrVisible = session?.status === 'waiting_qr' || Boolean(session && showQr && session.status !== 'connected')
+  const hasSessionQr = Boolean(session?.qrCode)
+  const qrVisible =
+    session?.status === 'waiting_qr' ||
+    Boolean(session && session.status !== 'connected' && (showQr || hasSessionQr))
   const shouldFetchQr = !providerUnconfigured && qrVisible
   const { data: qrData, isLoading: qrLoading } = useWhatsappQrCodeQuery(shouldFetchQr)
+  const qrCode = qrData?.qrCode ?? session?.qrCode ?? null
+  const qrExpiresAt = qrData?.expiresAt ?? session?.qrCodeExpiresAt ?? null
+  const qrMessage = qrData?.message ?? session?.lastError ?? null
+  const qrSecondsLeft = useQrCountdown(qrExpiresAt)
 
   const handleStartSession = async () => {
     setActionError(null)
@@ -87,6 +106,7 @@ export function AiWhatsappTab() {
           </AlertDescription>
         </Alert>
         <SessionSummary />
+        <IntegrationLogsPanel />
         <Card>
           <CardContent className="flex flex-wrap gap-2 p-5">
             <Button onClick={handleStartSession} disabled={startSessionMutation.isPending}>
@@ -125,11 +145,12 @@ export function AiWhatsappTab() {
             <AlertDescription>{actionError}</AlertDescription>
           </Alert>
         ) : null}
+        <IntegrationLogsPanel />
       </div>
     )
   }
 
-  if (session.status === 'waiting_qr' && qrVisible) {
+  if (qrVisible && (session.status === 'waiting_qr' || session.status === 'connecting')) {
     return (
       <Card>
         <CardHeader>
@@ -146,18 +167,18 @@ export function AiWhatsappTab() {
             <div className="flex min-h-72 items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03]">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
-          ) : qrData?.qrCode ? (
+          ) : qrCode ? (
             <div className="flex flex-col items-center gap-4">
               <div className="rounded-[22px] border border-white/10 bg-white p-4 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
                 <img
-                  src={qrData.qrCode}
+                  src={qrCode}
                   alt="QR Code real retornado pelo provider de WhatsApp"
                   className="h-64 w-64 rounded-xl"
                 />
               </div>
               <p className="text-center text-sm leading-6 text-slate-400">
-                {qrData.expiresAt
-                  ? `Expira em ${formatDateTime(qrData.expiresAt)}.`
+                {qrExpiresAt && qrSecondsLeft !== null
+                  ? `Expira em ${qrSecondsLeft}s (${formatDateTime(qrExpiresAt)}).`
                   : 'A API nao informou tempo de expiracao para este QR.'}
               </p>
             </div>
@@ -168,7 +189,7 @@ export function AiWhatsappTab() {
                 QR Code indisponivel
               </AlertTitle>
               <AlertDescription>
-                {qrData?.message ?? 'A API nao retornou QR Code. Gere um novo codigo ou verifique o provider.'}
+                {qrMessage ?? 'A API nao retornou QR Code. Gere um novo codigo ou verifique o provider.'}
               </AlertDescription>
             </Alert>
           )}
@@ -231,6 +252,10 @@ export function AiWhatsappTab() {
         <SessionSummary />
         <Card>
           <CardContent className="flex flex-wrap gap-2 p-5">
+            <Button onClick={onOpenConversations}>
+              <MessageCircle className="h-4 w-4" />
+              Abrir conversas
+            </Button>
             <Button variant="outline" onClick={handleRestart} disabled={restartMutation.isPending}>
               {restartMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
               Reiniciar sessao
@@ -241,6 +266,7 @@ export function AiWhatsappTab() {
             </Button>
           </CardContent>
         </Card>
+        <IntegrationLogsPanel />
       </div>
     )
   }
@@ -268,6 +294,7 @@ export function AiWhatsappTab() {
             Reiniciar sessao
           </Button>
         </div>
+        <IntegrationLogsPanel />
       </div>
     )
   }
@@ -283,6 +310,89 @@ export function AiWhatsappTab() {
       </AlertDescription>
     </Alert>
   )
+}
+
+function IntegrationLogsPanel() {
+  const { data: logs = [], isLoading } = useWhatsappLogsQuery()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <History className="h-5 w-5 text-primary" />
+          Logs de integracao
+        </CardTitle>
+        <CardDescription>
+          Eventos recentes de webhook, envio, erro, delay e sessao sem tokens ou secrets.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <Skeleton className="h-28" />
+        ) : logs.length > 0 ? (
+          logs.slice(0, 10).map((log) => (
+            <div
+              key={log.id}
+              className="rounded-[18px] border border-white/10 bg-white/[0.04] p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black text-white">
+                    {integrationLogTypeLabels[log.type]}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">{log.message}</p>
+                </div>
+                <Badge
+                  variant={
+                    log.status === 'success'
+                      ? 'success'
+                      : log.status === 'error'
+                        ? 'danger'
+                        : log.status === 'warning'
+                          ? 'warning'
+                          : 'default'
+                  }
+                >
+                  {integrationLogStatusLabels[log.status]}
+                </Badge>
+              </div>
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                {formatDateTime(log.createdAt)}
+              </p>
+            </div>
+          ))
+        ) : (
+          <p className="rounded-[18px] border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-400">
+            Nenhum log registrado ainda. Eventos reais aparecem quando a sessao, webhook,
+            envio manual, teste ou pipeline de IA executarem.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function useQrCountdown(expiresAt: string | null) {
+  const now = useNow(Boolean(expiresAt))
+
+  if (!expiresAt) return null
+
+  return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1000))
+}
+
+function useNow(enabled: boolean) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!enabled) return
+    const intervalId = window.setInterval(update, 1000)
+    return () => window.clearInterval(intervalId)
+
+    function update() {
+      setNow(Date.now())
+    }
+  }, [enabled])
+
+  return now
 }
 
 function SessionSummary() {

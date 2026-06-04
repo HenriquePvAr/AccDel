@@ -6,6 +6,7 @@ import {
   clearApiAccessToken,
   getApiAccessToken,
   setApiAccessToken,
+  setApiStoreId,
 } from '@/services/http/api-client'
 
 type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated'
@@ -34,6 +35,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setSession: ({ accessToken, user }) => {
     setApiAccessToken(accessToken)
+    setApiStoreId(user.store.id)
     set({
       accessToken,
       user,
@@ -42,6 +44,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setCurrentUser: (user) => {
+    setApiStoreId(user.store.id)
     set({
       user,
       status: 'authenticated',

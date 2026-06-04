@@ -4,6 +4,8 @@ import { JwtService } from '@nestjs/jwt'
 import { Reflector } from '@nestjs/core'
 import type { FastifyRequest } from 'fastify'
 
+import { enterStoreContext } from '@/shared/store-context'
+
 import { IS_PUBLIC_KEY } from '../auth.constants'
 import type { AuthTokenPayload, AuthenticatedRequest } from '../auth.types'
 
@@ -38,6 +40,10 @@ export class JwtAuthGuard implements CanActivate {
       })
 
       request.authUser = payload
+      enterStoreContext({
+        storeId: payload.storeId,
+        source: 'auth',
+      })
       return true
     } catch {
       throw new UnauthorizedException('Sessão inválida ou expirada.')

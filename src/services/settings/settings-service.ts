@@ -1,6 +1,9 @@
 import type {
   GetStoreSettingsResponse,
+  ListDeliveryZonesResponse,
   ListPaymentMethodsResponse,
+  SaveDeliveryZoneRequest,
+  SaveDeliveryZoneResponse,
   SavePaymentMethodConfigRequest,
   SavePaymentMethodConfigResponse,
   UpdateOperationalSettingsRequest,
@@ -61,6 +64,45 @@ export const settingsService = {
           externalEnabled: false,
         },
       ],
+    })
+  },
+
+  async listDeliveryZones(): Promise<ListDeliveryZonesResponse> {
+    if (shouldUseApi) {
+      return apiClient.get<ListDeliveryZonesResponse>('/settings/delivery-zones')
+    }
+
+    return simulateAsync({ data: [] })
+  },
+
+  async saveDeliveryZone(
+    request: SaveDeliveryZoneRequest,
+  ): Promise<SaveDeliveryZoneResponse> {
+    if (shouldUseApi) {
+      const endpoint = request.id
+        ? `/settings/delivery-zones/${request.id}`
+        : '/settings/delivery-zones'
+      const payload = {
+        ...request,
+        neighborhood: request.neighborhood.trim(),
+      }
+
+      return request.id
+        ? apiClient.patch<SaveDeliveryZoneResponse, typeof payload>(endpoint, payload)
+        : apiClient.post<SaveDeliveryZoneResponse, typeof payload>(endpoint, payload)
+    }
+
+    return simulateAsync({
+      data: {
+        id: request.id ?? crypto.randomUUID(),
+        neighborhood: request.neighborhood.trim(),
+        fee: request.fee,
+        active: request.active,
+        sortOrder: request.sortOrder ?? 0,
+        estimatedDeliveryTimeMinutes: request.estimatedDeliveryTimeMinutes ?? null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
     })
   },
 

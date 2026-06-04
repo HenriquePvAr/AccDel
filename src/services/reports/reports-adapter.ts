@@ -85,6 +85,18 @@ export function buildReportsSnapshot(args: {
     ordersByStatus,
     topProducts,
     topCategories,
+    topOptions: [],
+    topNeighborhoods: [],
+    aiSummary: {
+      orderDraftsSuggested: 0,
+      orderDraftsConverted: 0,
+      transfersToHuman: 0,
+      conversionRate: 0,
+    },
+    timeSummary: {
+      averagePreparationMinutes: null,
+      averageDeliveryMinutes: null,
+    },
     cancellations: orders
       .filter((order) => order.status === 'cancelled')
       .slice()

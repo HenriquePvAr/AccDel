@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Brain, CheckCircle2, Pencil, Plus, Save, Trash2, XCircle } from 'lucide-react'
+import { Brain, CheckCircle2, Pencil, Plus, Save, Search, Sparkles, Trash2, XCircle } from 'lucide-react'
 
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -17,7 +17,11 @@ import {
   useUpdateKnowledgeEntryMutation,
 } from '@/hooks/queries/ai-attendant'
 import { useToastStore } from '@/stores/toast-store'
-import type { AiKnowledgeEntry, AiKnowledgeEntryType } from '@/contracts/ai-attendant'
+import type {
+  AiKnowledgeEntry,
+  AiKnowledgeEntryChannel,
+  AiKnowledgeEntryType,
+} from '@/contracts/ai-attendant'
 
 import { formatDateTime, knowledgeTypeLabels, knowledgeTypes } from './ai-attendant-labels'
 
@@ -26,6 +30,8 @@ interface KnowledgeFormState {
   title: string
   content: string
   isActive: boolean
+  priority: number
+  channels: AiKnowledgeEntryChannel[]
 }
 
 const emptyForm: KnowledgeFormState = {
@@ -33,7 +39,46 @@ const emptyForm: KnowledgeFormState = {
   title: '',
   content: '',
   isActive: true,
+  priority: 0,
+  channels: ['whatsapp'],
 }
+
+const knowledgeChannelLabels: Record<AiKnowledgeEntryChannel, string> = {
+  whatsapp: 'WhatsApp',
+  digital_menu: 'Cardapio Digital',
+  delivery: 'Delivery',
+  counter: 'Balcao',
+  dine_in: 'Salao',
+}
+
+const knowledgeChannels = Object.keys(knowledgeChannelLabels) as AiKnowledgeEntryChannel[]
+
+const exampleEntries: Array<Pick<KnowledgeFormState, 'type' | 'title' | 'content' | 'channels'>> = [
+  {
+    type: 'store_info',
+    title: 'Horario de funcionamento',
+    content: 'Funcionamos de segunda a domingo, das 18h as 23h.',
+    channels: ['whatsapp', 'digital_menu'],
+  },
+  {
+    type: 'delivery_area',
+    title: 'Taxa de entrega',
+    content: 'A taxa de entrega depende do bairro. Se o cliente nao informar o bairro, peca essa informacao antes de confirmar valores.',
+    channels: ['whatsapp', 'digital_menu', 'delivery'],
+  },
+  {
+    type: 'payment',
+    title: 'Formas de pagamento',
+    content: 'Aceitamos Pix, dinheiro, cartao de credito e debito. Pagamento online so deve ser citado quando houver integracao configurada.',
+    channels: ['whatsapp', 'digital_menu', 'delivery', 'counter', 'dine_in'],
+  },
+  {
+    type: 'cancellation',
+    title: 'Politica de cancelamento',
+    content: 'Pedidos em preparo precisam ser avaliados por um atendente humano antes de cancelar.',
+    channels: ['whatsapp', 'digital_menu'],
+  },
+]
 
 export function AiKnowledgeTab() {
   const { data: entries = [], isLoading } = useKnowledgeEntriesQuery()
@@ -44,9 +89,24 @@ export function AiKnowledgeTab() {
   const [form, setForm] = useState<KnowledgeFormState>(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [entryToDelete, setEntryToDelete] = useState<AiKnowledgeEntry | null>(null)
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState<'all' | AiKnowledgeEntryType>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   const editingEntry = entries.find((entry) => entry.id === editingId)
   const isSaving = createEntry.isPending || updateEntry.isPending
+  const filteredEntries = entries.filter((entry) => {
+    const normalizedSearch = search.trim().toLowerCase()
+    const matchesSearch = normalizedSearch
+      ? `${entry.title} ${entry.content}`.toLowerCase().includes(normalizedSearch)
+      : true
+    const matchesType = typeFilter === 'all' || entry.type === typeFilter
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'active' ? entry.isActive : !entry.isActive)
+
+    return matchesSearch && matchesType && matchesStatus
+  })
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -68,6 +128,8 @@ export function AiKnowledgeTab() {
       title,
       content,
       isActive: form.isActive,
+      priority: form.priority,
+      channels: form.channels,
     }
 
     if (editingId) {
@@ -91,6 +153,8 @@ export function AiKnowledgeTab() {
       title: entry.title,
       content: entry.content,
       isActive: entry.isActive,
+      priority: entry.priority,
+      channels: entry.channels.length ? entry.channels : ['whatsapp'],
     })
   }
 
@@ -98,6 +162,27 @@ export function AiKnowledgeTab() {
     await updateEntry.mutateAsync({
       id: entry.id,
       payload: { isActive: !entry.isActive },
+    })
+  }
+
+  const handleExample = (example: Pick<KnowledgeFormState, 'type' | 'title' | 'content' | 'channels'>) => {
+    setForm((current) => ({
+      ...current,
+      ...example,
+      isActive: true,
+    }))
+  }
+
+  const toggleChannel = (channel: AiKnowledgeEntryChannel) => {
+    setForm((current) => {
+      const nextChannels = current.channels.includes(channel)
+        ? current.channels.filter((entry) => entry !== channel)
+        : [...current.channels, channel]
+
+      return {
+        ...current,
+        channels: nextChannels.length ? nextChannels : [channel],
+      }
     })
   }
 
@@ -160,6 +245,26 @@ export function AiKnowledgeTab() {
             </div>
 
             <div className="space-y-2">
+              <label className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Exemplos rapidos
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {exampleEntries.map((example) => (
+                  <Button
+                    key={example.title}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleExample(example)}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {example.title}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <label htmlFor="knowledge-title" className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                 Titulo
               </label>
@@ -200,6 +305,49 @@ export function AiKnowledgeTab() {
               />
             </label>
 
+            <div className="space-y-2">
+              <label htmlFor="knowledge-priority" className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Prioridade
+              </label>
+              <Input
+                id="knowledge-priority"
+                value={String(form.priority)}
+                inputMode="numeric"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    priority: Number(event.target.value) || 0,
+                  }))
+                }
+                placeholder="0"
+              />
+              <p className="text-xs leading-5 text-slate-500">
+                Entradas com prioridade maior entram primeiro no contexto da IA.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Canais
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {knowledgeChannels.map((channel) => (
+                  <label
+                    key={channel}
+                    className="flex items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] p-3 text-sm"
+                  >
+                    <span className="font-semibold text-white">{knowledgeChannelLabels[channel]}</span>
+                    <input
+                      type="checkbox"
+                      checked={form.channels.includes(channel)}
+                      onChange={() => toggleChannel(channel)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={isSaving}>
                 <Save className="h-4 w-4" />
@@ -234,15 +382,61 @@ export function AiKnowledgeTab() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_180px_160px]">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Buscar titulo ou conteudo"
+                  className="pl-9"
+                />
+              </label>
+              <Select
+                value={typeFilter}
+                onValueChange={(value) => setTypeFilter(value as 'all' | AiKnowledgeEntryType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {knowledgeTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {knowledgeTypeLabels[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="active">Ativas</SelectItem>
+                  <SelectItem value="inactive">Inativas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             {entries.length === 0 ? (
               <EmptyState
                 icon={<Brain className="h-7 w-7" />}
                 title="Base ainda vazia"
                 description="Crie a primeira entrada com dados reais da loja, politicas ou perguntas frequentes."
               />
+            ) : filteredEntries.length === 0 ? (
+              <EmptyState
+                icon={<Search className="h-7 w-7" />}
+                title="Nada encontrado"
+                description="Ajuste busca ou filtros para ver outras entradas da base."
+              />
             ) : (
               <div className="space-y-3">
-                {entries.map((entry) => (
+                {filteredEntries.map((entry) => (
                   <article
                     key={entry.id}
                     className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 transition hover:border-white/16 hover:bg-white/[0.06]"
@@ -254,11 +448,15 @@ export function AiKnowledgeTab() {
                           <Badge variant={entry.isActive ? 'success' : 'warning'}>
                             {entry.isActive ? 'Ativa' : 'Inativa'}
                           </Badge>
+                          <Badge>Prioridade {entry.priority}</Badge>
                         </div>
                         <h3 className="break-words text-base font-black tracking-[-0.01em] text-white">
                           {entry.title}
                         </h3>
                         <p className="line-clamp-3 text-sm leading-6 text-slate-400">{entry.content}</p>
+                        <p className="text-xs text-slate-500">
+                          Canais: {entry.channels.map((channel) => knowledgeChannelLabels[channel]).join(', ') || 'Todos'}
+                        </p>
                         <p className="text-xs text-slate-500">
                           Atualizada em {formatDateTime(entry.updatedAt)}
                         </p>

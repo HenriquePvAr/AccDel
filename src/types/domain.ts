@@ -85,8 +85,27 @@ export interface StoreProfile {
   timezone: string
   city: string
   state: string
+  logoUrl?: string | null
+  phone?: string | null
+  publicWhatsapp?: string | null
+  addressLine?: string | null
+  neighborhood?: string | null
+  businessHours?: string | null
+  businessDays?: string[]
+  greetingMessage?: string | null
+  outOfHoursMessage?: string | null
+  cancellationPolicy?: string | null
+  generalNotes?: string | null
   brandAccent: string
   autoAcceptEnabled: boolean
+  defaultDeliveryFee?: number
+  minimumOrderAmount?: number
+  deliveryEnabled?: boolean
+  pickupEnabled?: boolean
+  counterEnabled?: boolean
+  dineInEnabled?: boolean
+  digitalMenuEnabled?: boolean
+  whatsappAiEnabled?: boolean
   estimatedPrepTimeMinutes?: number
   estimatedDeliveryTimeMinutes?: number
   estimatedDineInTimeMinutes?: number
@@ -152,6 +171,18 @@ export interface CustomerLastOrderSummary {
   items: string[]
 }
 
+export interface CustomerCrmSummary {
+  orderCount: number
+  completedOrders: number
+  cancelledOrders: number
+  totalSpent: number
+  averageTicket: number
+  frequencyDays: number | null
+  lastOrderAt?: string
+  segment: 'new' | 'recurring' | 'vip' | 'inactive'
+  favoriteItems: string[]
+}
+
 export interface Customer {
   id: string
   name: string
@@ -160,6 +191,7 @@ export interface Customer {
   tags: string[]
   addresses: CustomerAddress[]
   lastOrders?: CustomerLastOrderSummary[]
+  crm?: CustomerCrmSummary
 }
 
 export interface OrderItemOption {
@@ -304,9 +336,13 @@ export interface ProductOption {
   id: string
   name: string
   description?: string
+  image?: string
   priceDelta: number
   active: boolean
+  available: boolean
+  soldOut: boolean
   sortOrder: number
+  orderable?: boolean
 }
 
 export interface ProductOptionGroup {
@@ -317,6 +353,7 @@ export interface ProductOptionGroup {
   minSelections: number
   maxSelections: number
   sortOrder: number
+  autoApplied?: boolean
   options: ProductOption[]
 }
 
@@ -391,6 +428,153 @@ export interface Coupon {
   status: 'active' | 'inactive' | 'scheduled' | 'expired'
   createdAt?: string
   updatedAt?: string
+}
+
+export interface CatalogOptionGroupCategoryLink {
+  categoryId: string
+  required: boolean
+  minSelections: number
+  maxSelections: number
+  sortOrder: number
+  description?: string
+  autoApply: boolean
+}
+
+export interface CatalogOptionGroupProductLink {
+  productId: string
+  required: boolean
+  minSelections: number
+  maxSelections: number
+  sortOrder: number
+  description?: string
+  autoApplied: boolean
+}
+
+export interface CatalogOptionGroup {
+  id: string
+  name: string
+  description?: string
+  sortOrder: number
+  options: ProductOption[]
+  categoryLinks: CatalogOptionGroupCategoryLink[]
+  productLinks: CatalogOptionGroupProductLink[]
+}
+
+export interface CatalogMenuProduct {
+  id: string
+  categoryId: string
+  name: string
+  description: string
+  price: number
+  basePrice: number
+  image: string
+  featured: boolean
+  active: boolean
+  preparationStation: string
+  sortOrder: number
+  tags: string[]
+  channelAvailability: ChannelAvailability | null
+  orderable: boolean
+  unavailableReason: string | null
+  optionGroups: ProductOptionGroup[]
+}
+
+export interface CatalogMenuCategory {
+  id: string
+  name: string
+  description: string
+  active: boolean
+  icon?: string
+  color?: string
+  visibleOnPos: boolean
+  visibleOnDigitalMenu: boolean
+  sortOrder: number
+  visibleForChannel: boolean
+  products: CatalogMenuProduct[]
+  optionGroupLinks: Array<
+    CatalogOptionGroupCategoryLink & {
+      groupId: string
+      groupName: string
+      options: ProductOption[]
+    }
+  >
+}
+
+export interface CatalogMenuSource {
+  store: Pick<
+    StoreProfile,
+    | 'id'
+    | 'name'
+    | 'tradeName'
+    | 'logoUrl'
+    | 'phone'
+    | 'publicWhatsapp'
+    | 'addressLine'
+    | 'city'
+    | 'state'
+    | 'neighborhood'
+    | 'timezone'
+    | 'businessHours'
+    | 'businessDays'
+    | 'greetingMessage'
+    | 'outOfHoursMessage'
+    | 'cancellationPolicy'
+    | 'generalNotes'
+    | 'defaultDeliveryFee'
+    | 'minimumOrderAmount'
+    | 'deliveryEnabled'
+    | 'pickupEnabled'
+    | 'counterEnabled'
+    | 'dineInEnabled'
+    | 'digitalMenuEnabled'
+    | 'whatsappAiEnabled'
+    | 'estimatedPrepTimeMinutes'
+    | 'estimatedDeliveryTimeMinutes'
+    | 'estimatedDineInTimeMinutes'
+    | 'estimatedCounterTimeMinutes'
+    | 'estimatedPickupTimeMinutes'
+  >
+  channel: ProductChannel
+  includeUnavailable: boolean
+  generatedAt: string
+  categories: CatalogMenuCategory[]
+  promotions: Promotion[]
+  coupons: Coupon[]
+  optionGroups: CatalogOptionGroup[]
+  checkout: {
+    channels: {
+      deliveryEnabled: boolean
+      pickupEnabled: boolean
+      digitalMenuEnabled: boolean
+      minimumOrderAmount: number
+    }
+    paymentMethods: PublicCheckoutPaymentMethod[]
+    delivery: PublicDeliveryCheckoutConfig
+  }
+}
+
+export interface PublicCheckoutPaymentMethod {
+  id: string
+  name: string
+  method?: PaymentMethod
+  provider: PaymentProvider
+  requiresReceipt: boolean
+  availableForCheckout: boolean
+  unavailableReason?: string | null
+}
+
+export interface PublicDeliveryNeighborhood {
+  id: string
+  neighborhood: string
+  fee: number
+  active: boolean
+  estimatedDeliveryTimeMinutes?: number
+}
+
+export interface PublicDeliveryCheckoutConfig {
+  defaultFee: number
+  requiresKnownNeighborhood: boolean
+  neighborhoods: PublicDeliveryNeighborhood[]
 }
 
 export interface DeliveryStop {
@@ -608,6 +792,18 @@ export interface ReportsSnapshot {
   ordersByStatus: OrdersByStatusRow[]
   topProducts: ReportTableRow[]
   topCategories: ReportTableRow[]
+  topOptions: ReportTableRow[]
+  topNeighborhoods: ReportTableRow[]
+  aiSummary: {
+    orderDraftsSuggested: number
+    orderDraftsConverted: number
+    transfersToHuman: number
+    conversionRate: number
+  }
+  timeSummary: {
+    averagePreparationMinutes: number | null
+    averageDeliveryMinutes: number | null
+  }
   cancellations: CancellationSummaryRow[]
   driverSummaries: PerformanceSummaryRow[]
   waiterSummaries: PerformanceSummaryRow[]

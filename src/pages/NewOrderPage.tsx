@@ -46,7 +46,7 @@ import { Switch } from '@/components/ui/switch'
 import type { CustomerAddressPayload } from '@/contracts'
 import {
   useAddTableSessionItemsMutation,
-  useCategoriesQuery,
+  useCatalogMenuSourceQuery,
   useCloseTableSessionMutation,
   useCreateCustomerMutation,
   useCreateOrderMutation,
@@ -54,13 +54,13 @@ import {
   useCustomersQuery,
   useDiningTablesQuery,
   useOpenTableSessionMutation,
-  useProductsQuery,
   usePromotionsQuery,
   useStoreSettingsQuery,
   useTransferTableSessionMutation,
   useUpdateCustomerMutation,
   useWaitersQuery,
 } from '@/hooks/queries'
+import { useMarkOrderDraftConvertedMutation } from '@/hooks/queries/ai-attendant'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { channelLabelMap, paymentLabelMap } from '@/lib/domain'
 import { formatCurrency } from '@/lib/format'
@@ -70,6 +70,7 @@ import {
 } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 import { useNewOrderStore } from '@/stores'
+import { useToastStore } from '@/stores/toast-store'
 import type {
   Category,
   Customer,
@@ -101,8 +102,6 @@ type CustomerFormState = {
   notes: string
 }
 
-const emptyProducts: Product[] = []
-const emptyCategories: Category[] = []
 const emptyCustomers: Customer[] = []
 const emptyTables: DiningTable[] = []
 const emptySessions: TableSession[] = []
@@ -118,6 +117,7 @@ const iconBoxClass =
 export function NewOrderPage() {
   usePageTitle('Novo pedido')
   const navigate = useNavigate()
+  const { pushToast } = useToastStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [
     channel,
@@ -128,6 +128,7 @@ export function NewOrderPage() {
     paymentMethod,
     notes,
     sendToProduction,
+    sourceAiOrderDraftId,
     draftSavedAt,
     cartItems,
     setChannel,
@@ -138,6 +139,7 @@ export function NewOrderPage() {
     setPaymentMethod,
     setNotes,
     setSendToProduction,
+    setSourceAiOrderDraftId,
     saveDraft,
     replaceCartItems,
     addProduct,
@@ -156,6 +158,7 @@ export function NewOrderPage() {
       state.paymentMethod,
       state.notes,
       state.sendToProduction,
+      state.sourceAiOrderDraftId,
       state.draftSavedAt,
       state.cartItems,
       state.setChannel,
@@ -166,6 +169,7 @@ export function NewOrderPage() {
       state.setPaymentMethod,
       state.setNotes,
       state.setSendToProduction,
+      state.setSourceAiOrderDraftId,
       state.saveDraft,
       state.replaceCartItems,
       state.addProduct,
@@ -202,7 +206,6 @@ export function NewOrderPage() {
 
   const debouncedCustomerSearch = useDebouncedValue(customerSearchTerm, 350)
   const canSearchCustomer = isCustomerSearchReady(debouncedCustomerSearch)
-  const categoriesQuery = useCategoriesQuery()
   const settingsQuery = useStoreSettingsQuery()
   const customerDetailQuery = useCustomerByIdQuery(customerId)
   const customerSearchQuery = useCustomersQuery(
@@ -215,23 +218,57 @@ export function NewOrderPage() {
   const createCustomerMutation = useCreateCustomerMutation()
   const updateCustomerMutation = useUpdateCustomerMutation()
   const createOrderMutation = useCreateOrderMutation()
+  const markOrderDraftConverted = useMarkOrderDraftConvertedMutation()
   const openTableSessionMutation = useOpenTableSessionMutation()
   const addTableSessionItemsMutation = useAddTableSessionItemsMutation()
   const closeTableSessionMutation = useCloseTableSessionMutation()
   const transferTableSessionMutation = useTransferTableSessionMutation()
 
   const catalogChannel = resolveCatalogChannel(channel)
-  const productsQuery = useProductsQuery({
-    search,
-    status: 'active',
+  const menuSourceQuery = useCatalogMenuSourceQuery({
     channel: catalogChannel,
-    pageSize: 100,
+    includeUnavailable: true,
   })
 
-  const categories = (categoriesQuery.data?.data ?? emptyCategories).filter(
-    (category) => category.active && category.visibleOnPos,
+  const categories = useMemo(
+    () =>
+      (menuSourceQuery.data?.data.categories ?? [])
+        .filter((category) => category.visibleForChannel)
+        .map((category) => ({
+          id: category.id,
+          name: category.name,
+          description: category.description,
+          active: category.active,
+          icon: category.icon,
+          color: category.color,
+          visibleOnPos: category.visibleOnPos,
+          visibleOnDigitalMenu: category.visibleOnDigitalMenu,
+          sortOrder: category.sortOrder,
+          productCount: category.products.length,
+        })),
+    [menuSourceQuery.data?.data.categories],
   )
-  const products = productsQuery.data?.data ?? emptyProducts
+  const products = useMemo(
+    () =>
+      (menuSourceQuery.data?.data.categories ?? []).flatMap((category) =>
+        category.products.map((product): Product => ({
+          id: product.id,
+          categoryId: product.categoryId,
+          name: product.name,
+          description: product.description,
+          price: product.basePrice,
+          image: product.image,
+          featured: product.featured,
+          active: product.active,
+          preparationStation: product.preparationStation,
+          sortOrder: product.sortOrder,
+          tags: product.tags,
+          availability: product.channelAvailability ? [product.channelAvailability] : [],
+          optionGroups: product.optionGroups,
+        })),
+      ),
+    [menuSourceQuery.data?.data.categories],
+  )
   const searchedCustomers = customerSearchQuery.data?.data ?? emptyCustomers
   const tables = diningQuery.data?.data.tables ?? emptyTables
   const sessions = diningQuery.data?.data.sessions ?? emptySessions
@@ -344,7 +381,7 @@ export function NewOrderPage() {
     cartItems.length > 0 &&
     Boolean(tableSessionId || selectedSession?.id) &&
     !isSubmittingSession
-  const isCatalogLoading = productsQuery.isLoading || categoriesQuery.isLoading
+  const isCatalogLoading = menuSourceQuery.isLoading
   const isCustomerSaving = createCustomerMutation.isPending || updateCustomerMutation.isPending
 
   useEffect(() => {
@@ -493,8 +530,14 @@ export function NewOrderPage() {
     }
 
     const group = configuringProduct.optionGroups?.find((entry) => entry.id === groupId)
+    const option = group?.options.find((entry) => entry.id === optionId)
 
-    if (!group) {
+    if (!group || !option) {
+      return
+    }
+
+    if (!isOptionOrderable(option)) {
+      setConfiguratorErrors([`${option.name} esta indisponivel no catalogo.`])
       return
     }
 
@@ -632,6 +675,21 @@ export function NewOrderPage() {
         options: toOptionRequestItems(item.options),
       })),
     })
+    if (sourceAiOrderDraftId) {
+      try {
+        await markOrderDraftConverted.mutateAsync({
+          id: sourceAiOrderDraftId,
+          orderId: response.data.id,
+        })
+        setSourceAiOrderDraftId(null)
+      } catch {
+        pushToast({
+          title: 'Pedido criado, mas draft IA nao foi marcado como convertido',
+          description: 'O pedido real foi criado. A metrica de conversao pode precisar de revisao.',
+          variant: 'warning',
+        })
+      }
+    }
     reset()
     navigate(`/orders/${response.data.id}`)
   }
@@ -2109,15 +2167,19 @@ function ProductConfiguratorPanel({
                   <div className="grid gap-2 sm:grid-cols-2">
                     {group.options.map((option) => {
                       const active = selected.includes(option.id)
+                      const disabled = !isOptionOrderable(option)
 
                       return (
                         <button
                           key={option.id}
                           type="button"
+                          disabled={disabled}
                           onClick={() => onToggleOption(group.id, option.id)}
                           className={cn(
                             'grid min-h-14 grid-cols-[1fr_auto] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition',
-                            active
+                            disabled
+                              ? 'cursor-not-allowed border-white/10 bg-white/[0.02] text-slate-600'
+                              : active
                               ? 'border-cyan-300/60 bg-cyan-400/12 text-white'
                               : 'border-white/10 bg-[#06111f] text-slate-300 hover:border-cyan-300/30 hover:bg-cyan-400/8',
                           )}
@@ -2127,6 +2189,11 @@ function ProductConfiguratorPanel({
                             {option.description ? (
                               <span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-500">
                                 {option.description}
+                              </span>
+                            ) : null}
+                            {disabled ? (
+                              <span className="mt-1 block text-xs font-semibold text-red-200">
+                                Esgotado ou indisponivel
                               </span>
                             ) : null}
                           </span>
@@ -2505,7 +2572,7 @@ function buildSelectedCartOptions(
     (selections[group.id] ?? []).flatMap((optionId) => {
       const option = group.options.find((entry) => entry.id === optionId)
 
-      return option
+      return option && isOptionOrderable(option)
         ? [
             {
               id: option.id,
@@ -2537,6 +2604,10 @@ function validateOptionSelections(product: Product, selections: Record<string, s
   }
 
   return errors
+}
+
+function isOptionOrderable(option: { active: boolean; available: boolean; soldOut: boolean }) {
+  return option.active && option.available && !option.soldOut
 }
 
 function buildOptionMinimumMessage(product: Product, groupName: string) {

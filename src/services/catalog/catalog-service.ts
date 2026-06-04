@@ -1,8 +1,13 @@
 import type {
   CommercialListFilters,
+  ApplyOptionGroupToCategoryRequest,
+  ApplyOptionGroupToCategoryResponse,
+  CatalogMenuSourceFilters,
+  CatalogMenuSourceResponse,
   DeleteCategoryResponse,
   ListCategoriesResponse,
   ListCouponsResponse,
+  ListOptionGroupsResponse,
   ListProductsResponse,
   ListPromotionsResponse,
   ProductsListFilters,
@@ -10,6 +15,8 @@ import type {
   SaveCategoryResponse,
   SaveCouponRequest,
   SaveCouponResponse,
+  SaveOptionGroupRequest,
+  SaveOptionGroupResponse,
   SaveProductRequest,
   SaveProductResponse,
   SavePromotionRequest,
@@ -18,8 +25,12 @@ import type {
   ToggleCategorySoldOutResponse,
   ToggleProductSoldOutRequest,
   ToggleProductSoldOutResponse,
+  UpdateOptionAvailabilityRequest,
+  UpdateOptionAvailabilityResponse,
   UpdateProductChannelAvailabilityRequest,
   UpdateProductChannelAvailabilityResponse,
+  UpdateProductOptionGroupLinkRequest,
+  UpdateProductOptionGroupLinkResponse,
   ValidateCouponRequest,
   ValidateCouponResponse,
 } from '@/contracts'
@@ -36,7 +47,9 @@ import { simulateAsync } from '@/services/utils'
 import {
   applyChannelAvailabilityUpdate,
   buildCategoriesResponse,
+  buildCatalogMenuSourceResponse,
   buildCouponsResponse,
+  buildEmptyOptionGroupsResponse,
   buildProductsResponse,
   buildPromotionsResponse,
 } from './catalog-adapter'
@@ -166,6 +179,18 @@ export const catalogService = {
     }
 
     return simulateAsync(buildProductsResponse(getDemoDatabase().catalog.products, filters))
+  },
+
+  async getMenuSource(filters: CatalogMenuSourceFilters): Promise<CatalogMenuSourceResponse> {
+    const { public: publicMenu, ...query } = filters
+    if (shouldUseApi) {
+      return apiClient.get<CatalogMenuSourceResponse>(
+        `/catalog/${publicMenu ? 'public-menu' : 'menu-source'}${buildQueryString(query)}`,
+        publicMenu ? { skipAuth: true } : undefined,
+      )
+    }
+
+    return simulateAsync(buildCatalogMenuSourceResponse(getDemoDatabase(), query))
   },
 
   async listPromotions(filters?: CommercialListFilters): Promise<ListPromotionsResponse> {
@@ -308,6 +333,89 @@ export const catalogService = {
     const saved = nextDb.catalog.coupons.find((entry) => entry.id === couponId)!
 
     return simulateAsync({ data: saved })
+  },
+
+  async listOptionGroups(): Promise<ListOptionGroupsResponse> {
+    if (shouldUseApi) {
+      return apiClient.get<ListOptionGroupsResponse>('/catalog/option-groups')
+    }
+
+    return simulateAsync(buildEmptyOptionGroupsResponse())
+  },
+
+  async saveOptionGroup(request: SaveOptionGroupRequest): Promise<SaveOptionGroupResponse> {
+    if (shouldUseApi) {
+      if (request.group.id) {
+        return apiClient.patch<SaveOptionGroupResponse, SaveOptionGroupRequest>(
+          `/catalog/option-groups/${request.group.id}`,
+          request,
+        )
+      }
+
+      return apiClient.post<SaveOptionGroupResponse, SaveOptionGroupRequest>(
+        '/catalog/option-groups',
+        request,
+      )
+    }
+
+    throw new ApiClientError('Edicao de grupos de opcoes exige a API real.', 400)
+  },
+
+  async updateOptionAvailability(
+    request: UpdateOptionAvailabilityRequest,
+  ): Promise<UpdateOptionAvailabilityResponse> {
+    if (shouldUseApi) {
+      return apiClient.patch<
+        UpdateOptionAvailabilityResponse,
+        Omit<UpdateOptionAvailabilityRequest, 'optionId'>
+      >(`/catalog/options/${request.optionId}/availability`, {
+        active: request.active,
+        available: request.available,
+        soldOut: request.soldOut,
+      })
+    }
+
+    throw new ApiClientError('Disponibilidade global de opcoes exige a API real.', 400)
+  },
+
+  async applyOptionGroupToCategory(
+    request: ApplyOptionGroupToCategoryRequest,
+  ): Promise<ApplyOptionGroupToCategoryResponse> {
+    if (shouldUseApi) {
+      return apiClient.post<
+        ApplyOptionGroupToCategoryResponse,
+        Omit<ApplyOptionGroupToCategoryRequest, 'groupId'>
+      >(`/catalog/option-groups/${request.groupId}/apply-category`, {
+        categoryId: request.categoryId,
+        required: request.required,
+        minSelections: request.minSelections,
+        maxSelections: request.maxSelections,
+        sortOrder: request.sortOrder,
+        description: request.description,
+      })
+    }
+
+    throw new ApiClientError('Aplicacao automatica de opcoes exige a API real.', 400)
+  },
+
+  async updateProductOptionGroupLink(
+    request: UpdateProductOptionGroupLinkRequest,
+  ): Promise<UpdateProductOptionGroupLinkResponse> {
+    if (shouldUseApi) {
+      return apiClient.patch<
+        UpdateProductOptionGroupLinkResponse,
+        Omit<UpdateProductOptionGroupLinkRequest, 'productId' | 'groupId'>
+      >(`/catalog/products/${request.productId}/option-groups/${request.groupId}`, {
+        enabled: request.enabled,
+        required: request.required,
+        minSelections: request.minSelections,
+        maxSelections: request.maxSelections,
+        sortOrder: request.sortOrder,
+        description: request.description,
+      })
+    }
+
+    throw new ApiClientError('Aplicacao personalizada de opcoes exige a API real.', 400)
   },
 
   async saveProduct(request: SaveProductRequest): Promise<SaveProductResponse> {

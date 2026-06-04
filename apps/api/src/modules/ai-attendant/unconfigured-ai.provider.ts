@@ -1,23 +1,23 @@
 import { HttpException, HttpStatus } from '@nestjs/common'
 import {
-  AiProviderAdapter,
-  AiReplyResult,
   AiClassificationResult,
   AiOrderDraftResult,
+  AiProviderAdapter,
+  AiReplyResult,
 } from './ai-provider.adapter'
 
 export class UnconfiguredAiProvider implements AiProviderAdapter {
   readonly providerName = 'unconfigured'
 
+  constructor(
+    private readonly message = 'Provider de Inteligencia Artificial nao configurado (.env). Configure AI_PROVIDER e as variaveis do provider escolhido.',
+  ) {}
+
   async generateReply(): Promise<AiReplyResult> {
-    throw new HttpException(
-      'Provider de Inteligência Artificial não configurado (.env). Configure AI_PROVIDER, AI_PROVIDER_API_KEY e AI_PROVIDER_MODEL.',
-      HttpStatus.NOT_IMPLEMENTED,
-    )
+    throw new HttpException(this.message, HttpStatus.NOT_IMPLEMENTED)
   }
 
   async classifyMessage(): Promise<AiClassificationResult> {
-    // Default fallback classification without throwing to prevent breaking webhooks
     return {
       intent: 'other',
       confidence: 1.0,

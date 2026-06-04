@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Bot, Brain, MessageSquare, Settings, Smartphone, TestTube } from 'lucide-react'
+import { Bot, Brain, LayoutDashboard, MessageSquare, Settings, Smartphone, TestTube } from 'lucide-react'
 
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AiAttendantOverviewTab } from '@/features/ai-attendant/components/AiAttendantOverviewTab'
 import { AiConversationsTab } from '@/features/ai-attendant/components/AiConversationsTab'
+import { AiDashboardTab } from '@/features/ai-attendant/components/AiDashboardTab'
 import { AiKnowledgeTab } from '@/features/ai-attendant/components/AiKnowledgeTab'
 import { AiSettingsTab } from '@/features/ai-attendant/components/AiSettingsTab'
 import { AiTestTab } from '@/features/ai-attendant/components/AiTestTab'
@@ -14,6 +15,7 @@ import { AiWhatsappTab } from '@/features/ai-attendant/components/AiWhatsappTab'
 
 export type AiAttendantTabValue =
   | 'overview'
+  | 'dashboard'
   | 'whatsapp'
   | 'knowledge'
   | 'conversations'
@@ -28,11 +30,12 @@ interface AiAttendantPageTab {
 
 const tabs: AiAttendantPageTab[] = [
   { value: 'overview', label: 'Visao geral', icon: <Bot className="h-4 w-4" /> },
+  { value: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
   { value: 'whatsapp', label: 'WhatsApp', icon: <Smartphone className="h-4 w-4" /> },
   { value: 'knowledge', label: 'Base', icon: <Brain className="h-4 w-4" /> },
   { value: 'conversations', label: 'Conversas', icon: <MessageSquare className="h-4 w-4" /> },
   { value: 'settings', label: 'Ajustes', icon: <Settings className="h-4 w-4" /> },
-  { value: 'test', label: 'Teste', icon: <TestTube className="h-4 w-4" /> },
+  { value: 'test', label: 'Testar IA', icon: <TestTube className="h-4 w-4" /> },
 ]
 
 function isAiAttendantTabValue(value: string): value is AiAttendantTabValue {
@@ -75,8 +78,11 @@ export function AiAttendantPage() {
               <TabsContent value="overview">
                 <AiAttendantOverviewTab onNavigate={setActiveTab} />
               </TabsContent>
+              <TabsContent value="dashboard">
+                <AiDashboardTab />
+              </TabsContent>
               <TabsContent value="whatsapp">
-                <AiWhatsappTab />
+                <AiWhatsappTab onOpenConversations={() => setActiveTab('conversations')} />
               </TabsContent>
               <TabsContent value="knowledge">
                 <AiKnowledgeTab />

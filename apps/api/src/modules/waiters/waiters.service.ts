@@ -6,7 +6,7 @@ import type {
 } from '@/contracts/waiters.contract'
 import { buildListResponse } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 import { mapWaiter } from './waiters.mapper'
 
@@ -17,7 +17,7 @@ export class WaitersService {
   async listWaiters() {
     const memberships = await this.prisma.storeUser.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'waiter',
       },
       include: {
@@ -47,7 +47,7 @@ export class WaitersService {
   async getWaiterById(waiterId: string) {
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'waiter',
         userId: waiterId,
       },
@@ -88,7 +88,7 @@ export class WaitersService {
         status: waiter.active ? 'active' : 'inactive',
         stores: {
           create: {
-            storeId: DEFAULT_STORE_ID,
+            storeId: getCurrentStoreId(),
             role: 'waiter',
             active: waiter.active,
             waiterProfile: {
@@ -144,7 +144,7 @@ export class WaitersService {
     await this.prisma.storeUser.update({
       where: {
         storeId_userId: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           userId: waiterId,
         },
       },
@@ -198,7 +198,7 @@ export class WaitersService {
     await this.prisma.storeUser.update({
       where: {
         storeId_userId: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           userId: waiterId,
         },
       },
@@ -243,7 +243,7 @@ export class WaitersService {
   private async ensureWaiterExists(waiterId: string) {
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'waiter',
         userId: waiterId,
       },

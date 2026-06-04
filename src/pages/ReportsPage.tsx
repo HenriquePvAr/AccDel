@@ -194,6 +194,19 @@ export function ReportsPage() {
             />
           </div>
 
+          <div className="grid gap-5 xl:grid-cols-2">
+            <SummaryTable
+              title="Sabores e opcoes mais vendidos"
+              rows={snapshot.topOptions}
+              emptyLabel="Sem opcoes registradas nos pedidos do periodo."
+            />
+            <SummaryTable
+              title="Bairros mais atendidos"
+              rows={snapshot.topNeighborhoods}
+              emptyLabel="Sem bairros identificados nos pedidos do periodo."
+            />
+          </div>
+
           <div className="grid gap-5 xl:grid-cols-3">
             <CompactTable
               title="Pedidos por status"
@@ -223,6 +236,65 @@ export function ReportsPage() {
                 value: formatCompactCurrency(row.value),
               }))}
               emptyLabel="Sem garcons cadastrados."
+            />
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <CompactTable
+              title="IA comercial"
+              rows={[
+                {
+                  id: 'drafts_suggested',
+                  label: 'OrderDrafts sugeridos',
+                  primary: 'Rascunhos criados pela IA no periodo',
+                  value: String(snapshot.aiSummary.orderDraftsSuggested),
+                },
+                {
+                  id: 'drafts_converted',
+                  label: 'OrderDrafts convertidos',
+                  primary: 'Rascunhos que viraram pedido real',
+                  value: String(snapshot.aiSummary.orderDraftsConverted),
+                },
+                {
+                  id: 'ai_conversion',
+                  label: 'Conversao da IA',
+                  primary: 'Baseada em rascunhos convertidos',
+                  value: `${snapshot.aiSummary.conversionRate}%`,
+                },
+                {
+                  id: 'human_transfers',
+                  label: 'Transferencias para humano',
+                  primary: 'Acionamentos registrados no Atendente IA',
+                  value: String(snapshot.aiSummary.transfersToHuman),
+                },
+              ]}
+              emptyLabel="Sem dados da IA no periodo."
+            />
+            <CompactTable
+              title="Tempos reais"
+              rows={[
+                {
+                  id: 'prep_time',
+                  label: 'Tempo medio de preparo',
+                  primary: snapshot.timeSummary.averagePreparationMinutes === null
+                    ? 'Historico insuficiente'
+                    : 'Calculado pelo historico do pedido',
+                  value: snapshot.timeSummary.averagePreparationMinutes === null
+                    ? 'Indisponivel'
+                    : `${snapshot.timeSummary.averagePreparationMinutes} min`,
+                },
+                {
+                  id: 'delivery_time',
+                  label: 'Tempo medio de entrega',
+                  primary: snapshot.timeSummary.averageDeliveryMinutes === null
+                    ? 'Historico insuficiente'
+                    : 'Da saida para entrega ate conclusao',
+                  value: snapshot.timeSummary.averageDeliveryMinutes === null
+                    ? 'Indisponivel'
+                    : `${snapshot.timeSummary.averageDeliveryMinutes} min`,
+                },
+              ]}
+              emptyLabel="Sem tempos calculaveis."
             />
           </div>
 

@@ -6,10 +6,10 @@ import {
   ChefHat,
   CheckCircle2,
   Clock3,
-  Flame,
   MapPin,
   PackageCheck,
   RefreshCcw,
+  Search,
   ShoppingBag,
   Store,
   TimerReset,
@@ -21,6 +21,7 @@ import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetContent,
@@ -31,18 +32,22 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { OrderStatusBadge } from '@/features/orders/components/OrderStatusBadge'
 import { OrderTimeline } from '@/features/orders/components/OrderTimeline'
-import { useKitchenQueueQuery, useMarkKitchenOrderReadyMutation } from '@/hooks/queries'
+import {
+  useKitchenQueueQuery,
+  useMoveKitchenOrderMutation,
+} from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { useCan } from '@/hooks/use-permissions'
 import { channelLabelMap } from '@/lib/domain'
-import { formatCurrency, formatDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { KitchenQueueFilters } from '@/contracts'
+import type { KitchenQueue, KitchenQueueFilters, MoveKitchenOrderRequest } from '@/contracts'
 import type { Order, OrderChannel } from '@/types'
 
 type KitchenChannelFilter = OrderChannel | 'all'
 type KitchenViewFilter = 'all' | 'urgent' | 'priority'
 type KitchenRisk = 'on_time' | 'warning' | 'late'
+type KitchenMoveAction = MoveKitchenOrderRequest['action']
 
 const channelFilters: Array<{
   value: KitchenChannelFilter
@@ -70,10 +75,32 @@ const riskCopy: Record<KitchenRisk, { label: string; className: string }> = {
   },
 }
 
+const emptyKitchenQueue: KitchenQueue = {
+  received: [],
+  production: [],
+  ready: [],
+  dispatched: [],
+  delivered: [],
+  urgent: [],
+  all: [],
+  summary: {
+    awaiting: 0,
+    inProduction: 0,
+    ready: 0,
+    dispatched: 0,
+    delivered: 0,
+    urgent: 0,
+    delayed: 0,
+    totalItems: 0,
+    averagePreparationMinutes: null,
+  },
+}
+
 export function KitchenPage() {
   usePageTitle('Cozinha')
   const [channel, setChannel] = useState<KitchenChannelFilter>('all')
   const [view, setView] = useState<KitchenViewFilter>('all')
+  const [search, setSearch] = useState('')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const canUpdateKitchen = useCan('kitchen:update')
   const filters = useMemo<KitchenQueueFilters>(
@@ -85,20 +112,28 @@ export function KitchenPage() {
     [channel, view],
   )
   const kitchenQueue = useKitchenQueueQuery({ filters })
-  const markReady = useMarkKitchenOrderReadyMutation()
+  const moveOrder = useMoveKitchenOrderMutation()
   const queue = kitchenQueue.data?.data
-  const production = queue?.production ?? []
-  const ready = queue?.ready ?? []
-  const urgent = queue?.urgent ?? []
+  const visibleQueue = useMemo(() => filterKitchenQueue(queue, search), [queue, search])
+  const received = visibleQueue.received
+  const production = visibleQueue.production
+  const ready = visibleQueue.ready
+  const dispatched = visibleQueue.dispatched
+  const delivered = visibleQueue.delivered
+  const hasQueue = Boolean(queue?.all.length)
 
-  const handleMarkReady = (order: Order) => {
-    if (!canUpdateKitchen || order.status === 'ready') {
+  const handleMoveOrder = (
+    order: Order,
+    action: KitchenMoveAction,
+  ) => {
+    if (!canUpdateKitchen) {
       return
     }
 
-    markReady.mutate(
+    moveOrder.mutate(
       {
         orderId: order.id,
+        action,
         actor: 'Cozinha',
       },
       {
@@ -130,12 +165,19 @@ export function KitchenPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <KitchenMetricCard
+          icon={<ShoppingBag className="h-5 w-5" />}
+          label="Recebidos"
+          value={queue?.summary.awaiting ?? 0}
+          hint="Aguardando preparo"
+          tone="blue"
+        />
         <KitchenMetricCard
           icon={<ChefHat className="h-5 w-5" />}
-          label="Em producao"
+          label="Em preparo"
           value={queue?.summary.inProduction ?? 0}
-          hint="Pedidos em preparo"
+          hint="Na bancada agora"
           tone="amber"
         />
         <KitchenMetricCard
@@ -153,11 +195,15 @@ export function KitchenPage() {
           tone="green"
         />
         <KitchenMetricCard
-          icon={<ShoppingBag className="h-5 w-5" />}
-          label="Itens na fila"
-          value={queue?.summary.totalItems ?? 0}
-          hint="Volume operacional"
-          tone="blue"
+          icon={<TimerReset className="h-5 w-5" />}
+          label="Tempo medio"
+          value={
+            queue?.summary.averagePreparationMinutes
+              ? `${queue.summary.averagePreparationMinutes} min`
+              : '-'
+          }
+          hint={queue?.summary.averagePreparationMinutes ? 'Minutos de preparo' : 'Sem historico suficiente'}
+          tone="green"
         />
       </div>
 
@@ -196,12 +242,22 @@ export function KitchenPage() {
               </FilterPill>
             ))}
           </div>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar pedido, cliente, item ou observacao"
+              className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10"
+            />
+          </div>
         </CardContent>
       </Card>
 
       {kitchenQueue.isLoading ? (
-        <div className="grid gap-5 xl:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
+        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => (
             <Skeleton key={index} className="h-[520px] rounded-[28px] bg-white/10" />
           ))}
         </div>
@@ -211,29 +267,28 @@ export function KitchenPage() {
           title="Falha ao carregar a cozinha"
           description="Nao foi possivel carregar a fila KDS agora. Tente atualizar ou revise a API."
         />
-      ) : queue?.all.length ? (
-        <div className="grid items-start gap-5 xl:grid-cols-[0.9fr_1.15fr_0.95fr]">
+      ) : hasQueue ? (
+        <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-5">
           <KitchenColumn
-            icon={<Flame className="h-5 w-5" />}
-            title="Atrasados / urgentes"
-            description="Pedidos com SLA critico ou prioridade alta."
-            count={urgent.length}
-            accent="red"
+            icon={<ShoppingBag className="h-5 w-5" />}
+            title="Recebido"
+            description="Pedidos aceitos para triagem e inicio de preparo."
+            count={received.length}
+            accent="blue"
           >
-            {urgent.length ? (
-              urgent.map((order) => (
+            {received.length ? (
+              received.map((order) => (
                 <KitchenOrderCard
                   key={order.id}
                   order={order}
-                  compact
-                  busy={markReady.isPending}
+                  busy={moveOrder.isPending}
                   canUpdate={canUpdateKitchen}
                   onDetails={setSelectedOrder}
-                  onMarkReady={handleMarkReady}
+                  onMove={handleMoveOrder}
                 />
               ))
             ) : (
-              <ColumnEmptyState label="Sem pedido critico neste filtro." />
+              <ColumnEmptyState label="Nenhum pedido recebido neste filtro." />
             )}
           </KitchenColumn>
 
@@ -249,10 +304,10 @@ export function KitchenPage() {
                 <KitchenOrderCard
                   key={order.id}
                   order={order}
-                  busy={markReady.isPending}
+                  busy={moveOrder.isPending}
                   canUpdate={canUpdateKitchen}
                   onDetails={setSelectedOrder}
-                  onMarkReady={handleMarkReady}
+                  onMove={handleMoveOrder}
                 />
               ))
             ) : (
@@ -272,14 +327,61 @@ export function KitchenPage() {
                 <KitchenOrderCard
                   key={order.id}
                   order={order}
-                  busy={markReady.isPending}
+                  busy={moveOrder.isPending}
                   canUpdate={canUpdateKitchen}
                   onDetails={setSelectedOrder}
-                  onMarkReady={handleMarkReady}
+                  onMove={handleMoveOrder}
                 />
               ))
             ) : (
               <ColumnEmptyState label="Nada pronto aguardando saida." />
+            )}
+          </KitchenColumn>
+
+          <KitchenColumn
+            icon={<Bike className="h-5 w-5" />}
+            title="Saiu para entrega"
+            description="Pedidos em rota ou aguardando baixa do entregador."
+            count={dispatched.length}
+            accent="blue"
+          >
+            {dispatched.length ? (
+              dispatched.map((order) => (
+                <KitchenOrderCard
+                  key={order.id}
+                  order={order}
+                  busy={moveOrder.isPending}
+                  canUpdate={canUpdateKitchen}
+                  onDetails={setSelectedOrder}
+                  onMove={handleMoveOrder}
+                />
+              ))
+            ) : (
+              <ColumnEmptyState label="Nenhum pedido saiu para entrega." />
+            )}
+          </KitchenColumn>
+
+          <KitchenColumn
+            icon={<PackageCheck className="h-5 w-5" />}
+            title="Entregue"
+            description="Pedidos finalizados hoje para consulta rapida."
+            count={delivered.length}
+            accent="green"
+          >
+            {delivered.length ? (
+              delivered.map((order) => (
+                <KitchenOrderCard
+                  key={order.id}
+                  order={order}
+                  compact
+                  busy={moveOrder.isPending}
+                  canUpdate={canUpdateKitchen}
+                  onDetails={setSelectedOrder}
+                  onMove={handleMoveOrder}
+                />
+              ))
+            ) : (
+              <ColumnEmptyState label="Nenhum pedido entregue hoje neste filtro." />
             )}
           </KitchenColumn>
         </div>
@@ -294,14 +396,14 @@ export function KitchenPage() {
       <KitchenOrderDrawer
         order={selectedOrder}
         open={Boolean(selectedOrder)}
-        busy={markReady.isPending}
+        busy={moveOrder.isPending}
         canUpdate={canUpdateKitchen}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedOrder(null)
           }
         }}
-        onMarkReady={handleMarkReady}
+        onMove={handleMoveOrder}
       />
     </PageShell>
   )
@@ -316,7 +418,7 @@ function KitchenMetricCard({
 }: {
   icon: ReactNode
   label: string
-  value: number
+  value: ReactNode
   hint: string
   tone: 'amber' | 'red' | 'green' | 'blue'
 }) {
@@ -380,13 +482,14 @@ function KitchenColumn({
   title: string
   description: string
   count: number
-  accent: 'amber' | 'red' | 'green'
+  accent: 'amber' | 'red' | 'green' | 'blue'
   children: ReactNode
 }) {
   const accentClass = {
     amber: 'text-amber-300 bg-amber-400/10 ring-amber-300/20',
     red: 'text-red-300 bg-red-400/10 ring-red-300/20',
     green: 'text-emerald-300 bg-emerald-400/10 ring-emerald-300/20',
+    blue: 'text-blue-300 bg-blue-400/10 ring-blue-300/20',
   }[accent]
 
   return (
@@ -419,17 +522,18 @@ function KitchenOrderCard({
   busy,
   canUpdate,
   onDetails,
-  onMarkReady,
+  onMove,
 }: {
   order: Order
   compact?: boolean
   busy: boolean
   canUpdate: boolean
   onDetails: (order: Order) => void
-  onMarkReady: (order: Order) => void
+  onMove: (order: Order, action: KitchenMoveAction) => void
 }) {
   const risk = getKitchenRisk(order)
   const operation = getOperationContext(order)
+  const nextAction = getKitchenAction(order)
   const items = order.items.slice(0, compact ? 3 : 5)
   const remainingItems = order.items.length - items.length
   const prepTarget = getPrepTargetMinutes(order)
@@ -505,9 +609,7 @@ function KitchenOrderCard({
               <p className="min-w-0 truncate text-sm font-bold text-white">
                 {item.quantity}x {item.name}
               </p>
-              <span className="font-mono text-xs text-slate-400">
-                {formatCurrency(item.unitPrice * item.quantity)}
-              </span>
+              <span className="font-mono text-xs text-slate-400">{item.quantity} un.</span>
             </div>
             {item.notes ? <p className="mt-1 line-clamp-1 text-xs text-amber-200">{item.notes}</p> : null}
           </div>
@@ -544,19 +646,19 @@ function KitchenOrderCard({
         >
           Detalhes
         </Button>
-        {order.status === 'in_preparation' ? (
+        {nextAction ? (
           <Button
             size="sm"
             disabled={!canUpdate || busy}
             className="h-9 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500"
-            onClick={() => onMarkReady(order)}
+            onClick={() => onMove(order, nextAction.action)}
           >
             <CheckCircle2 className="h-4 w-4" />
-            Marcar pronto
+            {nextAction.label}
           </Button>
         ) : (
           <span className="inline-flex h-9 items-center justify-center rounded-xl bg-emerald-400/10 px-3 text-xs font-black text-emerald-300 ring-1 ring-emerald-300/20">
-            {getReadyDestination(order)}
+            {getKitchenHoldingLabel(order)}
           </span>
         )}
       </div>
@@ -570,14 +672,14 @@ function KitchenOrderDrawer({
   busy,
   canUpdate,
   onOpenChange,
-  onMarkReady,
+  onMove,
 }: {
   order: Order | null
   open: boolean
   busy: boolean
   canUpdate: boolean
   onOpenChange: (open: boolean) => void
-  onMarkReady: (order: Order) => void
+  onMove: (order: Order, action: KitchenMoveAction) => void
 }) {
   if (!order) {
     return null
@@ -585,6 +687,7 @@ function KitchenOrderDrawer({
 
   const operation = getOperationContext(order)
   const risk = getKitchenRisk(order)
+  const nextAction = getKitchenAction(order)
   const elapsedMinutes = getElapsedMinutes(order)
   const prepTarget = getPrepTargetMinutes(order)
 
@@ -661,9 +764,7 @@ function KitchenOrderDrawer({
                         </p>
                       ) : null}
                     </div>
-                    <span className="font-mono text-sm text-slate-300">
-                      {formatCurrency(item.quantity * item.unitPrice)}
-                    </span>
+                    <span className="font-mono text-sm text-slate-300">{item.quantity} un.</span>
                   </div>
                   {item.notes ? (
                     <p className="mt-2 rounded-xl bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
@@ -688,14 +789,14 @@ function KitchenOrderDrawer({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Fechar
             </Button>
-            {order.status === 'in_preparation' ? (
+            {nextAction ? (
               <Button
                 disabled={!canUpdate || busy}
                 className="bg-emerald-600 text-white hover:bg-emerald-500"
-                onClick={() => onMarkReady(order)}
+                onClick={() => onMove(order, nextAction.action)}
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Marcar pedido pronto
+                {nextAction.label}
               </Button>
             ) : null}
           </div>
@@ -731,7 +832,129 @@ function ColumnEmptyState({ label }: { label: string }) {
   )
 }
 
+function filterKitchenQueue(queue: KitchenQueue | undefined, search: string): KitchenQueue {
+  const source = queue ?? emptyKitchenQueue
+  const term = normalizeKitchenText(search)
+
+  if (!term) {
+    return source
+  }
+
+  const filterOrders = (orders: Order[]) => orders.filter((order) => matchesKitchenSearch(order, term))
+  const received = filterOrders(source.received)
+  const production = filterOrders(source.production)
+  const ready = filterOrders(source.ready)
+  const dispatched = filterOrders(source.dispatched)
+  const delivered = filterOrders(source.delivered)
+  const urgent = filterOrders(source.urgent)
+  const all = filterOrders(source.all)
+
+  return {
+    ...source,
+    received,
+    production,
+    ready,
+    dispatched,
+    delivered,
+    urgent,
+    all,
+    summary: {
+      ...source.summary,
+      awaiting: received.length,
+      inProduction: production.length,
+      ready: ready.length,
+      dispatched: dispatched.length,
+      delivered: delivered.length,
+      urgent: urgent.length,
+      delayed: all.filter((order) => order.delayed).length,
+      totalItems: all.reduce(
+        (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+        0,
+      ),
+    },
+  }
+}
+
+function matchesKitchenSearch(order: Order, term: string) {
+  const searchable = [
+    order.number,
+    order.customerName,
+    order.customerPhone,
+    order.tableCode,
+    order.addressText,
+    order.addressLabel,
+    order.notes,
+    channelLabelMap[order.source],
+    ...order.items.flatMap((item) => [
+      item.name,
+      item.notes,
+      ...item.options.map((option) => option.name),
+    ]),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map(normalizeKitchenText)
+    .join(' ')
+
+  return searchable.includes(term)
+}
+
+function normalizeKitchenText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function getKitchenAction(order: Order): { action: KitchenMoveAction; label: string } | null {
+  if (order.status === 'in_analysis') {
+    return {
+      action: 'start_preparation',
+      label: 'Iniciar preparo',
+    }
+  }
+
+  if (order.status === 'in_preparation') {
+    return {
+      action: 'ready',
+      label: 'Marcar pronto',
+    }
+  }
+
+  if (order.status === 'ready' && order.source !== 'delivery') {
+    return {
+      action: 'complete',
+      label: 'Finalizar',
+    }
+  }
+
+  if (order.status === 'out_for_delivery') {
+    return {
+      action: 'complete',
+      label: 'Marcar entregue',
+    }
+  }
+
+  return null
+}
+
+function getKitchenHoldingLabel(order: Order) {
+  if (order.status === 'completed') {
+    return 'Finalizado'
+  }
+
+  if (order.status === 'ready' && order.source === 'delivery') {
+    return 'Aguardando despacho'
+  }
+
+  return getReadyDestination(order)
+}
+
 function getKitchenRisk(order: Order): KitchenRisk {
+  if (!['in_analysis', 'in_preparation'].includes(order.status)) {
+    return 'on_time'
+  }
+
   const targetMinutes = getPrepTargetMinutes(order)
   const elapsedMinutes = getElapsedMinutes(order)
 

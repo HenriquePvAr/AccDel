@@ -12,6 +12,24 @@ export function useCashRegisterQuery() {
   })
 }
 
+export function useOpenCashRegisterMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (openingAmount: number) => cashRegisterService.openRegister({ openingAmount }),
+    onSuccess: (response) => {
+      queryClient.setQueryData(queryKeys.cash.current, response)
+      queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
+      useToastStore.getState().pushToast({
+        title: 'Caixa aberto',
+        description: 'Abertura registrada com valor inicial real.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
 export function useRegisterCashMovementMutation() {
   const queryClient = useQueryClient()
 

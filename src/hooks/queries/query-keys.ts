@@ -13,6 +13,7 @@ export const queryKeys = {
     all: ['customers'] as const,
     list: (filters?: unknown) => ['customers', 'list', filters] as const,
     detail: (customerId: string | null) => ['customers', 'detail', customerId] as const,
+    metricsSummary: ['customers', 'metrics-summary'] as const,
   },
   kitchen: {
     all: ['kitchen'] as const,
@@ -24,6 +25,8 @@ export const queryKeys = {
   catalog: {
     categories: ['catalog', 'categories'] as const,
     products: (filters?: unknown) => ['catalog', 'products', filters] as const,
+    menuSource: (filters?: unknown) => ['catalog', 'menu-source', filters] as const,
+    optionGroups: ['catalog', 'option-groups'] as const,
     promotions: ['catalog', 'promotions'] as const,
     coupons: ['catalog', 'coupons'] as const,
   },
@@ -47,6 +50,7 @@ export const queryKeys = {
   settings: {
     store: ['settings', 'store'] as const,
     payments: ['settings', 'payments'] as const,
+    deliveryZones: ['settings', 'delivery-zones'] as const,
   },
   users: {
     list: ['users', 'list'] as const,
@@ -56,11 +60,13 @@ export const queryKeys = {
   },
   aiAttendant: {
     overview: ['ai-attendant', 'overview'] as const,
+    dashboard: ['ai-attendant', 'dashboard'] as const,
     settings: ['ai-attendant', 'settings'] as const,
     knowledge: ['ai-attendant', 'knowledge'] as const,
     whatsappSession: ['ai-attendant', 'whatsapp-session'] as const,
     whatsappQr: ['ai-attendant', 'whatsapp-qr'] as const,
     whatsappStatus: ['ai-attendant', 'whatsapp-status'] as const,
+    whatsappLogs: ['ai-attendant', 'whatsapp-logs'] as const,
     conversations: ['ai-attendant', 'conversations'] as const,
     conversationDetail: (id: string) => ['ai-attendant', 'conversation', id] as const,
     orderDrafts: ['ai-attendant', 'order-drafts'] as const,

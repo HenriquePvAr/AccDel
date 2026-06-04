@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   CreateKnowledgeEntryPayload,
   SendConversationMessagePayload,
+  TestChatMessagePayload,
   TestReplyPayload,
+  TestWhatsappSendPayload,
   UpdateAiAttendantSettingsPayload,
   UpdateKnowledgeEntryPayload,
 } from '@/contracts/ai-attendant'
@@ -18,6 +20,14 @@ export function useAiAttendantOverviewQuery() {
     queryKey: queryKeys.aiAttendant.overview,
     queryFn: () => aiAttendantService.getOverview(),
     refetchInterval: 30000, // Refetch every 30 seconds
+  })
+}
+
+export function useAiAttendantDashboardQuery() {
+  return useQuery({
+    queryKey: queryKeys.aiAttendant.dashboard,
+    queryFn: () => aiAttendantService.getDashboard(),
+    refetchInterval: 30000,
   })
 }
 // ── Settings ────────────────────────────────────────────────────────
@@ -39,6 +49,7 @@ export function useUpdateAiAttendantSettingsMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.settings })
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.overview })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.whatsappLogs })
       pushToast({ title: 'Configurações atualizadas com sucesso', variant: 'success' })
     },
     onError: () => {
@@ -166,6 +177,14 @@ export function useWhatsappStatusQuery(enabled: boolean) {
   })
 }
 
+export function useWhatsappLogsQuery() {
+  return useQuery({
+    queryKey: queryKeys.aiAttendant.whatsappLogs,
+    queryFn: () => aiAttendantService.getWhatsappLogs(),
+    refetchInterval: 10000,
+  })
+}
+
 export function useDisconnectWhatsappSessionMutation() {
   const queryClient = useQueryClient()
   const { pushToast } = useToastStore()
@@ -175,6 +194,7 @@ export function useDisconnectWhatsappSessionMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.whatsappSession })
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.overview })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.whatsappLogs })
       pushToast({ title: 'WhatsApp desconectado', variant: 'success' })
     },
     onError: () => {
@@ -302,6 +322,7 @@ export function useApproveOrderDraftMutation() {
     mutationFn: (id: string) => aiAttendantService.approveOrderDraft(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.orderDrafts })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.dashboard })
       pushToast({ title: 'Pedido aprovado', variant: 'success' })
     },
     onError: () => {
@@ -318,10 +339,67 @@ export function useDiscardOrderDraftMutation() {
     mutationFn: (id: string) => aiAttendantService.discardOrderDraft(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.orderDrafts })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.dashboard })
       pushToast({ title: 'Pedido descartado', variant: 'success' })
     },
     onError: () => {
       pushToast({ title: 'Erro ao descartar pedido', variant: 'danger' })
+    },
+  })
+}
+
+export function usePrepareOrderDraftMutation() {
+  const { pushToast } = useToastStore()
+
+  return useMutation({
+    mutationFn: (id: string) => aiAttendantService.prepareOrderDraft(id),
+    onError: (error: Error) => {
+      pushToast({ title: error.message || 'Erro ao preparar pedido sugerido', variant: 'danger' })
+    },
+  })
+}
+
+export function useMarkOrderDraftConvertedMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, orderId }: { id: string; orderId: string }) =>
+      aiAttendantService.markOrderDraftConverted(id, orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.orderDrafts })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.dashboard })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.conversations })
+    },
+  })
+}
+
+export function useTestChatMessageMutation() {
+  const { pushToast } = useToastStore()
+
+  return useMutation({
+    mutationFn: (payload: TestChatMessagePayload) => aiAttendantService.testChatMessage(payload),
+    onError: () => {
+      pushToast({ title: 'Erro ao testar IA', variant: 'danger' })
+    },
+  })
+}
+
+export function useTestWhatsappSendMutation() {
+  const queryClient = useQueryClient()
+  const { pushToast } = useToastStore()
+
+  return useMutation({
+    mutationFn: (payload: TestWhatsappSendPayload) =>
+      aiAttendantService.sendTestWhatsappMessage(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.conversations })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.whatsappLogs })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.whatsappSession })
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.whatsappLogs })
+      pushToast({ title: 'Mensagem de teste enviada', variant: 'success' })
+    },
+    onError: (error: Error) => {
+      pushToast({ title: error.message || 'Erro ao enviar teste real', variant: 'danger' })
     },
   })
 }

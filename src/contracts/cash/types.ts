@@ -4,6 +4,14 @@ export interface GetCashRegisterResponse {
   data: CashRegister
 }
 
+export interface OpenCashRegisterRequest {
+  openingAmount: number
+}
+
+export interface OpenCashRegisterResponse {
+  data: CashRegister
+}
+
 export interface RegisterCashMovementRequest {
   type: CashMovementType
   amount: number

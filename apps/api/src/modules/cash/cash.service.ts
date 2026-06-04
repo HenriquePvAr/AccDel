@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 
 import type {
   CloseCashRegisterPayload,
+  OpenCashRegisterPayload,
   RegisterCashMovementPayload,
 } from '@/contracts/cash.contract'
 import { PrismaService } from '@/shared/prisma/prisma.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 import { mapCashRegister } from './cash.mapper'
 
@@ -15,6 +16,56 @@ export class CashService {
 
   async getCurrentRegister() {
     const register = await this.findCurrentRegister()
+
+    return {
+      data: mapCashRegister(register),
+    }
+  }
+
+  async openRegister(payload: OpenCashRegisterPayload, operatorName: string) {
+    const currentOpen = await this.prisma.cashRegister.findFirst({
+      where: {
+        storeId: getCurrentStoreId(),
+        status: 'open',
+      },
+      include: {
+        movements: true,
+      },
+      orderBy: {
+        openedAt: 'desc',
+      },
+    })
+
+    if (currentOpen) {
+      throw new BadRequestException('Ja existe um caixa aberto para esta loja.')
+    }
+
+    const register = await this.prisma.cashRegister.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        status: 'open',
+        operatorName: this.cleanDatabaseText(operatorName),
+        openingAmount: payload.openingAmount,
+        expectedAmount: payload.openingAmount,
+        countedAmount: 0,
+        differenceAmount: 0,
+        movements:
+          payload.openingAmount > 0
+            ? {
+                create: {
+                  type: 'supply',
+                  method: null,
+                  amount: payload.openingAmount,
+                  label: 'Valor inicial de abertura',
+                  userName: this.cleanDatabaseText(operatorName),
+                },
+              }
+            : undefined,
+      },
+      include: {
+        movements: true,
+      },
+    })
 
     return {
       data: mapCashRegister(register),
@@ -44,7 +95,7 @@ export class CashService {
             method: payload.type === 'sale' || payload.type === 'refund' ? 'pix' : null,
             amount: payload.amount,
             label: payload.label,
-            userName: 'Operação',
+            userName: 'Operacao',
           },
         },
       },
@@ -85,7 +136,7 @@ export class CashService {
   private async findCurrentRegister(options?: { openOnly?: boolean }) {
     const register = await this.prisma.cashRegister.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         ...(options?.openOnly ? { status: 'open' as const } : {}),
       },
       include: {
@@ -105,5 +156,14 @@ export class CashService {
     }
 
     return register
+  }
+
+  private cleanDatabaseText(value: string) {
+    const safe = value
+      .replace(/\uFFFD/g, '')
+      .replace(/[^\u0020-\u007E\u00A0-\u00FF]/g, '')
+      .trim()
+
+    return safe || 'Operacao'
   }
 }

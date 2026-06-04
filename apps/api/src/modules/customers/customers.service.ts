@@ -3,12 +3,13 @@ import type { Prisma } from '@prisma/client'
 
 import type {
   CreateCustomerPayload,
+  CustomerSegment,
   ListCustomersQuery,
   UpdateCustomerPayload,
 } from '@/contracts/customers.contract'
 import { buildListResponse } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 @Injectable()
 export class CustomersService {
@@ -22,7 +23,7 @@ export class CustomersService {
     const phoneSearch = normalizedPhone || qPhone
     const customers = await this.prisma.customer.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         ...(search && !qPhone
           ? {
               OR: [
@@ -47,8 +48,10 @@ export class CustomersService {
         )
       : customers
 
+    const metricsByCustomerId = await this.buildCustomerMetrics(filtered.map((customer) => customer.id))
+
     return buildListResponse(
-      filtered.map(mapCustomer),
+      filtered.map((customer) => mapCustomer(customer, metricsByCustomerId.get(customer.id))),
       filtered.length,
       query,
     )
@@ -58,7 +61,7 @@ export class CustomersService {
     const customer = await this.prisma.customer.findFirst({
       where: {
         id: customerId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: customerInclude,
     })
@@ -67,8 +70,106 @@ export class CustomersService {
       throw new NotFoundException('Cliente nao encontrado.')
     }
 
+    const metricsByCustomerId = await this.buildCustomerMetrics([customer.id])
+
     return {
-      data: mapCustomer(customer),
+      data: mapCustomer(customer, metricsByCustomerId.get(customer.id)),
+    }
+  }
+
+  async getMetricsSummary() {
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        storeId: getCurrentStoreId(),
+      },
+      include: {
+        addresses: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+        orders: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          include: {
+            items: true,
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    })
+
+    const segments: Record<CustomerSegment, number> = {
+      inactive: 0,
+      new: 0,
+      recurring: 0,
+      vip: 0,
+    }
+    const neighborhoodTotals = new Map<
+      string,
+      {
+        id: string
+        label: string
+        customers: number
+        orders: number
+        revenue: number
+      }
+    >()
+    const crmSummaries = customers.map((customer) => {
+      const crm = buildCrmSummary(customer.orders)
+      segments[crm.segment] += 1
+
+      const district = customer.addresses[0]?.district?.trim()
+      if (district) {
+        const id = normalizeKey(district)
+        const completedOrders = customer.orders.filter((order) => order.status === 'completed')
+        const activeOrders = customer.orders.filter((order) => order.status !== 'cancelled')
+        const current = neighborhoodTotals.get(id) ?? {
+          id,
+          label: district,
+          customers: 0,
+          orders: 0,
+          revenue: 0,
+        }
+
+        current.customers += 1
+        current.orders += activeOrders.length
+        current.revenue = roundMoney(
+          current.revenue +
+            completedOrders.reduce((sum, order) => sum + Number(order.total), 0),
+        )
+        neighborhoodTotals.set(id, current)
+      }
+
+      return crm
+    })
+    const completedOrders = customers.flatMap((customer) =>
+      customer.orders.filter((order) => order.status === 'completed'),
+    )
+    const totalSpent = roundMoney(
+      completedOrders.reduce((sum, order) => sum + Number(order.total), 0),
+    )
+    const frequencyValues = crmSummaries
+      .map((crm) => crm.frequencyDays)
+      .filter((value): value is number => value !== null)
+
+    return {
+      data: {
+        totalCustomers: customers.length,
+        segments,
+        totalSpent,
+        averageTicket: completedOrders.length
+          ? roundMoney(totalSpent / completedOrders.length)
+          : 0,
+        averageFrequencyDays: average(frequencyValues),
+        cancellations: crmSummaries.reduce((sum, crm) => sum + crm.cancelledOrders, 0),
+        topNeighborhoods: [...neighborhoodTotals.values()]
+          .sort((left, right) => right.orders - left.orders || right.revenue - left.revenue)
+          .slice(0, 8),
+      },
     }
   }
 
@@ -83,7 +184,7 @@ export class CustomersService {
 
     const customer = await this.prisma.customer.create({
       data: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         name: payload.name,
         phone: formatPhoneForStorage(payload.phone),
         notes: normalizeNullableString(payload.notes),
@@ -108,7 +209,7 @@ export class CustomersService {
     const current = await this.prisma.customer.findFirst({
       where: {
         id: customerId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: {
         addresses: {
@@ -160,12 +261,41 @@ export class CustomersService {
     const normalizedPhone = normalizePhone(phone)
     const customers = await this.prisma.customer.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: customerInclude,
     })
 
     return customers.find((customer) => normalizePhone(customer.phone) === normalizedPhone) ?? null
+  }
+
+  private async buildCustomerMetrics(customerIds: string[]) {
+    if (!customerIds.length) {
+      return new Map<string, CustomerCrmSummary>()
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        storeId: getCurrentStoreId(),
+        customerId: {
+          in: customerIds,
+        },
+      },
+      include: {
+        items: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+    const metrics = new Map<string, CustomerCrmSummary>()
+
+    for (const customerId of customerIds) {
+      const customerOrders = orders.filter((order) => order.customerId === customerId)
+      metrics.set(customerId, buildCrmSummary(customerOrders))
+    }
+
+    return metrics
   }
 }
 
@@ -190,7 +320,19 @@ type CustomerRecord = Prisma.CustomerGetPayload<{
   include: typeof customerInclude
 }>
 
-function mapCustomer(customer: CustomerRecord) {
+interface CustomerCrmSummary {
+  orderCount: number
+  completedOrders: number
+  cancelledOrders: number
+  totalSpent: number
+  averageTicket: number
+  frequencyDays: number | null
+  lastOrderAt?: string
+  segment: CustomerSegment
+  favoriteItems: string[]
+}
+
+function mapCustomer(customer: CustomerRecord, crm?: CustomerCrmSummary) {
   return {
     id: customer.id,
     name: customer.name,
@@ -215,7 +357,127 @@ function mapCustomer(customer: CustomerRecord) {
       createdAt: order.createdAt.toISOString(),
       items: order.items.slice(0, 3).map((item) => item.name),
     })),
+    crm,
   }
+}
+
+function buildCrmSummary(
+  orders: Array<
+    Prisma.OrderGetPayload<{
+      include: {
+        items: true
+      }
+    }>
+  >,
+): CustomerCrmSummary {
+  const activeOrders = orders.filter((order) => order.status !== 'cancelled')
+  const completedOrders = orders.filter((order) => order.status === 'completed')
+  const cancelledOrders = orders.filter((order) => order.status === 'cancelled')
+  const totalSpent = roundMoney(
+    completedOrders.reduce((sum, order) => sum + Number(order.total), 0),
+  )
+  const averageTicket = completedOrders.length
+    ? roundMoney(totalSpent / completedOrders.length)
+    : 0
+  const sortedCompleted = [...completedOrders].sort(
+    (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+  )
+  const firstCompleted = sortedCompleted[0]
+  const lastCompleted = sortedCompleted[sortedCompleted.length - 1]
+  const frequencyDays =
+    firstCompleted && lastCompleted && completedOrders.length > 1
+      ? Math.max(
+          1,
+          Math.round(
+            (lastCompleted.createdAt.getTime() - firstCompleted.createdAt.getTime()) /
+              (completedOrders.length - 1) /
+              86_400_000,
+          ),
+        )
+      : null
+  const lastOrderAt = orders[0]?.createdAt.toISOString()
+  const segment = resolveCustomerSegment({
+    completedOrders: completedOrders.length,
+    totalSpent,
+    lastOrderAt,
+  })
+
+  return {
+    orderCount: activeOrders.length,
+    completedOrders: completedOrders.length,
+    cancelledOrders: cancelledOrders.length,
+    totalSpent,
+    averageTicket,
+    frequencyDays,
+    lastOrderAt,
+    segment,
+    favoriteItems: resolveFavoriteItems(completedOrders),
+  }
+}
+
+function resolveCustomerSegment(params: {
+  completedOrders: number
+  totalSpent: number
+  lastOrderAt?: string
+}): CustomerCrmSummary['segment'] {
+  if (params.lastOrderAt) {
+    const inactiveDays = Math.floor((Date.now() - new Date(params.lastOrderAt).getTime()) / 86_400_000)
+    if (inactiveDays >= 60) {
+      return 'inactive'
+    }
+  }
+
+  if (params.completedOrders >= 10 || params.totalSpent >= 1000) {
+    return 'vip'
+  }
+
+  if (params.completedOrders >= 2) {
+    return 'recurring'
+  }
+
+  return 'new'
+}
+
+function resolveFavoriteItems(
+  orders: Array<
+    Prisma.OrderGetPayload<{
+      include: {
+        items: true
+      }
+    }>
+  >,
+) {
+  const totals = new Map<string, number>()
+
+  for (const order of orders) {
+    for (const item of order.items) {
+      totals.set(item.name, (totals.get(item.name) ?? 0) + item.quantity)
+    }
+  }
+
+  return [...totals.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 3)
+    .map(([name]) => name)
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function average(values: number[]) {
+  if (!values.length) {
+    return null
+  }
+
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+}
+
+function normalizeKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
 }
 
 function mapAddressPayload(address: NonNullable<CreateCustomerPayload['address']>) {

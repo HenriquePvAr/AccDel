@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
+import { APP_INTERCEPTOR } from '@nestjs/core'
 
 import { AiAttendantModule } from './modules/ai-attendant/ai-attendant.module'
 import { AuthModule } from './modules/auth/auth.module'
@@ -17,6 +18,7 @@ import { UsersModule } from './modules/users/users.module'
 import { WaitersModule } from './modules/waiters/waiters.module'
 import { PrismaModule } from './shared/prisma/prisma.module'
 import { RealtimeModule } from './shared/realtime/realtime.module'
+import { StoreContextInterceptor } from './shared/store-context.interceptor'
 
 @Module({
   imports: [
@@ -39,6 +41,12 @@ import { RealtimeModule } from './shared/realtime/realtime.module'
     SettingsModule,
     UsersModule,
     AiAttendantModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: StoreContextInterceptor,
+    },
   ],
 })
 export class AppModule {}

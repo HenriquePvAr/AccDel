@@ -66,6 +66,24 @@ export const reportsSnapshotMock: ReportsSnapshot = {
     { id: 'rc_2', label: 'Combos', revenue: 2620, orders: 31, share: 21 },
     { id: 'rc_3', label: 'Bebidas', revenue: 1320, orders: 84, share: 11 },
   ],
+  topOptions: [
+    { id: 'opt_1', label: 'Calabresa', revenue: 420, orders: 18, share: 3 },
+    { id: 'opt_2', label: 'Mussarela', revenue: 300, orders: 15, share: 2 },
+  ],
+  topNeighborhoods: [
+    { id: 'vieiralves', label: 'Vieiralves', revenue: 1880, orders: 24, share: 15 },
+    { id: 'centro', label: 'Centro', revenue: 1210, orders: 16, share: 10 },
+  ],
+  aiSummary: {
+    orderDraftsSuggested: 18,
+    orderDraftsConverted: 7,
+    transfersToHuman: 5,
+    conversionRate: 39,
+  },
+  timeSummary: {
+    averagePreparationMinutes: 22,
+    averageDeliveryMinutes: 31,
+  },
   cancellations: [
     {
       id: 'cr_1',

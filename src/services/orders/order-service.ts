@@ -1,6 +1,8 @@
 import type {
   CreateOrderRequest,
   CreateOrderResponse,
+  CreatePublicOrderRequest,
+  CreatePublicOrderResponse,
   GetOrderByIdRequest,
   GetOrderByIdResponse,
   GetOrderTrackingRequest,
@@ -14,7 +16,12 @@ import type {
   UpdateOrderStatusResponse,
 } from '@/contracts'
 import { mutateDemoDatabase, getDemoDatabase } from '@/services/adapters/demo-database'
-import { apiClient, buildQueryString, shouldUseApi } from '@/services/http/api-client'
+import {
+  ApiClientError,
+  apiClient,
+  buildQueryString,
+  shouldUseApi,
+} from '@/services/http/api-client'
 import { mockRealtimeBus } from '@/services/realtime/mock-realtime'
 import { simulateAsync } from '@/services/utils'
 
@@ -174,6 +181,22 @@ export const orderService = {
     mockRealtimeBus.emit('order.created', { orderId: nextDb.orders[0].id })
 
     return simulateAsync({ data: nextDb.orders[0] })
+  },
+
+  async createPublicOrder(
+    request: CreatePublicOrderRequest,
+  ): Promise<CreatePublicOrderResponse> {
+    if (shouldUseApi) {
+      const response = await apiClient.post<CreatePublicOrderResponse, CreatePublicOrderRequest>(
+        '/public/orders',
+        request,
+        { skipAuth: true },
+      )
+      mockRealtimeBus.emit('order.created', { orderId: response.data.id })
+      return response
+    }
+
+    throw new ApiClientError('Checkout publico exige API real para validar catalogo e criar pedido.', 400)
   },
 
   async updateOrderStatus(request: UpdateOrderStatusRequest): Promise<UpdateOrderStatusResponse> {

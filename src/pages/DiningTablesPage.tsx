@@ -17,11 +17,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TableSessionDrawer } from '@/features/dining/components/TableSessionDrawer'
 import {
   useAddTableSessionItemsMutation,
-  useCategoriesQuery,
+  useCatalogMenuSourceQuery,
   useCloseTableSessionMutation,
   useDiningTablesQuery,
   useOpenTableSessionMutation,
-  useProductsQuery,
   useSplitTableSessionMutation,
   useTransferTableSessionMutation,
   useUpdateTableSessionMutation,
@@ -31,7 +30,7 @@ import { usePageTitle } from '@/hooks/use-page-title'
 import { useCan } from '@/hooks/use-permissions'
 import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { DiningTable, TableSession, TableStatus } from '@/types'
+import type { Category, DiningTable, Product, TableSession, TableStatus } from '@/types'
 import {
   Armchair,
   ArrowRight,
@@ -101,8 +100,10 @@ export function DiningTablesPage() {
   usePageTitle('Salao / Mesas')
   const diningQuery = useDiningTablesQuery()
   const waitersQuery = useWaitersQuery()
-  const categoriesQuery = useCategoriesQuery()
-  const productsQuery = useProductsQuery({ status: 'active', channel: 'dine_in', pageSize: 120 })
+  const menuSourceQuery = useCatalogMenuSourceQuery({
+    channel: 'dine_in',
+    includeUnavailable: true,
+  })
   const openSessionMutation = useOpenTableSessionMutation()
   const addSessionItemsMutation = useAddTableSessionItemsMutation()
   const updateSessionMutation = useUpdateTableSessionMutation()
@@ -123,8 +124,45 @@ export function DiningTablesPage() {
     [diningQuery.data?.data.sessions],
   )
   const waiters = waitersQuery.data?.data ?? []
-  const products = productsQuery.data?.data ?? []
-  const categories = categoriesQuery.data?.data ?? []
+  const products = useMemo(
+    () =>
+      (menuSourceQuery.data?.data.categories ?? []).flatMap((category) =>
+        category.products.map((product): Product => ({
+          id: product.id,
+          categoryId: product.categoryId,
+          name: product.name,
+          description: product.description,
+          price: product.basePrice,
+          image: product.image,
+          featured: product.featured,
+          active: product.active,
+          preparationStation: product.preparationStation,
+          sortOrder: product.sortOrder,
+          tags: product.tags,
+          availability: product.channelAvailability ? [product.channelAvailability] : [],
+          optionGroups: product.optionGroups,
+        })),
+      ),
+    [menuSourceQuery.data?.data.categories],
+  )
+  const categories = useMemo<Category[]>(
+    () =>
+      (menuSourceQuery.data?.data.categories ?? [])
+        .filter((category) => category.visibleForChannel)
+        .map((category) => ({
+          id: category.id,
+          name: category.name,
+          description: category.description,
+          active: category.active,
+          icon: category.icon,
+          color: category.color,
+          visibleOnPos: category.visibleOnPos,
+          visibleOnDigitalMenu: category.visibleOnDigitalMenu,
+          sortOrder: category.sortOrder,
+          productCount: category.products.length,
+        })),
+    [menuSourceQuery.data?.data.categories],
+  )
   const selectedTable = tables.find((table) => table.id === selectedTableId) ?? tables[0] ?? null
   const selectedSession = selectedTable ? getSessionForTable(selectedTable, sessions) : null
   const drawerTable = tables.find((table) => table.id === drawerTableId) ?? null

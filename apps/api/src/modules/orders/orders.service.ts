@@ -7,11 +7,13 @@ import type { OrderChannel, OrderStatus, Prisma, ProductChannel } from '@prisma/
 
 import type {
   CreateOrderPayload,
+  CreatePublicOrderPayload,
   ListOrdersQuery,
   UpdateOrderStatusPayload,
 } from '@/contracts/orders.contract'
 import {
   type ResolvedProductOption,
+  type SelectedProductOptionInput,
   resolveProductOptionSelection,
   toProductOptionsJson,
 } from '@/modules/catalog/product-options'
@@ -20,7 +22,7 @@ import { buildListResponse, normalizePagination } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { AdminRealtimeService } from '@/shared/realtime/admin-realtime.service'
 import { calculateRouteEta, type GeoCoordinate } from '@/shared/routing/routing.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 import { mapOrder } from './orders.mapper'
 
@@ -45,6 +47,20 @@ interface PricedOrderItem {
   unitPrice: number
   notes?: string
   options: ResolvedProductOption[]
+}
+
+interface OrderItemSelectionInput {
+  productId: string
+  quantity: number
+  notes?: string
+  options?: SelectedProductOptionInput[]
+}
+
+interface DeliveryPricingResult {
+  fee: number
+  estimatedDeliveryTimeMinutes: number
+  zoneId?: string
+  neighborhood?: string
 }
 
 interface PromotionRuleConfig {
@@ -129,7 +145,7 @@ export class OrdersService {
     const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: {
         items: true,
@@ -147,7 +163,7 @@ export class OrdersService {
     const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: {
         driver: true,
@@ -160,14 +176,14 @@ export class OrdersService {
 
     const store = await this.prisma.store.findUniqueOrThrow({
       where: {
-        id: DEFAULT_STORE_ID,
+        id: getCurrentStoreId(),
       },
     })
     const destination = this.resolveOrderCoordinate(order)
     const driverLocation = order.driverId
       ? await this.prisma.driverLocation.findFirst({
           where: {
-            storeId: DEFAULT_STORE_ID,
+            storeId: getCurrentStoreId(),
             driverId: order.driverId,
             isActive: true,
           },
@@ -196,7 +212,7 @@ export class OrdersService {
     if (route && order.driverId) {
       await this.prisma.etaSnapshot.create({
         data: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           orderId: order.id,
           driverId: order.driverId,
           provider: route.provider,
@@ -244,14 +260,14 @@ export class OrdersService {
   async createOrder(payload: CreateOrderPayload) {
     const store = await this.prisma.store.findUniqueOrThrow({
       where: {
-        id: DEFAULT_STORE_ID,
+        id: getCurrentStoreId(),
       },
     })
     const customer = payload.customerId
       ? await this.prisma.customer.findFirst({
           where: {
             id: payload.customerId,
-            storeId: DEFAULT_STORE_ID,
+            storeId: getCurrentStoreId(),
           },
           include: {
             addresses: true,
@@ -262,7 +278,7 @@ export class OrdersService {
       ? await this.prisma.diningTable.findFirst({
           where: {
             id: payload.tableId,
-            storeId: DEFAULT_STORE_ID,
+            storeId: getCurrentStoreId(),
           },
         })
       : null
@@ -281,50 +297,11 @@ export class OrdersService {
     }
 
     const catalogChannel = resolveCatalogChannel(payload.channel)
-    const products = await this.prisma.product.findMany({
-      where: {
-        id: {
-          in: payload.items.map((item) => item.productId),
-        },
-        storeId: DEFAULT_STORE_ID,
-      },
-      include: {
-        availability: true,
-        optionGroups: {
-          include: {
-            group: {
-              include: {
-                options: true,
-              },
-            },
-          },
-        },
-      },
-    })
-    const items = payload.items.map((item) => {
-      const product = products.find((entry) => entry.id === item.productId)
-
-      if (!product) {
-        throw new NotFoundException(`Produto ${item.productId} nao encontrado.`)
-      }
-      const availability = product.availability.find((entry) => entry.channel === catalogChannel)
-
-      if (!product.active || !availability?.visible || !availability.available || availability.soldOut) {
-        throw new BadRequestException(
-          `Produto ${product.name} indisponivel para ${channelLabelMap[payload.channel]}.`,
-        )
-      }
-      const selectedOptions = resolveProductOptionSelection(product, item.options ?? [])
-      const basePrice = availability.priceOverride?.toNumber() ?? product.price.toNumber()
-
-      return {
-        product,
-        quantity: item.quantity,
-        unitPrice: basePrice + selectedOptions.optionsTotal,
-        notes: item.notes,
-        options: selectedOptions.options,
-      }
-    })
+    const items = await this.resolvePricedItems(
+      payload.items,
+      catalogChannel,
+      channelLabelMap[payload.channel],
+    )
     const subtotal = items.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
       0,
@@ -335,7 +312,8 @@ export class OrdersService {
       ? await this.resolveCouponAdjustment(payload.couponCode, catalogChannel, subtotalAfterPromotion)
       : { discount: 0 }
     const discount = promotionAdjustment.discount + couponAdjustment.discount
-    const deliveryFee = payload.channel === 'delivery' ? 8.5 : 0
+    const deliveryFee =
+      payload.channel === 'delivery' ? store.defaultDeliveryFee.toNumber() : 0
     const status: OrderStatus = payload.sendToProduction ? 'in_preparation' : 'in_analysis'
     const estimatedPrepTimeMinutes = this.getEstimatedPrepTime(store, payload.channel)
     const estimatedDeliveryTimeMinutes =
@@ -354,7 +332,7 @@ export class OrdersService {
 
     const order = await this.prisma.order.create({
       data: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         number,
         customerId: customer?.id,
         customerName: customer?.name ?? 'Cliente sem cadastro',
@@ -473,11 +451,199 @@ export class OrdersService {
     }
   }
 
+  async createPublicOrder(payload: CreatePublicOrderPayload) {
+    const normalizedPhone = normalizePhone(payload.customerPhone)
+    const store = await this.prisma.store.findUniqueOrThrow({
+      where: {
+        id: getCurrentStoreId(),
+      },
+    })
+    const serviceType = payload.orderMode === 'delivery' ? 'delivery' : 'pickup'
+
+    if (!store.digitalMenuEnabled) {
+      throw new BadRequestException('Cardapio digital indisponivel para receber pedidos agora.')
+    }
+
+    if (serviceType === 'delivery' && !store.deliveryEnabled) {
+      throw new BadRequestException('Delivery esta desativado para o cardapio digital.')
+    }
+
+    if (serviceType === 'pickup' && !store.pickupEnabled) {
+      throw new BadRequestException('Retirada esta desativada para o cardapio digital.')
+    }
+
+    const paymentConfig = await this.prisma.paymentMethodConfig.findFirst({
+      where: {
+        id: payload.paymentMethodId,
+        storeId: getCurrentStoreId(),
+        active: true,
+        channels: {
+          has: 'digital_menu',
+        },
+      },
+    })
+
+    if (!paymentConfig?.method) {
+      throw new BadRequestException('Forma de pagamento indisponivel para o cardapio digital.')
+    }
+
+    if (paymentConfig.provider === 'picpay' && !paymentConfig.externalEnabled) {
+      throw new BadRequestException('PicPay ainda nao esta configurado para checkout real.')
+    }
+
+    const customer = await this.upsertPublicCustomer({
+      name: payload.customerName,
+      phone: normalizedPhone,
+    })
+    const deliveryPricing =
+      serviceType === 'delivery'
+        ? await this.resolveDeliveryPricing(payload.neighborhood ?? '', store)
+        : null
+    const address =
+      serviceType === 'delivery'
+        ? await this.upsertPublicAddress(customer.id, payload, {
+            city: store.city,
+            state: store.state,
+          })
+        : null
+    const items = await this.resolvePricedItems(
+      payload.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        notes: item.notes,
+        options: item.selectedOptions,
+      })),
+      'digital_menu',
+      'Cardapio digital',
+    )
+    const subtotal = items.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0,
+    )
+    const minimumOrderAmount = store.minimumOrderAmount.toNumber()
+
+    if (minimumOrderAmount > 0 && subtotal < minimumOrderAmount) {
+      throw new BadRequestException(
+        `Pedido minimo de R$ ${minimumOrderAmount.toFixed(2).replace('.', ',')} nao atingido.`,
+      )
+    }
+
+    const promotionAdjustment = await this.resolvePromotionAdjustment('digital_menu', items)
+    const discount = promotionAdjustment.discount
+    const deliveryFee = deliveryPricing?.fee ?? 0
+    const status: OrderStatus = 'in_preparation'
+    const estimatedPrepTimeMinutes = this.getEstimatedPrepTime(store, serviceType)
+    const estimatedDeliveryTimeMinutes =
+      serviceType === 'delivery'
+        ? (deliveryPricing?.estimatedDeliveryTimeMinutes ?? store.estimatedDeliveryTimeMinutes)
+        : null
+    const estimatedTotalTimeMinutes =
+      estimatedPrepTimeMinutes + (estimatedDeliveryTimeMinutes ?? 0)
+    const number = await this.nextOrderNumber()
+    const createdAt = new Date()
+    const deliveryCoordinate =
+      serviceType === 'delivery'
+        ? this.resolveAddressCoordinate(
+            address,
+            `${customer.id}-${payload.neighborhood ?? ''}-${number}`,
+          )
+        : null
+    const total = Math.max(0, subtotal - discount) + deliveryFee
+
+    const order = await this.prisma.order.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        number,
+        customerId: customer.id,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        source: 'digital_menu',
+        serviceType,
+        status,
+        paymentMethod: paymentConfig.method,
+        paymentStatus: 'pending',
+        subtotal,
+        deliveryFee,
+        discount,
+        promotionName: promotionAdjustment.promotionName,
+        discountBreakdown: this.buildDiscountBreakdown(
+          subtotal,
+          promotionAdjustment,
+          { discount: 0 },
+        ),
+        total,
+        dueAt: new Date(Date.now() + estimatedTotalTimeMinutes * 60 * 1000),
+        estimatedPrepTimeMinutes,
+        estimatedDeliveryTimeMinutes,
+        estimatedTotalTimeMinutes,
+        priority: 'normal',
+        delayed: false,
+        tags: [
+          'Cardapio digital',
+          serviceType === 'delivery' ? 'Delivery' : 'Retirada',
+          ...(deliveryPricing?.neighborhood ? [`Bairro: ${deliveryPricing.neighborhood}`] : []),
+          ...(promotionAdjustment.promotionName
+            ? [`Promocao: ${promotionAdjustment.promotionName}`]
+            : []),
+        ],
+        addressLabel: address?.label,
+        addressText: address ? formatAddressText(address) : undefined,
+        deliveryLatitude: deliveryCoordinate?.latitude,
+        deliveryLongitude: deliveryCoordinate?.longitude,
+        notes: payload.notes,
+        items: {
+          create: items.map((item) => ({
+            productId: item.product.id,
+            name: item.product.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            notes: item.notes,
+            options: toProductOptionsJson(item.options),
+          })),
+        },
+        history: {
+          create: [
+            {
+              status: 'in_analysis',
+              label: 'Pedido recebido pelo cardapio digital',
+              actor: 'Cliente',
+              createdAt,
+            },
+            {
+              status,
+              label: 'Checkout publico validado e enviado para producao',
+              actor: 'Sistema',
+              createdAt,
+            },
+          ],
+        },
+      },
+      include: {
+        items: true,
+        history: true,
+        driver: true,
+      },
+    })
+
+    this.realtime.emit('order.created', {
+      orderId: order.id,
+    })
+    this.realtime.emit('order.status_changed', {
+      orderId: order.id,
+      status: order.status,
+      driverId: null,
+    })
+
+    return {
+      data: mapOrder(order),
+    }
+  }
+
   async updateStatus(orderId: string, payload: UpdateOrderStatusPayload) {
     const current = await this.prisma.order.findFirstOrThrow({
       where: {
         id: orderId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: {
         driver: true,
@@ -543,7 +709,7 @@ export class OrdersService {
 
       const refreshedMembership = await this.prisma.storeUser.findFirst({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           userId: nextDriverId,
           role: 'driver',
         },
@@ -570,7 +736,7 @@ export class OrdersService {
     const current = await this.prisma.order.findFirstOrThrow({
       where: {
         id: orderId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: {
         items: true,
@@ -580,7 +746,7 @@ export class OrdersService {
 
     const order = await this.prisma.order.create({
       data: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         number,
         customerId: current.customerId,
         customerName: current.customerName,
@@ -643,13 +809,191 @@ export class OrdersService {
     }
   }
 
+  private async resolvePricedItems(
+    payloadItems: OrderItemSelectionInput[],
+    catalogChannel: ProductChannel,
+    channelLabel: string,
+  ) {
+    const products = await this.prisma.product.findMany({
+      where: {
+        id: {
+          in: payloadItems.map((item) => item.productId),
+        },
+        storeId: getCurrentStoreId(),
+      },
+      include: {
+        availability: true,
+        optionGroups: {
+          include: {
+            group: {
+              include: {
+                options: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    return payloadItems.map((item): PricedOrderItem => {
+      const product = products.find((entry) => entry.id === item.productId)
+
+      if (!product) {
+        throw new NotFoundException(`Produto ${item.productId} nao encontrado.`)
+      }
+
+      const availability = product.availability.find((entry) => entry.channel === catalogChannel)
+
+      if (!product.active || !availability?.visible || !availability.available || availability.soldOut) {
+        throw new BadRequestException(
+          `Produto ${product.name} indisponivel para ${channelLabel}.`,
+        )
+      }
+
+      const selectedOptions = resolveProductOptionSelection(product, item.options ?? [])
+      const basePrice = availability.priceOverride?.toNumber() ?? product.price.toNumber()
+
+      return {
+        product,
+        quantity: item.quantity,
+        unitPrice: basePrice + selectedOptions.optionsTotal,
+        notes: item.notes,
+        options: selectedOptions.options,
+      }
+    })
+  }
+
+  private async upsertPublicCustomer(payload: { name: string; phone: string }) {
+    const current = await this.prisma.customer.findFirst({
+      where: {
+        storeId: getCurrentStoreId(),
+        phone: payload.phone,
+      },
+    })
+
+    if (current) {
+      return this.prisma.customer.update({
+        where: {
+          id: current.id,
+        },
+        data: {
+          name: payload.name.trim(),
+          phone: payload.phone,
+        },
+      })
+    }
+
+    return this.prisma.customer.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        name: payload.name.trim(),
+        phone: payload.phone,
+        tags: ['Cardapio digital'],
+      },
+    })
+  }
+
+  private async upsertPublicAddress(
+    customerId: string,
+    payload: CreatePublicOrderPayload,
+    store: { city: string; state: string },
+  ) {
+    const street = payload.address?.trim()
+    const district = payload.neighborhood?.trim()
+
+    if (!street || !district) {
+      throw new BadRequestException('Informe endereco e bairro para delivery.')
+    }
+
+    const current = await this.prisma.customerAddress.findFirst({
+      where: {
+        customerId,
+        street,
+        district,
+      },
+    })
+    const data = {
+      label: 'Cardapio digital',
+      street,
+      number: 'S/N',
+      district,
+      complement: payload.complement?.trim() || null,
+      reference: payload.reference?.trim() || null,
+      city: store.city,
+      state: store.state,
+    }
+
+    if (current) {
+      return this.prisma.customerAddress.update({
+        where: {
+          id: current.id,
+        },
+        data,
+      })
+    }
+
+    return this.prisma.customerAddress.create({
+      data: {
+        customerId,
+        ...data,
+      },
+    })
+  }
+
+  private async resolveDeliveryPricing(
+    neighborhood: string,
+    store: {
+      id: string
+      defaultDeliveryFee: Prisma.Decimal
+      estimatedDeliveryTimeMinutes: number
+    },
+  ): Promise<DeliveryPricingResult> {
+    const requestedNeighborhood = neighborhood.trim()
+    if (!requestedNeighborhood) {
+      throw new BadRequestException('Informe o bairro para delivery.')
+    }
+
+    const zones = await this.prisma.deliveryZone.findMany({
+      where: {
+        storeId: store.id,
+      },
+    })
+    const activeZones = zones.filter((zone) => zone.active)
+
+    if (!activeZones.length) {
+      return {
+        fee: store.defaultDeliveryFee.toNumber(),
+        estimatedDeliveryTimeMinutes: store.estimatedDeliveryTimeMinutes,
+        neighborhood: requestedNeighborhood,
+      }
+    }
+
+    const zone = activeZones.find(
+      (entry) => normalizeText(entry.neighborhood) === normalizeText(requestedNeighborhood),
+    )
+
+    if (!zone) {
+      throw new BadRequestException(
+        'Bairro nao atendido pelo cardapio digital. Chame a loja no WhatsApp para confirmar.',
+      )
+    }
+
+    return {
+      zoneId: zone.id,
+      neighborhood: zone.neighborhood,
+      fee: zone.fee.toNumber(),
+      estimatedDeliveryTimeMinutes:
+        zone.estimatedDeliveryTimeMinutes ?? store.estimatedDeliveryTimeMinutes,
+    }
+  }
+
   private async resolvePromotionAdjustment(
     channel: ProductChannel,
     items: PricedOrderItem[],
   ): Promise<PromotionAdjustment> {
     const promotions = await this.prisma.promotion.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         status: 'active',
         type: 'combo',
       },
@@ -742,7 +1086,7 @@ export class OrdersService {
   ): Promise<CouponAdjustment> {
     const coupon = await this.prisma.coupon.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         code: code.trim().toUpperCase(),
       },
     })
@@ -813,7 +1157,7 @@ export class OrdersService {
     const search = query.search?.trim()
 
     return {
-      storeId: DEFAULT_STORE_ID,
+      storeId: getCurrentStoreId(),
       ...(search
         ? {
             OR: [
@@ -835,7 +1179,7 @@ export class OrdersService {
   private async nextOrderNumber() {
     const count = await this.prisma.order.count({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
     })
 
@@ -986,7 +1330,7 @@ export class OrdersService {
 
     const driver = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         active: true,
         role: 'driver',
         userId: driverId,
@@ -1057,7 +1401,7 @@ export class OrdersService {
 
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         userId: driverId,
         role: 'driver',
       },
@@ -1072,7 +1416,7 @@ export class OrdersService {
 
     const activeDeliveries = await this.prisma.order.count({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         driverId,
         status: 'out_for_delivery',
       },
@@ -1097,7 +1441,7 @@ export class OrdersService {
     if (params.action === 'dispatch' && params.driverId) {
       const membership = await this.prisma.storeUser.findFirst({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           userId: params.driverId,
           role: 'driver',
         },
@@ -1109,7 +1453,7 @@ export class OrdersService {
 
       const activeAssignments = await this.prisma.deliveryAssignment.count({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           driverId: params.driverId,
           status: 'active',
         },
@@ -1130,7 +1474,7 @@ export class OrdersService {
           plannedSequence: sequence,
         },
         create: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           orderId: params.orderId,
           driverId: params.driverId,
           storeUserId: membership.id,
@@ -1146,7 +1490,7 @@ export class OrdersService {
     if (params.action === 'complete' || params.action === 'cancel') {
       await this.prisma.deliveryAssignment.updateMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           orderId: params.orderId,
           status: 'active',
         },
@@ -1165,7 +1509,7 @@ export class OrdersService {
   ) {
     const register = await this.prisma.cashRegister.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         status: 'open',
       },
       orderBy: {
@@ -1216,6 +1560,36 @@ function fallbackCoordinateFromText(value: string): GeoCoordinate {
     longitude: store.longitude + Math.cos(angle) * radius,
     latitude: store.latitude + Math.sin(angle) * radius * 0.72,
   }
+}
+
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, '')
+
+  if (digits.length < 10) {
+    throw new BadRequestException('Informe um WhatsApp valido para o pedido.')
+  }
+
+  if (digits.startsWith('55')) {
+    return `+${digits}`
+  }
+
+  return `+55${digits}`
+}
+
+function formatAddressText(address: {
+  street: string
+  number: string
+  district: string
+  complement: string | null
+  reference: string | null
+}) {
+  return [
+    `${address.street}, ${address.number} - ${address.district}`,
+    address.complement ? `Complemento: ${address.complement}` : null,
+    address.reference ? `Referencia: ${address.reference}` : null,
+  ]
+    .filter((entry): entry is string => entry !== null)
+    .join(' | ')
 }
 
 function roundCoordinate(value: number) {

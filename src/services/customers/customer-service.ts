@@ -2,6 +2,7 @@ import type {
   CreateCustomerRequest,
   CreateCustomerResponse,
   CustomerDetailResponse,
+  CustomerMetricsSummaryResponse,
   CustomersListResponse,
   ListCustomersRequest,
   UpdateCustomerRequest,
@@ -14,6 +15,31 @@ import { simulateAsync } from '@/services/utils'
 import type { Customer } from '@/types'
 
 export const customerService = {
+  async getMetricsSummary(): Promise<CustomerMetricsSummaryResponse> {
+    if (shouldUseApi) {
+      return apiClient.get<CustomerMetricsSummaryResponse>('/customers/metrics/summary')
+    }
+
+    const customers = getDemoDatabase().customers
+
+    return simulateAsync({
+      data: {
+        totalCustomers: customers.length,
+        segments: {
+          inactive: 0,
+          new: customers.length,
+          recurring: 0,
+          vip: 0,
+        },
+        totalSpent: 0,
+        averageTicket: 0,
+        averageFrequencyDays: null,
+        cancellations: 0,
+        topNeighborhoods: [],
+      },
+    })
+  },
+
   async listCustomers(request?: ListCustomersRequest): Promise<CustomersListResponse> {
     if (shouldUseApi) {
       const filters = request?.filters ?? {}

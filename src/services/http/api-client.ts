@@ -15,11 +15,13 @@ export const apiBaseUrl =
   import.meta.env.VITE_API_URL ??
   'http://localhost:3333'
 const tokenStorageKey = 'cain-admin.access-token'
+const storeIdStorageKey = 'cain-admin.store-id'
 export const authUnauthorizedEvent = 'cain-admin.auth.unauthorized'
 
 export const shouldUseApi = import.meta.env.VITE_DATA_SOURCE !== 'mock'
 
 let accessToken = readStoredAccessToken()
+let currentStoreId = readStoredStoreId()
 
 export function buildQueryString(params: object) {
   const search = new URLSearchParams()
@@ -99,6 +101,11 @@ async function request<TResponse>(
   }
 
   const headers = new Headers(init?.headers)
+  const storeId = getApiStoreId()
+
+  if (storeId && shouldUseApi) {
+    headers.set('x-cain-store-id', storeId)
+  }
 
   if (init?.body !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
@@ -165,6 +172,14 @@ function readStoredAccessToken() {
   return window.localStorage.getItem(tokenStorageKey)
 }
 
+function readStoredStoreId() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return window.localStorage.getItem(storeIdStorageKey)
+}
+
 export function getApiAccessToken() {
   return accessToken
 }
@@ -179,8 +194,33 @@ export function setApiAccessToken(token: string) {
   window.localStorage.setItem(tokenStorageKey, token)
 }
 
+export function getApiStoreId() {
+  return currentStoreId
+}
+
+export function setApiStoreId(storeId: string) {
+  currentStoreId = storeId
+
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(storeIdStorageKey, storeId)
+}
+
+export function clearApiStoreId() {
+  currentStoreId = null
+
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.removeItem(storeIdStorageKey)
+}
+
 export function clearApiAccessToken() {
   accessToken = null
+  clearApiStoreId()
 
   if (typeof window === 'undefined') {
     return

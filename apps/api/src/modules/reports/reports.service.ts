@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import type { OperationalReportsQuery } from '@/contracts/reports.contract'
 import { PrismaService } from '@/shared/prisma/prisma.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 import { buildReportsSnapshot } from './reports.mapper'
 
@@ -14,7 +14,7 @@ export class ReportsService {
     const period = query.period ?? 'today'
     const cutoff = buildPeriodCutoff(period)
     const orderWhere = {
-      storeId: DEFAULT_STORE_ID,
+      storeId: getCurrentStoreId(),
       createdAt: {
         gte: cutoff,
       },
@@ -27,11 +27,21 @@ export class ReportsService {
     const includeDiningSalesStatus =
       !query.status || query.status === 'all' || query.status === 'completed'
 
-    const [orders, products, drivers, waiters, diningTables, diningSessions] = await Promise.all([
+    const [
+      orders,
+      products,
+      drivers,
+      waiters,
+      diningTables,
+      diningSessions,
+      aiOrderDrafts,
+      aiTransfersToHuman,
+    ] = await Promise.all([
       this.prisma.order.findMany({
         where: orderWhere,
         include: {
           items: true,
+          history: true,
         },
         orderBy: {
           createdAt: 'desc',
@@ -39,7 +49,7 @@ export class ReportsService {
       }),
       this.prisma.product.findMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
         },
         include: {
           category: true,
@@ -47,7 +57,7 @@ export class ReportsService {
       }),
       this.prisma.storeUser.findMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           role: 'driver',
         },
         include: {
@@ -60,7 +70,7 @@ export class ReportsService {
       }).then(async (memberships) => {
         const driverOrders = await this.prisma.order.findMany({
           where: {
-            storeId: DEFAULT_STORE_ID,
+            storeId: getCurrentStoreId(),
             createdAt: {
               gte: cutoff,
             },
@@ -82,7 +92,7 @@ export class ReportsService {
       }),
       this.prisma.storeUser.findMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           role: 'waiter',
         },
         include: {
@@ -104,13 +114,13 @@ export class ReportsService {
       }).then((memberships) => memberships.map((membership) => ({ membership }))),
       this.prisma.diningTable.findMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
         },
       }),
       includeDiningChannel
         ? this.prisma.tableSession.findMany({
             where: {
-              storeId: DEFAULT_STORE_ID,
+              storeId: getCurrentStoreId(),
               ...(includeDiningSalesStatus
                 ? {
                     OR: [
@@ -143,6 +153,31 @@ export class ReportsService {
             },
           })
         : Promise.resolve([]),
+      this.prisma.aiOrderDraft.findMany({
+        where: {
+          conversation: {
+            storeId: getCurrentStoreId(),
+          },
+          createdAt: {
+            gte: cutoff,
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          convertedOrderId: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.whatsappIntegrationLog.count({
+        where: {
+          storeId: getCurrentStoreId(),
+          type: 'human_assigned',
+          createdAt: {
+            gte: cutoff,
+          },
+        },
+      }),
     ])
 
     return {
@@ -153,6 +188,8 @@ export class ReportsService {
         waiters,
         diningTables,
         diningSessions,
+        aiOrderDrafts,
+        aiTransfersToHuman,
         period,
       }),
     }

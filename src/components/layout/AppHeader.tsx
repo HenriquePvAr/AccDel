@@ -1,6 +1,7 @@
 import { Bell, Command, LogOut, PanelLeft, Search, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
+import { StoreSelector } from '@/components/layout/StoreSelector'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { queryClient } from '@/hooks/queries'
@@ -40,12 +41,12 @@ export function AppHeader() {
               className="h-11 rounded-2xl border-white/10 bg-[#07111f] pl-10 text-slate-100 placeholder:text-slate-600 focus:border-orange-500 focus:ring-orange-500/20"
             />
           </div>
-          <div className="rounded-full border border-orange-400/20 bg-orange-500/[0.10] px-3 py-2 text-xs font-bold text-orange-200">
-            {currentUser?.store.tradeName ?? 'Cain Delivery'} · Operacao autenticada
-          </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <div className="block max-w-[210px]">
+            <StoreSelector />
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -72,7 +73,9 @@ export function AppHeader() {
           </Button>
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-2.5 py-2">
             <div className="hidden text-right md:block">
-              <p className="text-sm font-bold text-white">{currentUser?.name ?? 'Sessao ativa'}</p>
+              <p className="text-sm font-bold text-white">
+                {currentUser?.name ?? 'Sessao ativa'}
+              </p>
               <p className="text-xs text-slate-500">
                 {currentUser ? roleLabelMap[currentUser.role] : 'Perfil'}
               </p>

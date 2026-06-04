@@ -9,7 +9,7 @@ type ProductWithAvailability = Prisma.ProductGetPayload<{
       include: {
         group: {
           include: {
-            options: true
+          options: true
           }
         }
       }
@@ -76,6 +76,7 @@ export function mapProduct(product: ProductWithAvailability) {
         minSelections: link.minSelections,
         maxSelections: link.maxSelections,
         sortOrder: link.sortOrder,
+        autoApplied: link.autoApplied,
         options: link.group.options
           .filter((option) => option.active)
           .slice()
@@ -84,11 +85,61 @@ export function mapProduct(product: ProductWithAvailability) {
             id: option.id,
             name: option.name,
             description: option.description ?? undefined,
+            image: option.image ?? undefined,
             priceDelta: toNumber(option.priceDelta),
             active: option.active,
+            available: option.available,
+            soldOut: option.soldOut,
             sortOrder: option.sortOrder,
           })),
       })),
+  }
+}
+
+export function mapOptionGroup(group: Prisma.ProductOptionGroupGetPayload<{
+  include: {
+    options: true
+    categoryLinks: true
+    productLinks: true
+  }
+}>) {
+  return {
+    id: group.id,
+    name: group.name,
+    description: group.description ?? undefined,
+    sortOrder: group.sortOrder,
+    options: group.options
+      .slice()
+      .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name))
+      .map((option) => ({
+        id: option.id,
+        name: option.name,
+        description: option.description ?? undefined,
+        image: option.image ?? undefined,
+        priceDelta: toNumber(option.priceDelta),
+        active: option.active,
+        available: option.available,
+        soldOut: option.soldOut,
+        sortOrder: option.sortOrder,
+      })),
+    categoryLinks: group.categoryLinks.map((link) => ({
+      categoryId: link.categoryId,
+      required: link.required,
+      minSelections: link.minSelections,
+      maxSelections: link.maxSelections,
+      sortOrder: link.sortOrder,
+      description: link.description ?? undefined,
+      autoApply: link.autoApply,
+    })),
+    productLinks: group.productLinks.map((link) => ({
+      productId: link.productId,
+      required: link.required,
+      minSelections: link.minSelections,
+      maxSelections: link.maxSelections,
+      sortOrder: link.sortOrder,
+      description: link.description ?? undefined,
+      autoApplied: link.autoApplied,
+    })),
   }
 }
 

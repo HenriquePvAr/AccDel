@@ -29,6 +29,12 @@ export class CustomersController {
     return this.customersService.listCustomers(query)
   }
 
+  @Get('metrics/summary')
+  @Permissions('dashboard:view')
+  getMetricsSummary() {
+    return this.customersService.getMetricsSummary()
+  }
+
   @Get(':id')
   @Permissions('orders:create')
   getCustomer(@Param('id') id: string) {

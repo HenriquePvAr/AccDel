@@ -23,8 +23,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import {
-  useCategoriesQuery,
-  useProductsQuery,
+  useCatalogMenuSourceQuery,
   usePromotionsQuery,
   useSavePromotionMutation,
 } from '@/hooks/queries'
@@ -52,6 +51,8 @@ import {
 type PromotionType = Promotion['type']
 type StatusFilter = Promotion['status'] | 'all'
 type ChannelFilter = ProductChannel | 'all'
+type PromotionCatalogCategory = Pick<Category, 'id' | 'name'>
+type PromotionCatalogProduct = Pick<Product, 'id' | 'name'>
 
 const productChannels: ProductChannel[] = ['delivery', 'digital_menu', 'counter', 'dine_in']
 
@@ -97,7 +98,7 @@ const promotionTypeLabels: Record<PromotionType, string> = {
   combo: 'Combo promocional',
 }
 
-function createDefaultRules(categories: Category[]): PromotionRules {
+function createDefaultRules(categories: PromotionCatalogCategory[]): PromotionRules {
   const pizzaCategory = categories.find((category) =>
     category.name.toLowerCase().includes('pizza'),
   )
@@ -113,7 +114,7 @@ function createDefaultRules(categories: Category[]): PromotionRules {
   }
 }
 
-function createEmptyPromotion(categories: Category[]): Promotion {
+function createEmptyPromotion(categories: PromotionCatalogCategory[]): Promotion {
   return {
     id: '',
     name: '',
@@ -197,17 +198,34 @@ export function PromotionsPage() {
   usePageTitle('Promocoes')
   const canManagePromotions = useCan('catalog:promotions:manage')
   const promotionsQuery = usePromotionsQuery()
-  const categoriesQuery = useCategoriesQuery()
-  const productsQuery = useProductsQuery({ pageSize: 120 })
   const savePromotionMutation = useSavePromotionMutation()
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all')
   const [typeFilter, setTypeFilter] = useState<PromotionType | 'all'>('all')
+  const menuSourceQuery = useCatalogMenuSourceQuery({
+    channel: channelFilter === 'all' ? 'delivery' : channelFilter,
+    includeUnavailable: false,
+  })
   const promotions = useMemo(() => promotionsQuery.data?.data ?? [], [promotionsQuery.data?.data])
-  const categories = categoriesQuery.data?.data ?? []
-  const products = productsQuery.data?.data ?? []
+  const categories = useMemo<PromotionCatalogCategory[]>(
+    () => menuSourceQuery.data?.data.categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+    })) ?? [],
+    [menuSourceQuery.data?.data.categories],
+  )
+  const products = useMemo<PromotionCatalogProduct[]>(
+    () =>
+      menuSourceQuery.data?.data.categories.flatMap((category) =>
+        category.products.map((product) => ({
+          id: product.id,
+          name: product.name,
+        })),
+      ) ?? [],
+    [menuSourceQuery.data?.data.categories],
+  )
 
   const visiblePromotions = useMemo(
     () =>
@@ -454,8 +472,8 @@ export function PromotionsPage() {
 
 interface PromotionFormProps {
   promotion: Promotion
-  categories: Category[]
-  products: Product[]
+  categories: PromotionCatalogCategory[]
+  products: PromotionCatalogProduct[]
   busy: boolean
   onCancel: () => void
   onSave: (promotion: Promotion) => void

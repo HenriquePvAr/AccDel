@@ -14,6 +14,28 @@ export interface ListCustomersRequest {
 
 export type CustomersListResponse = ListResponse<Customer>
 
+export type CustomerSegment = 'new' | 'recurring' | 'vip' | 'inactive'
+
+export interface CustomerMetricsSummary {
+  totalCustomers: number
+  segments: Record<CustomerSegment, number>
+  totalSpent: number
+  averageTicket: number
+  averageFrequencyDays: number | null
+  cancellations: number
+  topNeighborhoods: {
+    id: string
+    label: string
+    customers: number
+    orders: number
+    revenue: number
+  }[]
+}
+
+export interface CustomerMetricsSummaryResponse {
+  data: CustomerMetricsSummary
+}
+
 export interface CustomerDetailResponse {
   data: Customer | null
 }

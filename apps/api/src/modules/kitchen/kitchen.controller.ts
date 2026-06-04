@@ -3,8 +3,10 @@ import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common'
 import {
   kitchenQueueQuerySchema,
   markKitchenOrderReadySchema,
+  moveKitchenOrderSchema,
   type KitchenQueueQuery,
   type MarkKitchenOrderReadyPayload,
+  type MoveKitchenOrderPayload,
 } from '@/contracts/kitchen.contract'
 import { Permissions } from '@/modules/auth/decorators/permissions.decorator'
 import { ZodValidationPipe } from '@/shared/pipes/zod-validation.pipe'
@@ -29,5 +31,15 @@ export class KitchenController {
     body: MarkKitchenOrderReadyPayload,
   ) {
     return this.kitchenService.markOrderReady(id, body)
+  }
+
+  @Patch('orders/:id/status')
+  @Permissions('kitchen:update')
+  moveOrder(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(moveKitchenOrderSchema))
+    body: MoveKitchenOrderPayload,
+  ) {
+    return this.kitchenService.moveOrder(id, body)
   }
 }

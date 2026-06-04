@@ -12,6 +12,7 @@ interface NewOrderState {
   paymentMethod: PaymentMethod
   notes: string
   sendToProduction: boolean
+  sourceAiOrderDraftId: string | null
   draftSavedAt: string | null
   cartItems: OrderItem[]
   setChannel: (value: OrderChannel) => void
@@ -22,6 +23,7 @@ interface NewOrderState {
   setPaymentMethod: (value: PaymentMethod) => void
   setNotes: (value: string) => void
   setSendToProduction: (value: boolean) => void
+  setSourceAiOrderDraftId: (value: string | null) => void
   saveDraft: () => void
   replaceCartItems: (items: OrderItem[]) => void
   toggleSendToProduction: () => void
@@ -48,6 +50,7 @@ const defaults = {
   paymentMethod: 'pix' as PaymentMethod,
   notes: '',
   sendToProduction: true,
+  sourceAiOrderDraftId: null,
   draftSavedAt: null,
   cartItems: [] as OrderItem[],
 }
@@ -64,6 +67,7 @@ export const useNewOrderStore = create<NewOrderState>()(
       setPaymentMethod: (value) => set({ paymentMethod: value }),
       setNotes: (value) => set({ notes: value }),
       setSendToProduction: (value) => set({ sendToProduction: value }),
+      setSourceAiOrderDraftId: (value) => set({ sourceAiOrderDraftId: value }),
       saveDraft: () => set({ draftSavedAt: new Date().toISOString() }),
       replaceCartItems: (items) => set({ cartItems: items }),
       toggleSendToProduction: () =>

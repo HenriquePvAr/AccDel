@@ -26,7 +26,10 @@ type ProductOptionSeed = {
   id: string
   name: string
   description?: string
+  image?: string
   priceDelta?: number
+  available?: boolean
+  soldOut?: boolean
   sortOrder: number
 }
 
@@ -368,8 +371,11 @@ export async function seedCatalog(
         update: {
           name: optionEntry.name,
           description: optionEntry.description,
+          image: optionEntry.image,
           priceDelta: optionEntry.priceDelta ?? 0,
           active: true,
+          available: optionEntry.available ?? true,
+          soldOut: optionEntry.soldOut ?? false,
           sortOrder: optionEntry.sortOrder,
         },
         create: {
@@ -377,8 +383,11 @@ export async function seedCatalog(
           groupId: entry.id,
           name: optionEntry.name,
           description: optionEntry.description,
+          image: optionEntry.image,
           priceDelta: optionEntry.priceDelta ?? 0,
           active: true,
+          available: optionEntry.available ?? true,
+          soldOut: optionEntry.soldOut ?? false,
           sortOrder: optionEntry.sortOrder,
         },
       })
@@ -451,6 +460,7 @@ export async function seedCatalog(
           maxSelections: link.maxSelections,
           sortOrder: link.sortOrder,
           description: link.description,
+          autoApplied: false,
         },
         create: {
           productId: entry.id,
@@ -460,9 +470,55 @@ export async function seedCatalog(
           maxSelections: link.maxSelections,
           sortOrder: link.sortOrder,
           description: link.description,
+          autoApplied: false,
         },
       })
     }
+  }
+
+  const categoryGroupLinks = new Map<string, ProductOptionGroupLinkSeed & {
+    categoryId: string
+  }>()
+
+  for (const entry of products) {
+    for (const link of entry.optionGroups ?? []) {
+      const key = `${entry.categoryId}:${link.groupId}`
+      if (!categoryGroupLinks.has(key)) {
+        categoryGroupLinks.set(key, {
+          ...link,
+          categoryId: entry.categoryId,
+        })
+      }
+    }
+  }
+
+  for (const link of categoryGroupLinks.values()) {
+    await prisma.productOptionGroupCategoryLink.upsert({
+      where: {
+        categoryId_groupId: {
+          categoryId: link.categoryId,
+          groupId: link.groupId,
+        },
+      },
+      update: {
+        required: link.required,
+        minSelections: link.minSelections,
+        maxSelections: link.maxSelections,
+        sortOrder: link.sortOrder,
+        description: link.description,
+        autoApply: true,
+      },
+      create: {
+        categoryId: link.categoryId,
+        groupId: link.groupId,
+        required: link.required,
+        minSelections: link.minSelections,
+        maxSelections: link.maxSelections,
+        sortOrder: link.sortOrder,
+        description: link.description,
+        autoApply: true,
+      },
+    })
   }
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Phone, Search, ShoppingCart, UserRound } from 'lucide-react'
+import { Crown, MapPin, Phone, Search, ShoppingCart, TrendingUp, UserRound } from 'lucide-react'
 
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageShell } from '@/components/shared/PageShell'
@@ -62,12 +62,19 @@ export function CustomersPage() {
     customers.find((customer) => customer.id === selectedCustomerId) ??
     null
 
-  const totalOrders = customers.reduce((sum, customer) => sum + (customer.lastOrders?.length ?? 0), 0)
-  const visibleRevenue = customers.reduce(
-    (sum, customer) =>
-      sum + (customer.lastOrders?.reduce((orderSum, order) => orderSum + order.total, 0) ?? 0),
+  const totalOrders = customers.reduce(
+    (sum, customer) => sum + (customer.crm?.orderCount ?? customer.lastOrders?.length ?? 0),
     0,
   )
+  const visibleRevenue = customers.reduce(
+    (sum, customer) =>
+      sum +
+      (customer.crm?.totalSpent ??
+        customer.lastOrders?.reduce((orderSum, order) => orderSum + order.total, 0) ??
+        0),
+    0,
+  )
+  const vipCustomers = customers.filter((customer) => customer.crm?.segment === 'vip').length
 
   return (
     <PageShell>
@@ -82,10 +89,11 @@ export function CustomersPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <CustomerStat label="Clientes visiveis" value={String(customers.length)} />
-        <CustomerStat label="Pedidos recentes" value={String(totalOrders)} />
-        <CustomerStat label="Receita recente" value={formatCurrency(visibleRevenue)} />
+        <CustomerStat label="Pedidos reais" value={String(totalOrders)} />
+        <CustomerStat label="Gasto total" value={formatCurrency(visibleRevenue)} />
+        <CustomerStat label="Clientes VIP" value={String(vipCustomers)} />
       </div>
 
       <Card>
@@ -173,6 +181,8 @@ function CustomerCard({
 }) {
   const address = customer.addresses[0]
   const lastOrder = customer.lastOrders?.[0]
+  const crm = customer.crm
+  const segment = crm ? crmSegmentCopy[crm.segment] : null
 
   return (
     <Card>
@@ -185,9 +195,30 @@ function CustomerCard({
               {customer.phone}
             </p>
           </div>
-          <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-semibold text-slate-200 ring-1 ring-white/10">
-            {customer.lastOrders?.length ?? 0} pedido(s)
-          </span>
+          {segment ? (
+            <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${segment.className}`}>
+              {segment.label}
+            </span>
+          ) : (
+            <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-semibold text-slate-200 ring-1 ring-white/10">
+              CRM indisponivel
+            </span>
+          )}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          <CustomerMiniMetric
+            label="Pedidos"
+            value={String(crm?.orderCount ?? customer.lastOrders?.length ?? 0)}
+          />
+          <CustomerMiniMetric
+            label="Gasto"
+            value={crm ? formatCurrency(crm.totalSpent) : 'Indisponivel'}
+          />
+          <CustomerMiniMetric
+            label="Ticket"
+            value={crm ? formatCurrency(crm.averageTicket) : 'Indisponivel'}
+          />
         </div>
 
         <div className="rounded-2xl bg-white/[0.04] p-3 text-sm ring-1 ring-white/10">
@@ -199,6 +230,12 @@ function CustomerCard({
             <p className="mt-2 text-slate-300">
               Ultimo pedido {lastOrder.number}: {formatCurrency(lastOrder.total)} em{' '}
               {formatDateTime(lastOrder.createdAt)}
+            </p>
+          ) : null}
+          {crm?.favoriteItems.length ? (
+            <p className="mt-2 flex items-center gap-2 text-xs text-emerald-200">
+              <TrendingUp className="h-3.5 w-3.5" />
+              Prefere: {crm.favoriteItems.join(', ')}
             </p>
           ) : null}
         </div>
@@ -239,8 +276,14 @@ function CustomerDrawer({
     return null
   }
 
-  const totalSpent = customer.lastOrders?.reduce((sum, order) => sum + order.total, 0) ?? 0
-  const averageTicket = customer.lastOrders?.length ? totalSpent / customer.lastOrders.length : 0
+  const totalSpent =
+    customer.crm?.totalSpent ??
+    customer.lastOrders?.reduce((sum, order) => sum + order.total, 0) ??
+    0
+  const averageTicket =
+    customer.crm?.averageTicket ??
+    (customer.lastOrders?.length ? totalSpent / customer.lastOrders.length : 0)
+  const segment = customer.crm ? crmSegmentCopy[customer.crm.segment] : null
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -349,11 +392,42 @@ function CustomerDrawer({
           <aside className="h-fit rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <p className="font-semibold text-slate-100">Resumo</p>
             <div className="mt-4 space-y-3 text-sm">
-              <SummaryLine label="Pedidos recentes" value={String(customer.lastOrders?.length ?? 0)} />
-              <SummaryLine label="Total recente" value={formatCurrency(totalSpent)} />
+              <SummaryLine label="Segmento" value={segment?.label ?? 'Indisponivel'} />
+              <SummaryLine
+                label="Pedidos reais"
+                value={String(customer.crm?.orderCount ?? customer.lastOrders?.length ?? 0)}
+              />
+              <SummaryLine
+                label="Concluidos"
+                value={String(customer.crm?.completedOrders ?? 'Indisponivel')}
+              />
+              <SummaryLine
+                label="Cancelamentos"
+                value={String(customer.crm?.cancelledOrders ?? 'Indisponivel')}
+              />
+              <SummaryLine label="Gasto total" value={formatCurrency(totalSpent)} />
               <SummaryLine label="Ticket medio" value={formatCurrency(averageTicket)} />
+              <SummaryLine
+                label="Frequencia"
+                value={formatFrequency(customer.crm?.frequencyDays)}
+              />
+              <SummaryLine
+                label="Ultimo pedido"
+                value={customer.crm?.lastOrderAt ? formatDateTime(customer.crm.lastOrderAt) : 'Sem historico'}
+              />
               <SummaryLine label="Enderecos" value={String(customer.addresses.length)} />
             </div>
+            {customer.crm?.favoriteItems.length ? (
+              <div className="mt-4 rounded-2xl bg-emerald-400/10 p-3 text-sm text-emerald-100 ring-1 ring-emerald-300/20">
+                <p className="flex items-center gap-2 font-black">
+                  <Crown className="h-4 w-4" />
+                  Preferencias reais
+                </p>
+                <p className="mt-1 text-xs text-emerald-100/80">
+                  {customer.crm.favoriteItems.join(', ')}
+                </p>
+              </div>
+            ) : null}
             <div className="mt-5 space-y-2">
               <Button className="w-full" disabled={busy} onClick={() => onSave(draft)}>
                 {busy ? 'Salvando...' : 'Salvar cliente'}
@@ -380,6 +454,17 @@ function CustomerStat({ label, value }: { label: string; value: string }) {
   )
 }
 
+function CustomerMiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-white/[0.035] p-3 ring-1 ring-white/10">
+      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 truncate font-mono text-sm font-black text-slate-100">{value}</p>
+    </div>
+  )
+}
+
 function SummaryLine({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -387,6 +472,33 @@ function SummaryLine({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-slate-100">{value}</p>
     </div>
   )
+}
+
+const crmSegmentCopy = {
+  new: {
+    label: 'Cliente novo',
+    className: 'bg-blue-400/10 text-blue-200 ring-blue-300/20',
+  },
+  recurring: {
+    label: 'Recorrente',
+    className: 'bg-emerald-400/10 text-emerald-200 ring-emerald-300/20',
+  },
+  vip: {
+    label: 'VIP',
+    className: 'bg-amber-400/10 text-amber-200 ring-amber-300/20',
+  },
+  inactive: {
+    label: 'Inativo',
+    className: 'bg-slate-400/10 text-slate-200 ring-slate-300/20',
+  },
+} as const
+
+function formatFrequency(days: number | null | undefined) {
+  if (!days) {
+    return 'Sem recorrencia suficiente'
+  }
+
+  return `A cada ${days} dia(s)`
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number) {

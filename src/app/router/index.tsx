@@ -36,6 +36,9 @@ const CouponsPage = lazy(() => import('@/pages/CouponsPage').then((module) => ({
 const CatalogPreviewPage = lazy(() =>
   import('@/pages/CatalogPreviewPage').then((module) => ({ default: module.CatalogPreviewPage })),
 )
+const DigitalMenuPage = lazy(() =>
+  import('@/pages/DigitalMenuPage').then((module) => ({ default: module.DigitalMenuPage })),
+)
 const CashRegisterPage = lazy(() =>
   import('@/pages/CashRegisterPage').then((module) => ({ default: module.CashRegisterPage })),
 )
@@ -94,6 +97,11 @@ const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
   },
   {
+    path: '/cardapio',
+    element: withSuspense(<DigitalMenuPage />),
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
     path: '/',
     element: (
       <RequireAuth>
@@ -119,6 +127,7 @@ const router = createBrowserRouter([
       { path: 'catalog/promotions', element: protectedPage('catalog:promotions:view', <PromotionsPage />) },
       { path: 'catalog/coupons', element: protectedPage('catalog:coupons:view', <CouponsPage />) },
       { path: 'catalog/preview', element: protectedPage('catalog:preview:view', <CatalogPreviewPage />) },
+      { path: 'cash', element: protectedPage('cash:view', <CashRegisterPage />) },
       { path: 'cash-register', element: protectedPage('cash:view', <CashRegisterPage />) },
       { path: 'history/orders', element: protectedPage('history:view', <OrderHistoryPage />) },
       { path: 'reports', element: protectedPage('reports:view', <ReportsPage />) },

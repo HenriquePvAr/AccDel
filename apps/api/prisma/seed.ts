@@ -35,11 +35,13 @@ async function seed() {
   await prisma.diningTable.deleteMany()
   await prisma.diningArea.deleteMany()
   await prisma.productOptionGroupLink.deleteMany()
+  await prisma.productOptionGroupCategoryLink.deleteMany()
   await prisma.productOption.deleteMany()
   await prisma.productOptionGroup.deleteMany()
   await prisma.productChannelAvailability.deleteMany()
   await prisma.product.deleteMany()
   await prisma.category.deleteMany()
+  await prisma.deliveryZone.deleteMany()
   await prisma.customerAddress.deleteMany()
   await prisma.customer.deleteMany()
   await prisma.driverProfile.deleteMany()
@@ -59,8 +61,25 @@ async function seed() {
       city: 'Manaus',
       state: 'AM',
       brandAccent: '#C65D2E',
+      phone: '+55 92 4002-2026',
+      publicWhatsapp: '+55 92 99999-0000',
+      addressLine: 'Rua Rio Madeira, 220',
+      neighborhood: 'Vieiralves',
+      businessHours: 'Todos os dias, das 18h as 23h',
+      greetingMessage: 'Ola! Bem-vindo ao Cain Burger House. Como posso ajudar?',
+      outOfHoursMessage: 'Estamos fora do horario de atendimento. Assim que abrirmos, respondemos sua mensagem.',
+      cancellationPolicy: 'Cancelamentos precisam ser avaliados por um atendente antes da producao avancar.',
+      generalNotes: 'Atendimento operacional conectado ao Cain Delivery.',
       latitude: -3.1019,
       longitude: -60.0217,
+      defaultDeliveryFee: 8.5,
+      minimumOrderAmount: 20,
+      deliveryEnabled: true,
+      pickupEnabled: true,
+      counterEnabled: true,
+      dineInEnabled: true,
+      digitalMenuEnabled: true,
+      whatsappAiEnabled: true,
       autoAcceptEnabled: false,
       estimatedPrepTimeMinutes: 32,
       estimatedDeliveryTimeMinutes: 90,
@@ -71,6 +90,7 @@ async function seed() {
   })
 
   await seedPaymentMethodConfigs()
+  await seedDeliveryZones()
 
   await createUser({
     id: 'usr_owner',
@@ -723,6 +743,49 @@ async function seedPaymentMethodConfigs() {
         autoCashEntry: false,
         sortOrder: 7,
         channels: ['counter', 'dine_in'],
+      },
+    ],
+  })
+}
+
+async function seedDeliveryZones() {
+  await prisma.deliveryZone.createMany({
+    data: [
+      {
+        id: 'zone_vieiralves',
+        storeId,
+        neighborhood: 'Vieiralves',
+        fee: 8.5,
+        active: true,
+        sortOrder: 1,
+        estimatedDeliveryTimeMinutes: 70,
+      },
+      {
+        id: 'zone_chapada',
+        storeId,
+        neighborhood: 'Chapada',
+        fee: 9.5,
+        active: true,
+        sortOrder: 2,
+        estimatedDeliveryTimeMinutes: 80,
+      },
+      {
+        id: 'zone_centro',
+        storeId,
+        neighborhood: 'Centro',
+        fee: 10,
+        active: true,
+        sortOrder: 3,
+        estimatedDeliveryTimeMinutes: 85,
+      },
+      {
+        id: 'zone_flores',
+        storeId,
+        neighborhood: 'Flores',
+        fee: 12,
+        active: false,
+        sortOrder: 4,
+        estimatedDeliveryTimeMinutes: 95,
       },
     ],
   })

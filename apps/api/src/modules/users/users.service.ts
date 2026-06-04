@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { buildListResponse } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 import { mapUser } from './users.mapper'
 
@@ -13,7 +13,7 @@ export class UsersService {
   async listUsers() {
     const memberships = await this.prisma.storeUser.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: {
         user: true,

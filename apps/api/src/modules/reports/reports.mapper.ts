@@ -3,6 +3,7 @@ import type {
   DiningTable,
   Order,
   OrderItem,
+  OrderStatusHistory,
   PaymentMethod,
   Product,
   TableSession,
@@ -44,6 +45,7 @@ export function buildReportsSnapshot(args: {
   orders: Array<
     Order & {
       items: OrderItem[]
+      history: OrderStatusHistory[]
     }
   >
   products: Array<
@@ -61,9 +63,26 @@ export function buildReportsSnapshot(args: {
       waiter: User | null
     }
   >
+  aiOrderDrafts: Array<{
+    id: string
+    status: string
+    convertedOrderId: string | null
+    createdAt: Date
+  }>
+  aiTransfersToHuman: number
   period: 'today' | '7d' | '30d'
 }) {
-  const { orders, products, drivers, waiters, diningTables, diningSessions, period } = args
+  const {
+    orders,
+    products,
+    drivers,
+    waiters,
+    diningTables,
+    diningSessions,
+    aiOrderDrafts,
+    aiTransfersToHuman,
+    period,
+  } = args
   const validOrders = orders.filter((order) => order.status !== 'cancelled')
   const closedDiningSessions = diningSessions.filter((session) => session.status === 'closed')
   const totalRevenue =
@@ -98,6 +117,10 @@ export function buildReportsSnapshot(args: {
       label: product?.category.name ?? 'Sem categoria',
     }
   })
+  const topOptions = buildTopOptionRows(validOrders)
+  const topNeighborhoods = buildTopNeighborhoodRows(validOrders)
+  const timeSummary = buildTimeSummary(validOrders)
+  const convertedDrafts = aiOrderDrafts.filter((draft) => draft.convertedOrderId).length
 
   return {
     metrics: [
@@ -147,6 +170,17 @@ export function buildReportsSnapshot(args: {
     ordersByStatus,
     topProducts,
     topCategories,
+    topOptions,
+    topNeighborhoods,
+    aiSummary: {
+      orderDraftsSuggested: aiOrderDrafts.length,
+      orderDraftsConverted: convertedDrafts,
+      transfersToHuman: aiTransfersToHuman,
+      conversionRate: aiOrderDrafts.length
+        ? Math.round((convertedDrafts / aiOrderDrafts.length) * 100)
+        : 0,
+    },
+    timeSummary,
     cancellations: orders
       .filter((order) => order.status === 'cancelled')
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
@@ -353,4 +387,166 @@ function buildTopRows(
     }))
     .sort((left, right) => right.revenue - left.revenue)
     .slice(0, 8)
+}
+
+function buildTopOptionRows(orders: Array<Order & { items: OrderItem[] }>) {
+  const grouped = new Map<string, { id: string; label: string; revenue: number; orders: number }>()
+  const totalRevenue = orders.reduce((sum, order) => sum + order.total.toNumber(), 0)
+
+  orders.forEach((order) => {
+    order.items.forEach((item) => {
+      const options = readOrderItemOptions(item.options)
+      options.forEach((option) => {
+        const current = grouped.get(option.optionId) ?? {
+          id: option.optionId,
+          label: option.name,
+          revenue: 0,
+          orders: 0,
+        }
+        current.orders += option.quantity * item.quantity
+        current.revenue += option.price * option.quantity * item.quantity
+        grouped.set(option.optionId, current)
+      })
+    })
+  })
+
+  return Array.from(grouped.values())
+    .map((row) => ({
+      ...row,
+      revenue: Number(row.revenue.toFixed(2)),
+      share: totalRevenue ? Math.round((row.revenue / totalRevenue) * 100) : 0,
+    }))
+    .sort((left, right) => right.orders - left.orders)
+    .slice(0, 8)
+}
+
+function buildTopNeighborhoodRows(orders: Order[]) {
+  const grouped = new Map<string, { id: string; label: string; revenue: number; orders: number }>()
+  const totalRevenue = orders.reduce((sum, order) => sum + order.total.toNumber(), 0)
+
+  orders.forEach((order) => {
+    const label = resolveNeighborhood(order)
+
+    if (!label) {
+      return
+    }
+
+    const id = normalizeKey(label)
+    const current = grouped.get(id) ?? {
+      id,
+      label,
+      revenue: 0,
+      orders: 0,
+    }
+    current.revenue += order.total.toNumber()
+    current.orders += 1
+    grouped.set(id, current)
+  })
+
+  return Array.from(grouped.values())
+    .map((row) => ({
+      ...row,
+      revenue: Number(row.revenue.toFixed(2)),
+      share: totalRevenue ? Math.round((row.revenue / totalRevenue) * 100) : 0,
+    }))
+    .sort((left, right) => right.orders - left.orders)
+    .slice(0, 8)
+}
+
+function buildTimeSummary(orders: Array<Order & { history: OrderStatusHistory[] }>) {
+  const preparationDurations = orders
+    .map((order) => resolveDurationMinutes(order.createdAt, findHistoryDate(order.history, 'ready')))
+    .filter((value): value is number => value !== null)
+  const deliveryDurations = orders
+    .map((order) => {
+      const dispatchedAt = findHistoryDate(order.history, 'out_for_delivery')
+      const completedAt = findHistoryDate(order.history, 'completed')
+      return dispatchedAt && completedAt ? resolveDurationMinutes(dispatchedAt, completedAt) : null
+    })
+    .filter((value): value is number => value !== null)
+
+  return {
+    averagePreparationMinutes: average(preparationDurations),
+    averageDeliveryMinutes: average(deliveryDurations),
+  }
+}
+
+interface ParsedOrderItemOption {
+  optionId: string
+  name: string
+  quantity: number
+  price: number
+}
+
+function readOrderItemOptions(value: unknown): ParsedOrderItemOption[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return []
+    }
+
+    const optionId = typeof entry.optionId === 'string' ? entry.optionId : null
+    const name = typeof entry.name === 'string' ? entry.name : null
+
+    if (!optionId || !name) {
+      return []
+    }
+
+    return [
+      {
+        optionId,
+        name,
+        quantity: typeof entry.quantity === 'number' ? entry.quantity : 1,
+        price: typeof entry.price === 'number' ? entry.price : 0,
+      },
+    ]
+  })
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function resolveNeighborhood(order: Order) {
+  const districtTag = order.tags.find((tag) => tag.startsWith('Bairro: '))
+  if (districtTag) {
+    return districtTag.replace('Bairro: ', '').trim()
+  }
+
+  if (!order.addressText) {
+    return null
+  }
+
+  const parts = order.addressText.split(' - ')
+  return parts.length > 1 ? parts[parts.length - 1]?.split(',')[0]?.trim() || null : null
+}
+
+function findHistoryDate(history: OrderStatusHistory[], status: string) {
+  return history.find((entry) => entry.status === status)?.createdAt ?? null
+}
+
+function resolveDurationMinutes(start: Date, end: Date | null) {
+  if (!end || end < start) {
+    return null
+  }
+
+  return Math.round((end.getTime() - start.getTime()) / 60000)
+}
+
+function average(values: number[]) {
+  if (!values.length) {
+    return null
+  }
+
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+}
+
+function normalizeKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
 }

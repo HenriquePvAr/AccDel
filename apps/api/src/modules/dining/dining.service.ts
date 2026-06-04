@@ -23,7 +23,7 @@ import {
 import { buildListResponse } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { AdminRealtimeService } from '@/shared/realtime/admin-realtime.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 import { buildDiningTablesSnapshot, mapDiningArea, mapDiningTable, mapTableSession } from './dining.mapper'
 
@@ -57,7 +57,7 @@ export class DiningService {
   async listAreas() {
     const areas = await this.prisma.diningArea.findMany({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       orderBy: [
         {
@@ -76,7 +76,7 @@ export class DiningService {
     const [areas, tables] = await Promise.all([
       this.prisma.diningArea.findMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
         },
         orderBy: [
           {
@@ -89,7 +89,7 @@ export class DiningService {
       }),
       this.prisma.diningTable.findMany({
         where: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
         },
         include: diningTableInclude,
         orderBy: {
@@ -117,7 +117,7 @@ export class DiningService {
     const table = await this.prisma.diningTable.findFirst({
       where: {
         id: tableId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: diningTableInclude,
     })
@@ -139,7 +139,7 @@ export class DiningService {
 
     const table = await this.prisma.diningTable.create({
       data: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         areaId: payload.table.areaId,
         code: payload.table.code.trim(),
         capacity: payload.table.capacity,
@@ -214,7 +214,7 @@ export class DiningService {
     const session = await this.prisma.$transaction(async (tx) => {
       const created = await tx.tableSession.create({
         data: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           tableId: table.id,
           waiterId: waiterMembership?.userId,
           guestCount: payload.guestCount,
@@ -305,7 +305,7 @@ export class DiningService {
         id: {
           in: productIds,
         },
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         active: true,
         availability: {
           some: {
@@ -347,7 +347,7 @@ export class DiningService {
         : null
     const store = await this.prisma.store.findUniqueOrThrow({
       where: {
-        id: DEFAULT_STORE_ID,
+        id: getCurrentStoreId(),
       },
     })
     const actor = waiterMembership?.user.name ?? session.waiter?.name ?? 'Operacao'
@@ -387,7 +387,7 @@ export class DiningService {
         .join(' | ')
       const productionOrder = await tx.order.create({
         data: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           number: productionNumber,
           customerName: tableLabel,
           customerPhone: '',
@@ -861,7 +861,7 @@ export class DiningService {
     const result = await this.prisma.$transaction(async (tx) => {
       const splitSession = await tx.tableSession.create({
         data: {
-          storeId: DEFAULT_STORE_ID,
+          storeId: getCurrentStoreId(),
           tableId: session.tableId,
           waiterId: session.waiterId,
           guestCount: Math.max(1, Math.min(session.guestCount, selectedItems.length)),
@@ -977,7 +977,7 @@ export class DiningService {
     const area = await this.prisma.diningArea.findFirst({
       where: {
         id: areaId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
     })
 
@@ -992,7 +992,7 @@ export class DiningService {
     const table = await this.prisma.diningTable.findFirst({
       where: {
         id: tableId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: diningTableInclude,
     })
@@ -1008,7 +1008,7 @@ export class DiningService {
     const session = await this.prisma.tableSession.findFirst({
       where: {
         id: sessionId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
       include: tableSessionInclude,
     })
@@ -1023,7 +1023,7 @@ export class DiningService {
   private async ensureWaiter(waiterId: string) {
     const membership = await this.prisma.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'waiter',
         userId: waiterId,
         active: true,
@@ -1079,7 +1079,7 @@ export class DiningService {
   ) {
     const membership = await tx.storeUser.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         role: 'waiter',
         userId: waiterId,
       },
@@ -1127,7 +1127,7 @@ export class DiningService {
   private async nextOrderNumber(tx: Prisma.TransactionClient) {
     const count = await tx.order.count({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
     })
 
@@ -1142,7 +1142,7 @@ export class DiningService {
   ) {
     const register = await tx.cashRegister.findFirst({
       where: {
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
         status: 'open',
       },
       orderBy: {

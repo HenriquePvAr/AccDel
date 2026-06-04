@@ -4,17 +4,27 @@ import type { OrderStatus, Prisma } from '@prisma/client'
 import type {
   KitchenQueueQuery,
   MarkKitchenOrderReadyPayload,
+  MoveKitchenOrderPayload,
 } from '@/contracts/kitchen.contract'
+import { OrdersService } from '@/modules/orders/orders.service'
 import { PrismaService } from '@/shared/prisma/prisma.service'
-import { DEFAULT_STORE_ID } from '@/shared/store-context'
+import { getCurrentStoreId } from '@/shared/store-context'
 
 import { mapOrder } from '../orders/orders.mapper'
 
-const kitchenStatuses: OrderStatus[] = ['in_preparation', 'ready']
+const activeKitchenStatuses: OrderStatus[] = [
+  'in_analysis',
+  'in_preparation',
+  'ready',
+  'out_for_delivery',
+]
 
 @Injectable()
 export class KitchenService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ordersService: OrdersService,
+  ) {}
 
   async getQueue(query: KitchenQueueQuery) {
     const where = this.buildWhere(query)
@@ -39,19 +49,28 @@ export class KitchenService {
     })
 
     const mappedOrders = orders.map(mapOrder)
+    const received = mappedOrders.filter((order) => order.status === 'in_analysis')
     const production = mappedOrders.filter((order) => order.status === 'in_preparation')
     const ready = mappedOrders.filter((order) => order.status === 'ready')
-    const urgent = production.filter((order) => this.isUrgent(order))
+    const dispatched = mappedOrders.filter((order) => order.status === 'out_for_delivery')
+    const delivered = mappedOrders.filter((order) => order.status === 'completed')
+    const urgent = mappedOrders.filter((order) => this.isUrgent(order))
 
     return {
       data: {
+        received,
         production,
         ready,
+        dispatched,
+        delivered,
         urgent,
         all: mappedOrders,
         summary: {
+          awaiting: received.length,
           inProduction: production.length,
           ready: ready.length,
+          dispatched: dispatched.length,
+          delivered: delivered.length,
           urgent: urgent.length,
           delayed: mappedOrders.filter((order) => order.delayed).length,
           totalItems: mappedOrders.reduce(
@@ -59,6 +78,7 @@ export class KitchenService {
               sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
             0,
           ),
+          averagePreparationMinutes: this.calculateAveragePreparationMinutes(mappedOrders),
         },
       },
     }
@@ -68,7 +88,7 @@ export class KitchenService {
     const current = await this.prisma.order.findFirstOrThrow({
       where: {
         id: orderId,
-        storeId: DEFAULT_STORE_ID,
+        storeId: getCurrentStoreId(),
       },
     })
 
@@ -107,14 +127,34 @@ export class KitchenService {
     }
   }
 
+  async moveOrder(orderId: string, payload: MoveKitchenOrderPayload) {
+    return this.ordersService.updateStatus(orderId, {
+      action: payload.action,
+      actor: payload.actor ?? 'Cozinha',
+      driverId: payload.driverId,
+    })
+  }
+
   private buildWhere(query: KitchenQueueQuery): Prisma.OrderWhereInput {
     const now = new Date()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
 
     return {
-      storeId: DEFAULT_STORE_ID,
-      status: {
-        in: kitchenStatuses,
-      },
+      storeId: getCurrentStoreId(),
+      OR: [
+        {
+          status: {
+            in: activeKitchenStatuses,
+          },
+        },
+        {
+          status: 'completed',
+          updatedAt: {
+            gte: today,
+          },
+        },
+      ],
       ...(query.channel && query.channel !== 'all' ? { source: query.channel } : {}),
       ...(query.priorityOnly
         ? {
@@ -146,10 +186,44 @@ export class KitchenService {
   }
 
   private isUrgent(order: ReturnType<typeof mapOrder>) {
+    if (!['in_analysis', 'in_preparation'].includes(order.status)) {
+      return false
+    }
+
     const prepTarget = order.estimatedPrepTimeMinutes ?? order.estimatedTotalTimeMinutes ?? 30
     const elapsedMinutes = this.getPreparationElapsedMinutes(order)
 
     return order.delayed || order.priority !== 'normal' || elapsedMinutes >= prepTarget * 0.8
+  }
+
+  private calculateAveragePreparationMinutes(orders: ReturnType<typeof mapOrder>[]) {
+    const durations = orders
+      .map((order) => {
+        const startedAt =
+          order.timeline.find((entry) => entry.label.toLowerCase().includes('preparo'))?.at ??
+          order.timeline.find((entry) => entry.label.toLowerCase().includes('producao'))?.at ??
+          null
+        const readyAt =
+          order.timeline.find((entry) => entry.label.toLowerCase().includes('pronto'))?.at ??
+          null
+
+        if (!startedAt || !readyAt) {
+          return null
+        }
+
+        const minutes = Math.round(
+          (new Date(readyAt).getTime() - new Date(startedAt).getTime()) / 60000,
+        )
+
+        return minutes >= 0 ? minutes : null
+      })
+      .filter((value): value is number => value !== null)
+
+    if (!durations.length) {
+      return null
+    }
+
+    return Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
   }
 
   private getPreparationElapsedMinutes(order: ReturnType<typeof mapOrder>) {

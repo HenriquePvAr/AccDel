@@ -2,6 +2,8 @@ import type {
   CloseCashRegisterRequest,
   CloseCashRegisterResponse,
   GetCashRegisterResponse,
+  OpenCashRegisterRequest,
+  OpenCashRegisterResponse,
   RegisterCashMovementRequest,
   RegisterCashMovementResponse,
 } from '@/contracts'
@@ -17,6 +19,29 @@ export const cashRegisterService = {
     }
 
     return simulateAsync({ data: getDemoDatabase().cash.currentRegister })
+  },
+
+  async openRegister(request: OpenCashRegisterRequest): Promise<OpenCashRegisterResponse> {
+    if (shouldUseApi) {
+      const response = await apiClient.post<OpenCashRegisterResponse, OpenCashRegisterRequest>(
+        '/cash/register/open',
+        request,
+      )
+      mockRealtimeBus.emit('cash.updated', { registerId: response.data.id })
+      return response
+    }
+
+    const nextDb = mutateDemoDatabase((database) => {
+      database.cash.currentRegister.status = 'open'
+      database.cash.currentRegister.openingAmount = request.openingAmount
+      database.cash.currentRegister.expectedAmount = request.openingAmount
+      database.cash.currentRegister.countedAmount = 0
+      database.cash.currentRegister.differenceAmount = 0
+      return database
+    })
+
+    mockRealtimeBus.emit('cash.updated', { registerId: nextDb.cash.currentRegister.id })
+    return simulateAsync({ data: nextDb.cash.currentRegister })
   },
 
   async registerMovement(

@@ -65,6 +65,32 @@ export interface CreateOrderResponse {
   data: Order
 }
 
+export interface CreatePublicOrderRequest {
+  customerName: string
+  customerPhone: string
+  address?: string
+  neighborhood?: string
+  complement?: string
+  reference?: string
+  notes?: string
+  orderMode: 'delivery' | 'pickup'
+  paymentMethodId: string
+  items: Array<{
+    productId: string
+    quantity: number
+    notes?: string
+    selectedOptions: Array<{
+      groupId: string
+      optionId: string
+      quantity: number
+    }>
+  }>
+}
+
+export interface CreatePublicOrderResponse {
+  data: Order
+}
+
 export interface UpdateOrderStatusRequest {
   orderId: string
   action:
