@@ -38,13 +38,17 @@ export const useOrderFiltersStore = create<OrderFiltersState>()(
     }),
     {
       name: 'cain-admin-order-filters',
+      version: 2,
       storage: createAppJSONStorage(),
+      migrate: (persistedState) => ({
+        ...(persistedState as Partial<OrderFiltersState>),
+        search: '',
+        status: 'all',
+        delayedOnly: false,
+      }),
       partialize: (state) => ({
-        search: state.search,
         source: state.source,
-        status: state.status,
         paymentMethod: state.paymentMethod,
-        delayedOnly: state.delayedOnly,
       }),
     },
   ),
