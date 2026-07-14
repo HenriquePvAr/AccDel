@@ -19,7 +19,7 @@ function SidebarNavigation({
   const navigationGroups = getAuthorizedNavigationGroups(user?.permissions ?? [])
 
   return (
-    <div className="flex-1 space-y-6 overflow-y-auto pr-1 scrollbar-thin">
+    <div className="flex-1 space-y-4 overflow-y-auto pr-1 scrollbar-thin">
       {navigationGroups.map((group) => (
         <div key={group.label} className="space-y-2">
           {!collapsed ? (
@@ -27,15 +27,17 @@ function SidebarNavigation({
               {group.label}
             </p>
           ) : null}
-          <nav className="space-y-1">
+          <nav className="space-y-1" aria-label={group.label}>
             {group.items.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 onClick={onNavigate}
+                title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
                 className={({ isActive }) =>
                   cn(
-                    'group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-bold transition',
+                    'group flex min-h-10 items-center gap-3 rounded-xl border px-3 py-2 text-sm font-bold transition',
                     isActive
                       ? 'border-orange-400/20 bg-[#102237] text-white shadow-[inset_3px_0_0_rgba(249,115,22,0.9)]'
                       : 'border-transparent text-slate-400 hover:border-white/[0.06] hover:bg-white/[0.04] hover:text-white',
@@ -70,8 +72,8 @@ export function AppSidebar() {
     <>
       {mobileSidebarOpen ? (
         <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm lg:hidden">
-          <aside className="flex h-full w-[280px] flex-col border-r border-white/10 bg-[#06111f] px-4 py-5 text-white">
-            <div className="mb-7 flex items-center justify-between">
+          <aside className="flex h-full w-[272px] flex-col border-r border-white/10 bg-[#06111f] px-3 py-4 text-white">
+            <div className="mb-5 flex items-center justify-between">
               <div className="flex min-w-0 items-center gap-3 overflow-hidden">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/25 text-brand-soft">
                   <Store className="h-6 w-6" />
@@ -85,6 +87,7 @@ export function AppSidebar() {
                 variant="ghost"
                 size="icon"
                 className="text-white hover:bg-white/10"
+                aria-label="Fechar menu de navegacao"
                 onClick={() => setMobileSidebarOpen(false)}
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -98,11 +101,11 @@ export function AppSidebar() {
 
       <aside
         className={cn(
-          'sticky top-0 hidden h-screen flex-col border-r border-white/10 bg-[#06111f] px-4 py-5 text-white lg:flex',
-          sidebarCollapsed ? 'w-[96px]' : 'w-[280px]',
+          'sticky top-0 hidden h-screen flex-col border-r border-white/10 bg-[#06111f] px-3 py-4 text-white transition-[width] lg:flex',
+          sidebarCollapsed ? 'w-[76px]' : 'w-[248px]',
         )}
       >
-        <div className="mb-7 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-3 overflow-hidden">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/25 text-brand-soft">
               <Store className="h-6 w-6" />
@@ -118,6 +121,7 @@ export function AppSidebar() {
             variant="ghost"
             size="icon"
             className="text-white hover:bg-white/10"
+            aria-label={sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
             onClick={toggleSidebar}
           >
             <ChevronLeft className={cn('h-4 w-4 transition', sidebarCollapsed && 'rotate-180')} />
