@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types --test src/features/orders/operations-board.test.mjs",
     "preview": "vite preview",
     "driver:dev": "npm --prefix apps/driver-app run start",
     "driver:web": "npm --prefix apps/driver-app run web",
