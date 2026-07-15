@@ -1175,11 +1175,9 @@ export class OrdersService {
       })
 
       if (payload.status === 'paid') {
-        await this.printingPolicy.createOperationalJob(transaction, {
+        await this.printingPolicy.createPaymentJobs(transaction, {
           storeId: getCurrentStoreId(),
           eventId: paymentEventId,
-          jobType: 'CASHIER_RECEIPT',
-          stationCode: 'CAIXA',
           order: updatedOrder,
           items: updatedOrder.items.map((item) => ({
             ...item,

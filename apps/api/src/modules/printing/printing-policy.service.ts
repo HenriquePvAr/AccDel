@@ -42,6 +42,11 @@ interface CreateOperationalPrintJobInput {
   items: PrintableOrderItem[]
 }
 
+type CreatePaymentPrintJobsInput = Omit<
+  CreateOperationalPrintJobInput,
+  'jobType' | 'stationCode'
+>
+
 type StationWithPrinters = PrinterStation & { printers: Printer[] }
 
 @Injectable()
@@ -147,6 +152,23 @@ export class PrintingPolicyService {
     }
 
     return jobIds
+  }
+
+  async createPaymentJobs(
+    tx: Prisma.TransactionClient,
+    input: CreatePaymentPrintJobsInput,
+  ) {
+    const cashierJobId = await this.createOperationalJob(tx, {
+      ...input,
+      jobType: 'CASHIER_RECEIPT',
+      stationCode: 'CAIXA',
+    })
+    const customerJobId = await this.createOperationalJob(tx, {
+      ...input,
+      jobType: 'CUSTOMER_RECEIPT',
+      stationCode: 'CAIXA',
+    })
+    return [cashierJobId, customerJobId].filter((jobId): jobId is string => Boolean(jobId))
   }
 
   async createOperationalJob(

@@ -1167,7 +1167,7 @@ Eventos conectados:
 
 Validacao concluida sem hardware:
 
-- API build/lint e 58 testes unitarios;
+- API build/lint e 59 testes unitarios;
 - integracao PostgreSQL com isolamento, replay, concorrencia de claim/confirmacao, lease e reimpressao;
 - simulacao de 40 pedidos com dois setores, falhas temporarias e uma queda ambigua;
 - carga de 500 jobs;

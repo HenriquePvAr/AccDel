@@ -133,6 +133,47 @@ test('fallback resolve item uma vez e bloqueio sem rota persiste falha operacion
   assert.equal(blockedJobs[0]?.lastErrorCode, 'ROUTING_MISSING')
 })
 
+test('pagamento cria via interna e via do cliente somente quando configuradas', async () => {
+  const createdJobs: Array<Record<string, unknown>> = []
+  const cashier = station('station-cashier', 'CAIXA')
+  const tx = buildTransaction({
+    createdJobs,
+    stations: [cashier],
+    products: [],
+    rules: [],
+    printPaymentConfirmed: true,
+    customerReceiptEnabled: true,
+  })
+  const service = new PrintingPolicyService()
+
+  const jobIds = await service.createPaymentJobs(tx as never, {
+    storeId: 'store-a',
+    eventId: 'payment-event-a',
+    order: { ...order, paymentStatus: 'paid' },
+    items: [
+      {
+        productId: 'product-a',
+        name: 'Hamburguer',
+        quantity: 1,
+        unitPrice: 30,
+        notes: null,
+        options: [],
+      },
+    ],
+  })
+
+  assert.equal(jobIds.length, 2)
+  assert.deepEqual(
+    createdJobs.map((job) => job.jobType),
+    ['CASHIER_RECEIPT', 'CUSTOMER_RECEIPT'],
+  )
+  assert.deepEqual(
+    createdJobs.map((job) => job.templateKey),
+    ['cashier-receipt', 'customer-receipt'],
+  )
+  assert.notEqual(createdJobs[0]?.idempotencyKey, createdJobs[1]?.idempotencyKey)
+})
+
 function station(id: string, code: string) {
   return {
     id,
@@ -169,6 +210,8 @@ function buildTransaction(input: {
   products: Array<{ id: string; categoryId: string }>
   rules: Array<Record<string, unknown>>
   fallbackPolicy?: 'DEFAULT_STATION' | 'BLOCK'
+  printPaymentConfirmed?: boolean
+  customerReceiptEnabled?: boolean
 }) {
   const fallback = input.stations.find((entry) => entry.code === 'COZINHA') ?? null
   return {
@@ -179,12 +222,19 @@ function buildTransaction(input: {
         fallbackStationId: fallback?.id ?? null,
         fallbackStation: fallback,
         printCancellation: true,
+        printOrderReady: true,
+        printPaymentConfirmed: input.printPaymentConfirmed ?? true,
+        customerReceiptEnabled: input.customerReceiptEnabled ?? false,
         defaultMaxAttempts: 5,
       }),
     },
     product: { findMany: async () => input.products },
     printerRoutingRule: { findMany: async () => input.rules },
-    printerStation: { findMany: async () => input.stations },
+    printerStation: {
+      findMany: async () => input.stations,
+      findFirst: async (args: { where: { code: string } }) =>
+        input.stations.find((entry) => entry.code === args.where.code) ?? null,
+    },
     printTemplate: { findFirst: async () => null },
     printJob: {
       upsert: async (args: { create: Record<string, unknown> }) => {
