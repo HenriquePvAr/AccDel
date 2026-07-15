@@ -163,7 +163,6 @@ export class PrintingAdminController {
   @Post('agents')
   @Permissions('printing:manage')
   @RateLimit({ limit: 10, windowMs: 60_000 })
-  @Idempotent({ operation: 'printing:agent:provision' })
   provisionAgent(
     @Body(new ZodValidationPipe(provisionPrintAgentSchema))
     body: ProvisionPrintAgentPayload,

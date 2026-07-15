@@ -5,7 +5,14 @@ import type { FastifyRequest } from 'fastify'
 export const DEFAULT_STORE_ID = 'store_main'
 export const STORE_ID_HEADER = 'x-cain-store-id'
 
-export type StoreContextSource = 'auth' | 'header' | 'subdomain' | 'webhook' | 'public' | 'default'
+export type StoreContextSource =
+  | 'auth'
+  | 'agent'
+  | 'header'
+  | 'subdomain'
+  | 'webhook'
+  | 'public'
+  | 'default'
 
 export interface StoreContextState {
   storeId: string
@@ -22,6 +29,7 @@ interface RequestAuthUser {
 
 export interface StoreScopedRequest extends FastifyRequest {
   authUser?: RequestAuthUser
+  printAgent?: { storeId?: string }
   storeId?: string
   storeContext?: StoreContextState
 }
@@ -55,6 +63,7 @@ export function resolveStoreContextFromRequest(
   request: StoreScopedRequest,
 ): StoreContextState {
   const authStoreId = request.authUser?.storeId ?? request.authUser?.store?.id
+  const agentStoreId = request.printAgent?.storeId
   const headerStoreId = readHeader(request, STORE_ID_HEADER)
   const host = readHost(request)
   const subdomainStoreId = resolveStoreIdFromSubdomain(host)
@@ -98,6 +107,14 @@ export function resolveStoreContextFromRequest(
     return {
       storeId: subdomainStoreId,
       source: 'subdomain',
+      ...(host ? { host } : {}),
+    }
+  }
+
+  if (agentStoreId) {
+    return {
+      storeId: agentStoreId,
+      source: 'agent',
       ...(host ? { host } : {}),
     }
   }

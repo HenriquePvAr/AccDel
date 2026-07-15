@@ -650,7 +650,7 @@ export class PrintingAdminService {
     })
     return {
       data: {
-        agent,
+        agent: safeAgent(agent),
         token: credential.token,
         warning: 'Copie agora. O token nao podera ser recuperado novamente.',
       },
@@ -683,7 +683,7 @@ export class PrintingAdminService {
     })
     return {
       data: {
-        agent,
+        agent: safeAgent(agent),
         token: credential.token,
         warning: 'O token anterior foi invalidado. Copie o novo token agora.',
       },
@@ -709,7 +709,7 @@ export class PrintingAdminService {
       })
       return updated
     })
-    return { data: agent }
+    return { data: safeAgent(agent) }
   }
 
   private async ensureDefaults(storeId: string) {
@@ -837,4 +837,32 @@ function copySnapshotForReprint(value: Prisma.JsonValue, jobId: string): Prisma.
     documentType: 'REPRINT',
     marker: 'REIMPRESSAO',
   } as Prisma.InputJsonObject
+}
+
+function safeAgent(agent: {
+  id: string
+  storeId: string
+  name: string
+  deviceName: string
+  version: string | null
+  tokenPrefix: string
+  enabled: boolean
+  lastSeenAt: Date | null
+  revokedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+}) {
+  return {
+    id: agent.id,
+    storeId: agent.storeId,
+    name: agent.name,
+    deviceName: agent.deviceName,
+    version: agent.version,
+    tokenPrefix: agent.tokenPrefix,
+    enabled: agent.enabled,
+    lastSeenAt: agent.lastSeenAt,
+    revokedAt: agent.revokedAt,
+    createdAt: agent.createdAt,
+    updatedAt: agent.updatedAt,
+  }
 }
