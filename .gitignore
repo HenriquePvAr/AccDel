@@ -18,6 +18,8 @@ build/
 .next/
 .vite/
 *.tsbuildinfo
+**/playwright-report/
+**/test-results/
 
 # Env / secrets
 .env
