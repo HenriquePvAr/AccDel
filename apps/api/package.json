@@ -22,11 +22,11 @@
     "seed:pilot": "tsx prisma/seed-pilot.ts"
   },
   "dependencies": {
-    "@nestjs/common": "^11.1.9",
+    "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.2",
-    "@nestjs/core": "^11.1.9",
+    "@nestjs/core": "^11.1.28",
     "@nestjs/jwt": "^11.0.2",
-    "@nestjs/platform-fastify": "^11.1.9",
+    "@nestjs/platform-fastify": "^11.1.28",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
