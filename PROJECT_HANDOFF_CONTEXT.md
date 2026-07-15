@@ -1215,3 +1215,17 @@ Documentação canônica:
 - `docs/security/DEPENDENCY_UPDATE_PLAN.md`
 - `docs/security/DRIVER_APP_DEPENDENCY_RISKS.md`
 
+## 32. GitHub Actions do RC2 (15/07/2026)
+
+Branch: `ci/pilot-rc2-validation`, baseada exatamente em `release/pilot-rc2` (`20ca789120d9374155710c19eab0f40cda02df47`). O RC2 permanece sem novos commits.
+
+Foram definidos workflows independentes para Admin, API, Waiter PWA, Print Agent e Driver App. A API possui jobs separados para validação unitária e PostgreSQL temporário. Os jobs usam Node `24.16.0`, installs npm independentes, lockfiles v3, permissões somente de leitura e actions oficiais fixadas por SHA completo.
+
+O CI não usa secrets reais, Meta, NVIDIA, EAS, impressora física, banco de produção ou deploy. Fluxos completos com seed/API/Print Agent, matriz incremental dependente do Compose e backup/restore permanecem gates de laboratório. CI verde não autoriza restaurante fechado ou produção.
+
+Documentação canônica:
+
+- `docs/ci/GITHUB_ACTIONS.md`
+- `docs/ci/CI_MATRIX.md`
+- `docs/ci/TROUBLESHOOTING.md`
+

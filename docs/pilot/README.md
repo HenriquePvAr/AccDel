@@ -19,6 +19,7 @@ Este diretório descreve o release candidate `release/pilot-rc1`. Ele é destina
 6. [HARDWARE_CHECKLIST.md](./HARDWARE_CHECKLIST.md)
 7. [QUICK_START_SUPPORT.md](./QUICK_START_SUPPORT.md)
 8. [DEPENDENCY_AUDIT_RC1.md](../security/DEPENDENCY_AUDIT_RC1.md)
+9. [GitHub Actions do RC2](../ci/GITHUB_ACTIONS.md)
 
 ## Evidências técnicas
 
@@ -30,6 +31,7 @@ Este diretório descreve o release candidate `release/pilot-rc1`. Ele é destina
 - Observabilidade: [OBSERVABILITY_RUNBOOK.md](./OBSERVABILITY_RUNBOOK.md)
 - Telas: [VISUAL_EVIDENCE.md](./VISUAL_EVIDENCE.md)
 - Dependências: [auditoria do RC1](../security/DEPENDENCY_AUDIT_RC1.md), [plano de atualização](../security/DEPENDENCY_UPDATE_PLAN.md) e [riscos residuais do Driver](../security/DRIVER_APP_DEPENDENCY_RISKS.md)
+- CI do RC2: [workflows](../ci/GITHUB_ACTIONS.md), [matriz](../ci/CI_MATRIX.md) e [troubleshooting](../ci/TROUBLESHOOTING.md)
 
 Todos os dados mostrados nas evidências são fictícios e marcados como `PILOT_DEMO_DATA`.
 
