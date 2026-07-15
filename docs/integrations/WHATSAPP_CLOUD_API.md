@@ -18,6 +18,8 @@ Fontes oficiais consultadas:
 
 Preencha as variaveis `WHATSAPP_*` de `apps/api/.env.example` e somente entao selecione `WHATSAPP_PROVIDER=cloud`. A API falha no startup se identificadores, token, verify token, App Secret, loja, versao da Graph API ou URL HTTPS estiverem ausentes/inseguros.
 
+Para rollout controlado, mantenha `MESSAGING_SANDBOX_MODE=true` e preencha `MESSAGING_ALLOWED_RECIPIENTS` somente no secret store do ambiente. Com sandbox ativo, todo envio manual, da IA ou de notificacao passa pela mesma allowlist. Um destinatario bloqueado nao chega ao provider e aparece no log somente por codigo/ID, sem telefone completo. Cloud e Evolution nao podem ficar ativas juntas nesse modo.
+
 No Meta Business:
 
 1. vincule o numero oficial e obtenha `phone_number_id` e `business_account_id`;
@@ -36,9 +38,9 @@ O tenant do webhook vem de `WHATSAPP_STORE_ID` e da correspondencia entre WABA/p
 
 ## Eventos e idempotencia
 
-Mensagens e status sao normalizados antes de entrar no dominio. `InboundEvent` possui chave unica por conta/evento. Mensagens repetidas retornam sucesso sem recriar conversa, rascunho ou resposta.
+Mensagens e status sao normalizados antes de entrar no dominio. `InboundEvent` possui chave unica por conta/evento. Recibo, identidade, cliente, conversa e mensagem inbound sao persistidos na mesma transacao. Mensagens repetidas retornam sucesso sem recriar conversa, rascunho ou resposta.
 
-Status `sent`, `delivered`, `read` e `failed` atualizam a outbox de forma monotona; webhooks atrasados nao fazem uma mensagem `READ` voltar para `DELIVERED`.
+Status `sent`, `delivered`, `read` e `failed` atualizam a outbox por compare-and-set monotono; webhooks atrasados nao fazem uma mensagem `READ` voltar para `DELIVERED`. Se o status chegar antes da persistencia do ID externo do envio, o evento fica armazenado e e reconciliado logo apos o worker salvar o ID.
 
 ## Janela de 24 horas
 
@@ -53,3 +55,5 @@ Para o legado, selecione `WHATSAPP_PROVIDER=evolution_api` e configure somente a
 - um timeout depois de a Meta aceitar a mensagem e antes da resposta chegar pode produzir incerteza externa; a idempotencia interna impede reexecucao local conhecida, mas a API da Meta nao recebe nossa chave interna;
 - rate limit e loops de polling sao locais por processo; para escala horizontal, usar coordenacao distribuida/worker dedicado;
 - o teste final com credenciais reais, numero oficial e templates aprovados precisa ser executado no ambiente do operador.
+
+Estado da revisão de 14/07/2026: **NÃO EXECUTADO — credenciais locais ausentes**.

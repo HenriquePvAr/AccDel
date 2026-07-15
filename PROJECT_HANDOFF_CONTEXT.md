@@ -1101,5 +1101,28 @@ Estado implementado:
 
 Documentos operacionais estao em `docs/integrations`. O arquivo `.env` permanece local/ignorado; use apenas `apps/api/.env.example` como lista de variaveis.
 
-Validacao conhecida desta branch: 38 testes API, 1 teste persistente de integracao, 5 testes web, builds API/admin, Prisma validate e 20 migrations aplicadas do zero em PostgreSQL isolado. Nao houve chamada real a Meta/NVIDIA por ausencia deliberada de credenciais no repositorio.
+Validacao atual desta branch: 50 testes unitarios API, 2 testes persistentes de integracao, 5 testes web, builds API/admin, lint API/driver, typecheck driver, Prisma validate e 21 migrations aplicadas do zero em PostgreSQL isolado. Nao houve chamada real a Meta/NVIDIA por ausencia de credenciais locais.
+
+## 28. Revisao de prontidao das integracoes (14/07/2026)
+
+A revisao profunda dos 72 arquivos encontrou e corrigiu problemas concretos de concorrencia, timezone, sandbox, status fora de ordem, atomicidade inbound, handoff, idempotencia de tools, tenant e tracking. A outbox agora usa claim PostgreSQL atomico com `SKIP LOCKED`, preserva a ordem por conversa e recupera locks antigos. O sandbox e aplicado no worker a todas as origens de mensagem.
+
+Foram adicionados testes locais com PostgreSQL para duas instancias do worker, status concorrente, isolamento por loja, chave idempotente divergente, allowlist e disputa entre humanos. As 21 migrations aplicam em banco vazio; as duas migrations da integracao aplicam sobre as 19 anteriores.
+
+O estado externo permanece honesto:
+
+- NVIDIA real: nao executado, credencial local ausente;
+- Meta real: nao executado, credenciais locais ausentes;
+- E2E real: nao executado;
+- templates: cinco nomes propostos, aprovacao ainda nao verificada;
+- staging: bloqueado ate conta de teste, sandbox, templates, observabilidade e rollback;
+- producao: nao pronta.
+
+Relatorios e procedimentos atuais:
+
+- `docs/integrations/REAL_VALIDATION_REPORT.md`
+- `docs/integrations/META_TEST_ACCOUNT_SETUP.md`
+- `docs/integrations/NVIDIA_REAL_TEST.md`
+- `docs/integrations/TEMPLATE_APPROVAL_CHECKLIST.md`
+- `docs/integrations/STAGING_ROLLOUT.md`
 

@@ -1,21 +1,33 @@
 # Outbox de mensageria
 
-## Garantias
+## Fluxo e garantias
 
-`OutboundMessage` e gravada antes de qualquer chamada externa. A chave unica `(store_id, idempotency_key)` impede duplicata interna. O worker faz claim por compare-and-set, marca `SENDING`, incrementa tentativas e envia pelo provider explicitamente selecionado.
+```text
+evento interno -> outbox na transação -> commit -> claim do worker -> provider -> resultado persistido
+```
 
-Falhas 408, 409, 425, 429, 5xx, timeout e rede voltam para `PENDING` com backoff exponencial e jitter. Falhas permanentes ou esgotamento terminam em `FAILED`. Erros sao sanitizados e limitados.
+Nenhuma chamada externa ocorre dentro da transação do pedido. `OutboundMessage` é gravada antes do envio e a chave única `(store_id, idempotency_key)` impede duplicata interna. Reutilizar a mesma chave com conteúdo divergente é conflito, não sucesso silencioso.
 
-## Estados
+O claim usa uma única CTE PostgreSQL com `FOR UPDATE SKIP LOCKED`. Duas instâncias não obtêm a mesma linha. Uma mensagem posterior da mesma conversa permanece bloqueada enquanto existir anterior em `PENDING` ou `SENDING`; o desempate é `created_at, id`.
 
-`PENDING -> SENDING -> SENT -> DELIVERED -> READ` ou `FAILED`. Eventos da Meta podem chegar fora de ordem; ranking e timestamp evitam regressao.
+Conta, conversa e pedido são revalidados contra a loja antes de enfileirar. O provider selecionado é explícito e não há fallback Cloud/Evolution.
 
-Mensagens manuais e da IA usam a mesma outbox no modo Cloud. O legado continua no caminho direto somente quando `evolution_api` foi selecionado explicitamente.
+## Estados e recuperação
 
-## Recuperacao
+`PENDING -> SENDING -> SENT -> DELIVERED -> READ` ou `FAILED`.
 
-Locks `SENDING` com mais de cinco minutos podem ser reclamados. Reinicio do processo nao perde mensagens pendentes. Notificacoes de pedido usam chave propria e podem reenfileirar de modo idempotente apos claim interrompido.
+Falhas 408, 409, 425, 429, 5xx, timeout e rede voltam a `PENDING` com backoff exponencial e jitter. Falhas permanentes ou esgotamento terminam em `FAILED`. Locks `SENDING` com mais de cinco minutos podem ser reclamados após encerramento inesperado.
 
-## Privacidade
+Status da Meta é monotônico por compare-and-set. Evento que chega antes do ID externo fica no recibo inbound e é reconciliado assim que o worker persiste o ID.
 
-Eventos e payloads da outbox recebem `retentionUntil` de 30 dias. Um job diario remove registros expirados. Tokens, segredos e headers de autenticacao nunca entram no payload persistido. Mensagens de conversa legadas seguem a politica geral de dados do produto e ainda exigem uma politica organizacional de exclusao/DSAR.
+## Sandbox e handoff
+
+Todas as origens — IA, humano e notificações — passam pelo sandbox no worker. Destinatário não permitido falha antes do provider, sem telefone completo no log.
+
+Mensagem de IA pendente é cancelada quando a conversa entra em `WAITING_HUMAN` ou `HUMAN_ACTIVE`. O worker também recusa uma mensagem de IA já claimed se o estado mudou antes do envio. Uma chamada externa já iniciada não pode ser recolhida; esse é um risco residual monitorável.
+
+## Privacidade e limite de idempotência
+
+Eventos e outbox recebem `retentionUntil` de 30 dias e job diário remove expirados. Tokens e headers nunca entram no payload persistido.
+
+A idempotência interna é forte. Existe, porém, uma janela de incerteza se a Meta aceitar a mensagem e o processo morrer antes de salvar o ID externo, pois a Graph API não recebe nossa chave interna.

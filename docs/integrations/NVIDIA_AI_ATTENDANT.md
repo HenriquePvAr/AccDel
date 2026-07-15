@@ -9,14 +9,14 @@ Fontes oficiais:
 - [NVIDIA NIM for LLMs — API reference](https://docs.nvidia.com/nim/large-language-models/latest/api-reference.html)
 - [NVIDIA API Catalog — Meta Llama](https://build.nvidia.com/meta/llama-3_1-8b-instruct)
 
-Variaveis: `AI_PROVIDER=nvidia`, `NVIDIA_API_KEY`, `NVIDIA_BASE_URL`, `NVIDIA_MODEL`, timeout, RPM, concorrencia e limite de tokens de saida.
+Variaveis: `AI_PROVIDER=nvidia`, `NVIDIA_API_KEY`, `NVIDIA_BASE_URL`, `NVIDIA_MODEL`, `NVIDIA_TIMEOUT_MS`, `NVIDIA_MAX_REQUESTS_PER_MINUTE`, `NVIDIA_MAX_CONCURRENT_REQUESTS` e `NVIDIA_MAX_OUTPUT_TOKENS`. Nomes legados de RPM/concorrencia continuam aceitos temporariamente, mas os nomes `MAX_*` sao os canonicos.
 
 ## Controles de resiliencia
 
 - `AbortController` por requisicao;
 - no maximo tres tentativas para rede, 429 e HTTP transitorio;
 - backoff exponencial com jitter;
-- limite deslizante de requisicoes por minuto;
+- limite deslizante de requisicoes por minuto aplicado a cada tentativa HTTP, inclusive retry;
 - limite de concorrencia e fila maxima;
 - circuit breaker de 30 segundos apos cinco falhas consecutivas;
 - logs guardam IDs/codigos/latencia, nunca prompt, conversa, chave ou resultado de ferramenta.
@@ -36,3 +36,11 @@ O cardapio completo nunca e colocado no prompt: a IA busca termos e recebe no ma
 `confirm_draft_order` so executa se a mensagem de entrada atual corresponder a uma frase explicita reconhecida pelo backend. O texto gerado pela IA nao pode fabricar essa confirmacao. A criacao usa idempotencia persistente baseada no ID externo da mensagem.
 
 Falha do provider, resposta vazia/grande ou excesso de ferramentas pausa a IA, move a conversa para `WAITING_HUMAN` e enfileira uma mensagem deterministica de handoff.
+
+Uma mutacao com os mesmos argumentos canonicos nao e executada duas vezes na mesma `AiExecution`. Execucao interrompida que ja iniciou tools mutaveis e recuperada para handoff, nao repetida cegamente.
+
+## Orcamento de requisicoes
+
+Saudacao usa normalmente uma chamada logica. Busca, adicao, resumo, confirmacao, status e handoff usam normalmente ate duas (tool e resposta final). O teto defensivo e seis chamadas logicas por evento inbound e tres tentativas HTTP por chamada. Notificacoes automaticas de pedido usam zero chamada NVIDIA.
+
+Estado da revisão de 14/07/2026: **NÃO EXECUTADO — credencial local ausente**.
