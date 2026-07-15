@@ -15,7 +15,7 @@ test(
   { skip: process.env.RUN_DB_INTEGRATION !== '1' },
   async () => {
     const databaseUrl = process.env.DATABASE_URL ?? ''
-    assert.match(databaseUrl, /accdel_security_test/)
+    assert.match(databaseUrl, /accdel_(?:security|empty|incremental)_test/)
     const prisma = new PrismaClient()
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const storeA = `security-store-a-${suffix}`
