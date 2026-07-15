@@ -1199,3 +1199,19 @@ Validação automatizada inclui API, PWA, fluxos E2E A–G, 12 cenários visuais
 
 Documentação canônica: `docs/waiter/`. O próximo gate está descrito em `docs/waiter/TESTING.md` e `docs/waiter/LIMITATIONS.md`.
 
+## 31. Hardening de dependências do RC1 (15/07/2026)
+
+Branch local: `security/dependency-hardening-rc1`, baseada em `release/pilot-rc1` (`d9a9b93`).
+
+Os cinco installs npm foram auditados e reproduzidos. O Admin atualizou React Router e Vite dentro dos mesmos majors; a API atualizou a cadeia NestJS/Fastify/fast-uri dentro do Nest 11; o Driver atualizou patches do Expo SDK 54 e removeu as vulnerabilidades crítica/altas de `shell-quote`, `undici` e `ws`. Waiter e Print Agent permaneceram sem alterações e com audit limpo.
+
+Matriz final: Admin 0; API 1 baixa de desenvolvimento em `tsx → esbuild`; Waiter 0; Print Agent 0; Driver 11 moderadas agregadas em duas cadeias do toolchain Expo (`postcss` e `uuid`). Total: 0 críticas e 0 altas. Não houve major, override, `npm audit fix --force`, `expo install --fix`, mudança de schema/migration, push ou merge.
+
+O upgrade Expo SDK 54 → 57 foi separado porque exige migração própria e validação em dispositivo. O estado atual está pronto para continuar desenvolvimento e para laboratório supervisionado, mas não adiciona homologação de restaurante ou produção.
+
+Documentação canônica:
+
+- `docs/security/DEPENDENCY_AUDIT_RC1.md`
+- `docs/security/DEPENDENCY_UPDATE_PLAN.md`
+- `docs/security/DRIVER_APP_DEPENDENCY_RISKS.md`
+

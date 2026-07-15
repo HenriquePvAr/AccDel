@@ -18,6 +18,7 @@ Este diretório descreve o release candidate `release/pilot-rc1`. Ele é destina
 5. [ROLLBACK_PLAN.md](./ROLLBACK_PLAN.md)
 6. [HARDWARE_CHECKLIST.md](./HARDWARE_CHECKLIST.md)
 7. [QUICK_START_SUPPORT.md](./QUICK_START_SUPPORT.md)
+8. [DEPENDENCY_AUDIT_RC1.md](../security/DEPENDENCY_AUDIT_RC1.md)
 
 ## Evidências técnicas
 
@@ -28,5 +29,8 @@ Este diretório descreve o release candidate `release/pilot-rc1`. Ele é destina
 - Backup: [BACKUP_AND_RESTORE.md](./BACKUP_AND_RESTORE.md)
 - Observabilidade: [OBSERVABILITY_RUNBOOK.md](./OBSERVABILITY_RUNBOOK.md)
 - Telas: [VISUAL_EVIDENCE.md](./VISUAL_EVIDENCE.md)
+- Dependências: [auditoria do RC1](../security/DEPENDENCY_AUDIT_RC1.md), [plano de atualização](../security/DEPENDENCY_UPDATE_PLAN.md) e [riscos residuais do Driver](../security/DRIVER_APP_DEPENDENCY_RISKS.md)
 
 Todos os dados mostrados nas evidências são fictícios e marcados como `PILOT_DEMO_DATA`.
+
+O hardening de dependências eliminou críticas e altas, mantendo 1 baixa de desenvolvimento na API e 11 moderadas documentadas no toolchain Expo SDK 54. Isso preserva o gate de laboratório, sem promover o sistema a restaurante ou produção.

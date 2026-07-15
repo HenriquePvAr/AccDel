@@ -82,3 +82,15 @@ O commit de documentação posterior não altera runtime. O HEAD final deve ser 
 | PRONTO PARA PRODUÇÃO | NÃO |
 
 Não ativar produção sem Meta/NVIDIA reais homologadas, impressora/dispositivos/Wi-Fi reais, operação paralela e piloto supervisionado aprovados.
+
+## Adendo de segurança de dependências — 15/07/2026
+
+A branch local `security/dependency-hardening-rc1`, criada sobre este RC em `d9a9b93`, eliminou todas as vulnerabilidades críticas e altas dos cinco installs npm sem alterar majors, código de domínio, Prisma ou migrations. A matriz final é: Admin 0; API 1 baixa de desenvolvimento; Waiter 0; Print Agent 0; Driver 11 moderadas agregadas no toolchain Expo SDK 54.
+
+Admin, API e Driver foram atualizados em commits independentes. Builds, lint, testes, typechecks, Prisma, integrações PostgreSQL, Playwright, export Android offline e fluxos fictícios permanecem aprovados. Os resíduos, alcance e plano de atualização estão em:
+
+- [`../security/DEPENDENCY_AUDIT_RC1.md`](../security/DEPENDENCY_AUDIT_RC1.md)
+- [`../security/DEPENDENCY_UPDATE_PLAN.md`](../security/DEPENDENCY_UPDATE_PLAN.md)
+- [`../security/DRIVER_APP_DEPENDENCY_RISKS.md`](../security/DRIVER_APP_DEPENDENCY_RISKS.md)
+
+O hardening mantém a classificação **pronto para laboratório**. Não remove os gates de hardware, rede, serviços externos, restaurante fechado ou produção.
