@@ -24,6 +24,7 @@ import type {
   UpdateOrderStatusPayload,
 } from '@/contracts/orders.contract'
 import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
+import { PrintingPolicyService } from '@/modules/printing/printing-policy.service'
 import {
   type ResolvedProductOption,
   type SelectedProductOptionInput,
@@ -108,6 +109,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: AdminRealtimeService,
+    private readonly printingPolicy: PrintingPolicyService,
   ) {}
 
   async listOrders(query: ListOrdersQuery) {
@@ -358,7 +360,8 @@ export class OrdersService {
           )
         : null
 
-    const order = await this.prisma.order.create({
+    const order = await this.prisma.$transaction(async (transaction) => {
+      const createdOrder = await transaction.order.create({
       data: {
         id: orderId,
         storeId: getCurrentStoreId(),
@@ -460,20 +463,36 @@ export class OrdersService {
         history: true,
         driver: true,
       },
-    })
-
-    if (couponAdjustment.couponId) {
-      await this.prisma.coupon.update({
-        where: {
-          id: couponAdjustment.couponId,
-        },
-        data: {
-          uses: {
-            increment: 1,
-          },
-        },
       })
-    }
+
+      if (status === 'in_preparation') {
+        await this.printingPolicy.createOrderJobs(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: `order-created:${orderId}`,
+          jobType: 'ORDER_INITIAL',
+          order: createdOrder,
+          items: createdOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      }
+
+      if (couponAdjustment.couponId) {
+        await transaction.coupon.update({
+          where: {
+            id: couponAdjustment.couponId,
+          },
+          data: {
+            uses: {
+              increment: 1,
+            },
+          },
+        })
+      }
+
+      return createdOrder
+    })
 
     this.realtime.emit('order.created', {
       orderId: order.id,
@@ -552,6 +571,7 @@ export class OrdersService {
     if (!paymentConfig?.method) {
       throw new BadRequestException('Forma de pagamento indisponivel para o cardapio digital.')
     }
+    const paymentMethod = paymentConfig.method
 
     if (paymentConfig.provider === 'picpay' && !paymentConfig.externalEnabled) {
       throw new BadRequestException('PicPay ainda nao esta configurado para checkout real.')
@@ -606,6 +626,7 @@ export class OrdersService {
     const estimatedTotalTimeMinutes =
       estimatedPrepTimeMinutes + (estimatedDeliveryTimeMinutes ?? 0)
     const number = await this.nextOrderNumber()
+    const orderId = randomUUID()
     const createdAt = new Date()
     const deliveryCoordinate =
       serviceType === 'delivery'
@@ -616,8 +637,10 @@ export class OrdersService {
         : null
     const total = Math.max(0, subtotal - discount) + deliveryFee
 
-    const order = await this.prisma.order.create({
-      data: {
+    const order = await this.prisma.$transaction(async (transaction) => {
+      const createdOrder = await transaction.order.create({
+        data: {
+          id: orderId,
         storeId: getCurrentStoreId(),
         number,
         customerId: customer.id,
@@ -626,7 +649,7 @@ export class OrdersService {
         source: 'digital_menu',
         serviceType,
         status,
-        paymentMethod: paymentConfig.method,
+        paymentMethod,
         paymentStatus: 'pending',
         subtotal,
         deliveryFee,
@@ -683,12 +706,26 @@ export class OrdersService {
             },
           ],
         },
-      },
-      include: {
-        items: true,
-        history: true,
-        driver: true,
-      },
+        },
+        include: {
+          items: true,
+          history: true,
+          driver: true,
+        },
+      })
+
+      await this.printingPolicy.createOrderJobs(transaction, {
+        storeId: getCurrentStoreId(),
+        eventId: `order-created:${orderId}`,
+        jobType: 'ORDER_INITIAL',
+        order: createdOrder,
+        items: createdOrder.items.map((item) => ({
+          ...item,
+          unitPrice: item.unitPrice.toNumber(),
+        })),
+      })
+
+      return createdOrder
     })
 
     this.realtime.emit('order.created', {
@@ -765,6 +802,7 @@ export class OrdersService {
       payload.action === 'dispatch'
         ? await this.resolveDriverAssignment(current.serviceType, payload.driverId)
         : current.driverId
+    const transitionEventId = randomUUID()
 
     const order = await this.prisma.$transaction(async (transaction) => {
       const changed = await transaction.order.updateMany({
@@ -789,6 +827,7 @@ export class OrdersService {
 
       await transaction.orderStatusHistory.create({
         data: {
+          id: transitionEventId,
           orderId: current.id,
           status: nextStatus,
           label: this.cleanDatabaseText(this.actionLabel(payload.action)),
@@ -819,7 +858,7 @@ export class OrdersService {
         })
       }
 
-      return transaction.order.findUniqueOrThrow({
+      const updatedOrder = await transaction.order.findUniqueOrThrow({
         where: { id: current.id },
         include: {
           items: true,
@@ -827,6 +866,44 @@ export class OrdersService {
           driver: true,
         },
       })
+
+      if (nextStatus === 'in_preparation') {
+        await this.printingPolicy.createOrderJobs(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: transitionEventId,
+          jobType: 'ORDER_INITIAL',
+          order: updatedOrder,
+          items: updatedOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      } else if (nextStatus === 'ready') {
+        await this.printingPolicy.createOperationalJob(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: transitionEventId,
+          jobType: 'DISPATCH_ORDER',
+          stationCode: 'EXPEDICAO',
+          order: updatedOrder,
+          items: updatedOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      } else if (nextStatus === 'cancelled') {
+        await this.printingPolicy.createOrderJobs(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: transitionEventId,
+          jobType: 'ORDER_CANCELLATION',
+          order: updatedOrder,
+          items: updatedOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      }
+
+      return updatedOrder
     })
 
     await this.syncDriverAvailability(nextDriverId)
@@ -1053,6 +1130,7 @@ export class OrdersService {
       })
     }
 
+    const paymentEventId = randomUUID()
     const order = await this.prisma.$transaction(async (transaction) => {
       const changed = await transaction.order.updateMany({
         where: {
@@ -1069,6 +1147,7 @@ export class OrdersService {
 
       await transaction.paymentAudit.create({
         data: {
+          id: paymentEventId,
           storeId: getCurrentStoreId(),
           orderId: current.id,
           status: payload.status,
@@ -1090,10 +1169,26 @@ export class OrdersService {
         },
       })
 
-      return transaction.order.findUniqueOrThrow({
+      const updatedOrder = await transaction.order.findUniqueOrThrow({
         where: { id: current.id },
         include: { items: true, history: true, driver: true },
       })
+
+      if (payload.status === 'paid') {
+        await this.printingPolicy.createOperationalJob(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: paymentEventId,
+          jobType: 'CASHIER_RECEIPT',
+          stationCode: 'CAIXA',
+          order: updatedOrder,
+          items: updatedOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      }
+
+      return updatedOrder
     })
 
     if (payload.status === 'paid') {

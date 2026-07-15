@@ -20,6 +20,7 @@ import {
   resolveProductOptionSelection,
   toProductOptionsJson,
 } from '@/modules/catalog/product-options'
+import { PrintingPolicyService } from '@/modules/printing/printing-policy.service'
 import { buildListResponse } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { AdminRealtimeService } from '@/shared/realtime/admin-realtime.service'
@@ -52,6 +53,7 @@ export class DiningService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: AdminRealtimeService,
+    private readonly printingPolicy: PrintingPolicyService,
   ) {}
 
   async listAreas() {
@@ -440,11 +442,21 @@ export class DiningService {
             ],
           },
         },
-        select: {
-          id: true,
-          status: true,
-          driverId: true,
+        include: {
+          items: true,
+          driver: true,
         },
+      })
+
+      await this.printingPolicy.createOrderJobs(tx, {
+        storeId: getCurrentStoreId(),
+        eventId: `table-session:${session.id}:production-order:${productionOrder.id}`,
+        jobType: 'ORDER_ADDITION',
+        order: productionOrder,
+        items: productionOrder.items.map((item) => ({
+          ...item,
+          unitPrice: item.unitPrice.toNumber(),
+        })),
       })
 
       await tx.tableSession.update({

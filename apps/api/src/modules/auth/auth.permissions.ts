@@ -35,6 +35,9 @@ export const adminPermissions = [
   'users:manage',
   'ai_attendant:view',
   'ai_attendant:manage',
+  'printing:view',
+  'printing:manage',
+  'printing:reprint',
 ] as const
 
 export type AdminPermission = (typeof adminPermissions)[number]
@@ -67,6 +70,8 @@ const rolePermissions: Record<AdminRole, AdminPermission[]> = {
     'payments:confirm',
     'history:view',
     'catalog:preview:view',
+    'printing:view',
+    'printing:reprint',
   ],
   kitchen: ['orders:view', 'orders:update', 'kitchen:view', 'kitchen:update'],
   waiter: [
@@ -103,6 +108,8 @@ const rolePermissions: Record<AdminRole, AdminPermission[]> = {
     'settings:delivery:view',
     'settings:preferences:view',
     'users:view',
+    'printing:view',
+    'printing:reprint',
   ],
 }
 

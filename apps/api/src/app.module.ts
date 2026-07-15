@@ -13,6 +13,7 @@ import { HealthModule } from './modules/health/health.module'
 import { KitchenModule } from './modules/kitchen/kitchen.module'
 import { MessagingModule } from './modules/messaging/messaging.module'
 import { OrdersModule } from './modules/orders/orders.module'
+import { PrintingModule } from './modules/printing/printing.module'
 import { ReportsModule } from './modules/reports/reports.module'
 import { SettingsModule } from './modules/settings/settings.module'
 import { TrackingModule } from './modules/tracking/tracking.module'
@@ -39,6 +40,7 @@ import { validateEnvironment } from './config/environment.validation'
     HealthModule,
     CustomersModule,
     OrdersModule,
+    PrintingModule,
     CatalogModule,
     CashModule,
     DriversModule,

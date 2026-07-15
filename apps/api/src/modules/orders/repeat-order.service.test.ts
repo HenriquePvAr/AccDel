@@ -9,6 +9,10 @@ import { runWithStoreContext } from '@/shared/store-context'
 import { OrdersService } from './orders.service'
 
 const stopAfterCapture = new Error('stop-after-capture')
+const printingPolicy = {
+  createOrderJobs: async () => [],
+  createOperationalJob: async () => null,
+} as never
 const actor: AuthenticatedRequestUser = {
   sub: 'manager-a',
   email: 'manager@example.test',
@@ -23,6 +27,7 @@ test('repeticao usa preco atual, zera pagamento/desconto e nao copia tracking', 
   const service = new OrdersService(
     fixture.prisma,
     { emit: () => undefined } as unknown as AdminRealtimeService,
+    printingPolicy,
   )
 
   await assert.rejects(
@@ -60,6 +65,7 @@ test('recalcula taxa de entrega pela zona atual e ignora promocao expirada', asy
   const service = new OrdersService(
     fixture.prisma,
     { emit: () => undefined } as unknown as AdminRealtimeService,
+    printingPolicy,
   )
 
   await assert.rejects(
@@ -81,6 +87,7 @@ test('produto indisponivel retorna revisao estruturada e nao cria pedido', async
   const service = new OrdersService(
     fixture.prisma,
     { emit: () => undefined } as unknown as AdminRealtimeService,
+    printingPolicy,
   )
 
   await assert.rejects(() =>
