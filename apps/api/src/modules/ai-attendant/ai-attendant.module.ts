@@ -9,6 +9,8 @@ import { AiOrderStatusService } from './ai-order-status.service'
 import { AiProviderFactory } from './ai-provider.factory'
 import { LovableSupabaseIntegrationService } from './lovable-supabase-integration.service'
 import { WhatsappProviderFactory } from './whatsapp-provider.factory'
+import { WebhookSecurityService } from './webhook-security.service'
+import { WebhookReceiptService } from './webhook-receipt.service'
 
 @Module({
   imports: [CatalogModule],
@@ -20,6 +22,8 @@ import { WhatsappProviderFactory } from './whatsapp-provider.factory'
     WhatsappProviderFactory,
     AiProviderFactory,
     LovableSupabaseIntegrationService,
+    WebhookSecurityService,
+    WebhookReceiptService,
   ],
   exports: [AiAttendantService],
 })

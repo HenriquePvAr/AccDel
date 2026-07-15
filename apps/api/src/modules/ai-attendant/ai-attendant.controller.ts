@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common'
+import type { FastifyRequest } from 'fastify'
 
 import {
   createKnowledgeEntrySchema,
@@ -26,12 +27,17 @@ import { CurrentAuthUser } from '@/modules/auth/decorators/current-auth-user.dec
 import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 import { ZodValidationPipe } from '@/shared/pipes/zod-validation.pipe'
 import { getCurrentStoreId } from '@/shared/store-context'
+import { RateLimit } from '@/shared/security/rate-limit.decorator'
 
 import { AiAttendantService } from './ai-attendant.service'
+import { WebhookSecurityService } from './webhook-security.service'
 
 @Controller('ai-attendant')
 export class AiAttendantController {
-  constructor(private readonly aiAttendantService: AiAttendantService) {}
+  constructor(
+    private readonly aiAttendantService: AiAttendantService,
+    private readonly webhookSecurityService: WebhookSecurityService,
+  ) {}
 
   // ── Overview & Statistics ──────────────────────────────────────────
 
@@ -183,10 +189,22 @@ export class AiAttendantController {
 
   @Post('whatsapp/webhook')
   @Public()
+  @RateLimit({ limit: 120, windowMs: 60_000, scopes: ['ip', 'store'] })
   handleWebhook(
     @Body(new ZodValidationPipe(whatsappWebhookPayloadSchema))
     body: WhatsappWebhookPayload,
+    @Req() request: FastifyRequest,
+    @Query('webhook_secret') webhookSecret?: string,
   ) {
+    const webhookToken = request.headers['x-webhook-token']
+    const authorization = request.headers.authorization
+    this.webhookSecurityService.assertValid({
+      contentType: request.headers['content-type'],
+      authorization,
+      token:
+        (Array.isArray(webhookToken) ? webhookToken[0] : webhookToken) || webhookSecret,
+      payload: body,
+    })
     return this.aiAttendantService.handleIncomingWebhook(body)
   }
 

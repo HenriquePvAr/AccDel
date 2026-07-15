@@ -31,7 +31,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         details,
       },
       meta: {
-        path: request.url,
+        path: request.url.split('?')[0],
         timestamp: new Date().toISOString(),
       },
     })

@@ -1,4 +1,5 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common'
+import { createHash } from 'node:crypto'
 import { PrismaService } from '../../shared/prisma/prisma.service'
 import { WhatsappProviderFactory } from './whatsapp-provider.factory'
 import { AiProviderFactory } from './ai-provider.factory'
@@ -24,6 +25,8 @@ import {
   WhatsappIntegrationLogType,
   IntegrationLogStatus,
 } from '@prisma/client'
+import { isMessageWebhookEvent } from './webhook-security.service'
+import { WebhookReceiptService } from './webhook-receipt.service'
 
 interface AiOrderDraftParsedOption {
   groupId?: string
@@ -78,6 +81,7 @@ export class AiAttendantService {
     private readonly promptBuilder: AiPromptBuilderService,
     private readonly orderStatusService: AiOrderStatusService,
     private readonly lovableSupabaseIntegration: LovableSupabaseIntegrationService,
+    private readonly webhookReceiptService: WebhookReceiptService,
   ) {}
 
   // ── Overview & Statistics ──────────────────────────────────────────
@@ -1097,18 +1101,59 @@ export class AiAttendantService {
     const provider = this.whatsappFactory.getProvider()
     const norm = await provider.handleWebhook(payload)
 
-    if (!norm.sessionId) return { success: false, reason: 'No session specified' }
+    if (!isMessageWebhookEvent(norm.event)) {
+      return { success: true, ignored: true, reason: 'unsupported_event' }
+    }
+
+    if (!norm.sessionId) {
+      throw new HttpException('Evento sem sessao identificavel.', HttpStatus.BAD_REQUEST)
+    }
+
+    if (!norm.messageId) {
+      throw new HttpException(
+        'Evento de mensagem sem identificador externo.',
+        HttpStatus.BAD_REQUEST,
+      )
+    }
 
     // Locate session inside store
     const session = await this.prisma.whatsappSession.findFirst({
       where: { sessionName: norm.sessionId },
     })
 
-    if (!session) return { success: false, reason: 'Session not found locally' }
-    if (!norm.from || !norm.body) return { success: false, reason: 'Empty from or body' }
+    if (!session) {
+      throw new HttpException('Sessao do webhook nao encontrada.', HttpStatus.NOT_FOUND)
+    }
+    if (!norm.from || !norm.body) {
+      throw new HttpException('Evento sem remetente ou mensagem.', HttpStatus.BAD_REQUEST)
+    }
 
     const storeId = session.storeId
     const cleanNumber = norm.from.replace(/\D/g, '')
+    const requestHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          event: norm.event,
+          sessionId: norm.sessionId,
+          messageId: norm.messageId,
+          from: cleanNumber,
+          body: norm.body,
+          timestamp: norm.timestamp,
+        }),
+      )
+      .digest('hex')
+
+    const receipt = await this.webhookReceiptService.claim({
+      storeId,
+      sessionId: session.id,
+      provider: provider.providerName,
+      eventId: norm.messageId,
+      requestHash,
+    })
+
+    if (receipt.duplicate) {
+      return { success: true, duplicate: true }
+    }
 
     await this.writeIntegrationLog({
       storeId,
