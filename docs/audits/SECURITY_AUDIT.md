@@ -111,3 +111,9 @@ Na entrega visual desta branch, a busca de pedidos deixou de ser persistida no s
 - Segredo JWT obrigatório, tokens curtos/revogáveis e CORS de produção exato.
 - Scan de dependências/segredos no CI e observabilidade com correlation ID.
 - Política de retenção e acesso para PII e localização aprovada.
+
+## Atualização: hardening crítico de 2026-07-14
+
+SEC-01, SEC-02, SEC-04, SEC-05, SEC-06, SEC-07, SEC-08 e o fallback de SEC-11 receberam correções nesta branch. Foram adicionados testes negativos e persistência para replay/idempotência; detalhes e limitações estão em `docs/security/CRITICAL_HARDENING_REPORT.md`.
+
+Continuam abertos: revalidação/revogação global de JWT (SEC-03), tracking público (SEC-09), supply chain (SEC-10), storage de token (SEC-12), CORS/headers (SEC-13/14), metadados Prisma (SEC-15), imagem Evolution (SEC-16), auditoria geral além de pagamento (SEC-17) e credencial demo (SEC-18).
