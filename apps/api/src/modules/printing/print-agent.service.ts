@@ -296,10 +296,9 @@ export class PrintAgentService {
         where: {
           id: jobId,
           storeId: agent.storeId,
-          status: 'PRINTING',
+          status: { in: ['PRINTING', 'PRINT_RESULT_UNKNOWN'] },
           claimedByAgentId: agent.id,
           leaseTokenHash,
-          leaseExpiresAt: { gt: now },
         },
         data: {
           status: 'PRINTED',
@@ -332,8 +331,15 @@ export class PrintAgentService {
           jobId,
           printerId: job.printerId,
           agentId: agent.id,
-          action: 'JOB_PRINTED',
-          metadata: { durationMs: payload.durationMs, contentHash: payload.contentHash },
+          action:
+            current.status === 'PRINT_RESULT_UNKNOWN'
+              ? 'JOB_PRINTED_LATE_CONFIRMATION'
+              : 'JOB_PRINTED',
+          metadata: {
+            durationMs: payload.durationMs,
+            contentHash: payload.contentHash,
+            lateConfirmation: current.status === 'PRINT_RESULT_UNKNOWN',
+          },
         },
       })
       return job
@@ -352,7 +358,7 @@ export class PrintAgentService {
     payload: PrintAgentFailurePayload,
   ) {
     const current = await this.findAgentJob(agent, jobId)
-    this.assertActiveLease(current, agent.id, payload.leaseToken)
+    this.assertActiveLease(current, agent.id, payload.leaseToken, false)
     const retry = payload.retryable && current.attemptCount < current.maxAttempts
     const status = retry ? 'RETRY_WAIT' : 'FAILED'
     const now = new Date()

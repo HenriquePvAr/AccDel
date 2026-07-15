@@ -28,6 +28,10 @@ build/
 **/.embedded-postgres/
 apps/api/.embedded-postgres/
 
+# Cain Print Agent local ledger and dry-run documents
+apps/print-agent/var/
+apps/print-agent/print-output/
+
 # Temporary browser/debug files
 tmp-*/
 tmp-auth-chrome-cdp2/

@@ -24,7 +24,12 @@
     "api:prisma:migrate:dev": "npm --prefix apps/api run prisma:migrate:dev",
     "api:prisma:deploy": "npm --prefix apps/api run prisma:deploy",
     "api:prisma:status": "npm --prefix apps/api run prisma:status",
-    "api:seed": "npm --prefix apps/api run seed"
+    "api:seed": "npm --prefix apps/api run seed",
+    "print-agent:dev": "npm --prefix apps/print-agent run dev",
+    "print-agent:build": "npm --prefix apps/print-agent run build",
+    "print-agent:lint": "npm --prefix apps/print-agent run lint",
+    "print-agent:typecheck": "npm --prefix apps/print-agent run typecheck",
+    "print-agent:test": "npm --prefix apps/print-agent run test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
