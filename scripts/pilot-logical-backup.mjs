@@ -145,9 +145,12 @@ async function restoreBackup(input, target) {
       for (const table of envelope.payload.tables) {
         assertIdentifier(table.name)
         table.columns.forEach(assertIdentifier)
+        const columnTypes = await readColumnTypes(client, table.name)
         const columnSql = table.columns.map((column) => `"${column}"`).join(', ')
         for (const row of table.rows) {
-          const values = table.columns.map((column) => row[column])
+          const values = table.columns.map((column) =>
+            prepareRestoreValue(row[column], columnTypes.get(column)),
+          )
           const parameters = values.map((_, index) => `$${index + 1}`).join(', ')
           await client.query(
             `INSERT INTO public."${table.name}" (${columnSql}) VALUES (${parameters})`,
@@ -176,6 +179,15 @@ async function restoreBackup(input, target) {
       if (migrations.rows[0]?.count !== 23 || marker.rows[0]?.count !== 1) {
         throw new Error('Verificacao pos-restore falhou.')
       }
+      for (const table of envelope.payload.tables) {
+        assertIdentifier(table.name)
+        const restored = await verification.query(
+          `SELECT COUNT(*)::int AS count FROM public."${table.name}"`,
+        )
+        if (restored.rows[0]?.count !== table.rows.length) {
+          throw new Error(`Contagem pos-restore diverge na tabela ${table.name}.`)
+        }
+      }
     } finally {
       await verification.end()
     }
@@ -184,6 +196,22 @@ async function restoreBackup(input, target) {
     await dropDatabase(target)
     throw error
   }
+}
+
+async function readColumnTypes(client, tableName) {
+  const result = await client.query(`
+    SELECT column_name, data_type
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = $1
+  `, [tableName])
+  return new Map(result.rows.map((column) => [column.column_name, column.data_type]))
+}
+
+function prepareRestoreValue(value, dataType) {
+  if (value !== null && ['json', 'jsonb'].includes(dataType)) {
+    return JSON.stringify(value)
+  }
+  return value
 }
 
 function migrate(databaseUrl) {

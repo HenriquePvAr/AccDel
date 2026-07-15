@@ -7,9 +7,27 @@ import { TcpPrinterDriver } from '../src/drivers/tcp.driver.js'
 import type { AgentPrinterConfig } from '../src/types.js'
 
 test('TCP mock recebe todos os bytes e encerra o socket', async () => {
+  const expected = Buffer.from([1, 2, 3, 4, 5])
   const received: Buffer[] = []
+  let resolveReceived!: (payload: Buffer) => void
+  let rejectReceived!: (error: Error) => void
+  const receivedAll = new Promise<Buffer>((resolve, reject) => {
+    resolveReceived = resolve
+    rejectReceived = reject
+  })
+  const receiveTimeout = setTimeout(
+    () => rejectReceived(new Error('TCP mock did not receive the complete payload.')),
+    2_000,
+  )
   const server = net.createServer((socket) => {
-    socket.on('data', (chunk) => received.push(chunk))
+    socket.on('data', (chunk) => {
+      received.push(chunk)
+      const payload = Buffer.concat(received)
+      if (payload.length >= expected.length) {
+        clearTimeout(receiveTimeout)
+        resolveReceived(payload)
+      }
+    })
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -25,10 +43,11 @@ test('TCP mock recebe todos os bytes e encerra o socket', async () => {
       },
       printer(address.port),
     )
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    const payload = await receivedAll
     assert.equal(result.bytesWritten, 5)
-    assert.deepEqual(Buffer.concat(received), Buffer.from([1, 2, 3, 4, 5]))
+    assert.deepEqual(payload, expected)
   } finally {
+    clearTimeout(receiveTimeout)
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     )
