@@ -142,7 +142,7 @@ Dependência: fases 2 e 3.
 
 Testar com 0, 1, 20, 100 e 500 pedidos sintéticos sem usar produção.
 
-## Fase 5 — capacidades ausentes
+## Fase 5 — capacidades de pagamento e impressão
 
 ### Pagamento
 
@@ -154,11 +154,17 @@ Testar com 0, 1, 20, 100 e 500 pedidos sintéticos sem usar produção.
 
 ### Impressão
 
-- template versionado e payload server-side;
-- fila/job com destino e status;
-- impressão e reimpressão auditadas;
-- fallback/download apenas se autorizado;
-- botões só aparecem com capability real.
+Status: implementada em `feature/thermal-printing-agent` e validada sem impressora física.
+
+- template `v1`, snapshot imutável e hash server-side;
+- fila persistente, prioridade com aging, claim/lease PostgreSQL e resultado ambíguo;
+- roteamento por produto/categoria, fallback explícito e isolamento por loja;
+- agente autenticado, ledger offline, dry-run e ESC/POS 58/80 mm;
+- rede TCP validada somente com servidor simulado; spooler Windows não implementado;
+- painel de políticas, impressoras, rotas, fila, agentes, retry/cancelamento e reimpressão auditada;
+- testes de concorrência, recuperação, 40 pedidos e carga de 500 jobs.
+
+Próximo gate: checklist de `docs/printing/REAL_PRINTER_VALIDATION.md` em piloto supervisionado.
 
 ### Edição de pedido
 
@@ -235,4 +241,4 @@ Itens deliberadamente fora desta etapa: WhatsApp Cloud API oficial, agente novo,
 
 Em `feature/whatsapp-cloud-ai-attendant`, os itens WhatsApp Cloud API oficial, atendente NVIDIA com tools, outbox persistente, handoff seguro, notificações de pedido e tracking público tokenizado foram implementados. A Evolution foi preservada apenas como compatibilidade explícita, sem fallback automático.
 
-Continuam fora desta entrega: rate limit distribuído para várias instâncias, worker externo/queue gerenciada, teste com credenciais Meta/NVIDIA reais, aprovação operacional dos templates, revogação JWT, impressão, app novo do garçom e gateway novo de pagamento.
+Continuam fora desta entrega de mensageria: rate limit distribuído para várias instâncias, worker externo/queue gerenciada, teste com credenciais Meta/NVIDIA reais, aprovação operacional dos templates, revogação JWT, app novo do garçom e gateway novo de pagamento. A impressão passou a ser tratada na branch dedicada `feature/thermal-printing-agent`.

@@ -1,0 +1,17 @@
+COMPROVANTE DO CAIXA
+PEDIDO #0042
+------------------------------------------------
+15/07/2026, 11:30:00
+Delivery
+------------------------------------------------
+2x Hamburguer da casa                   R$ 57,00
+1x Suco de cupuacu                       R$ 9,00
+------------------------------------------------
+Subtotal                                R$ 66,00
+Taxa                                     R$ 6,00
+Desconto                                 R$ 2,00
+TOTAL                                   R$ 70,00
+Pagamento: PIX
+Status: PAGO
+------------------------------------------------
+JOB EXAMPLECASHI

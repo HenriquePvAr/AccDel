@@ -1,6 +1,6 @@
 # Cain Delivery - Contexto Canonico Para IA
 
-Atualizado em: 2026-05-14  
+Atualizado em: 2026-07-15
 Objetivo: este arquivo deve permitir que qualquer IA entenda o sistema, continue o trabalho com seguranca e evite reabrir decisoes ja tomadas.
 
 ## 1. Resumo executivo
@@ -75,6 +75,8 @@ Raiz:
 - `src/` - admin web em React + Vite
 - `apps/api/` - API real em NestJS + Prisma
 - `apps/driver-app/` - app do motoboy em Expo / React Native
+- `apps/print-agent/` - agente local de impressao termica ESC/POS
+- `docs/printing/` - arquitetura, seguranca, testes e runbook de impressao
 - `public/` - assets publicos do admin
 - `PROJECT_HANDOFF_CONTEXT.md` - este arquivo, fonte principal para handoff entre IAs
 
@@ -274,6 +276,7 @@ Rotas principais:
 - `/settings/users`
 - `/settings/delivery`
 - `/settings/preferences`
+- `/settings/printing`
 - `/login`
 
 ## 9. Backend e banco
@@ -1125,4 +1128,62 @@ Relatorios e procedimentos atuais:
 - `docs/integrations/NVIDIA_REAL_TEST.md`
 - `docs/integrations/TEMPLATE_APPROVAL_CHECKLIST.md`
 - `docs/integrations/STAGING_ROLLOUT.md`
+
+## 29. Sistema de impressao termica (15/07/2026)
+
+Branch: `feature/thermal-printing-agent`.
+
+Arquitetura implementada:
+
+- API e PostgreSQL sao a fonte da verdade;
+- eventos reais de pedido/pagamento criam `PrintJob` na mesma transacao do dominio;
+- snapshot e template ficam imutaveis no job;
+- claim usa `FOR UPDATE SKIP LOCKED`, lease, prioridade com aging e tentativas persistidas;
+- agente local autentica por token proprio, recebe somente impressoras vinculadas e mantem ledger atomico;
+- navegador nunca acessa a impressora;
+- reimpressao exige permissao/motivo, cria job novo e imprime marca visivel.
+
+Modelos principais adicionados:
+
+- `PrintingSettings`
+- `PrinterStation`
+- `Printer`
+- `PrinterRoutingRule`
+- `PrintTemplate`
+- `PrintAgent`
+- `PrintAgentHeartbeat`
+- `PrintJob`
+- `PrintJobAttempt`
+- `PrintAuditLog`
+
+Eventos conectados:
+
+- entrada em producao -> `ORDER_INITIAL`;
+- novos itens de comanda -> `ORDER_ADDITION`;
+- pedido pronto -> `DISPATCH_ORDER`;
+- pagamento confirmado -> `CASHIER_RECEIPT`;
+- cancelamento -> `ORDER_CANCELLATION`;
+- reimpressao administrativa -> novo job `REPRINT`.
+
+Validacao concluida sem hardware:
+
+- API build/lint e 58 testes unitarios;
+- integracao PostgreSQL com isolamento, replay, concorrencia de claim/confirmacao, lease e reimpressao;
+- simulacao de 40 pedidos com dois setores, falhas temporarias e uma queda ambigua;
+- carga de 500 jobs;
+- 22 migrations em banco vazio e migration termica incremental sobre as 21 anteriores;
+- agente com typecheck/lint/build e 10 testes;
+- admin web build/lint e 5 testes;
+- dry-run TXT/BIN/JSON e TCP apenas contra loopback simulado.
+
+Limites que devem permanecer explicitos:
+
+- nenhuma impressora fisica foi acessada ou homologada;
+- `WINDOWS_PRINTER`/spooler RAW nao esta implementado;
+- exactly-once fisico nao e possivel; `PRINT_RESULT_UNKNOWN` exige decisao humana;
+- ledger nao tem criptografia de aplicacao e depende de ACL/disco protegido;
+- nao ha metrica/alerta externo nem instalador de servico Windows nesta entrega;
+- status atual: pronto para teste supervisionado em restaurante, nao pronto para producao.
+
+Documentacao canonica: `docs/printing/`. O primeiro teste fisico deve seguir `REAL_PRINTER_VALIDATION.md` e `OPERATIONAL_RUNBOOK.md` sem contornar o driver por scripts locais.
 

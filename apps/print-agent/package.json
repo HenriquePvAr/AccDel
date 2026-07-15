@@ -7,9 +7,10 @@
     "dev": "tsx src/main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/main.js",
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "examples": "tsx scripts/generate-examples.ts"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

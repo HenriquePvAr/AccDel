@@ -1,0 +1,15 @@
+EXPEDICAO
+PEDIDO #0042
+------------------------------------------------
+15/07/2026, 11:30:00
+Delivery
+------------------------------------------------
+CLIENTE FICTICIO
+Telefone: (**) *****-0042
+Endereco: Rua Exemplo, 100 - Bairro Demonstracao
+Referencia: Endereco inteiramente ficticio
+Pagamento: PIX
+A receber: R$ 0,00
+Entregador: ENTREGADOR FICTICIO
+------------------------------------------------
+JOB EXAMPLEDISPA

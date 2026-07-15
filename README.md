@@ -18,6 +18,20 @@ Documentacao:
 - `docs/integrations/PUBLIC_TRACKING.md`
 - `docs/integrations/LOCAL_SETUP.md`
 
+## Impressao termica
+
+A impressao usa jobs persistentes na API e um Cain Print Agent local. O navegador nao acessa impressoras. A entrega inclui roteamento por produto/categoria, fila, leases, retry, reimpressao auditada, templates ESC/POS 58/80 mm, dry-run e driver de rede TCP.
+
+O driver Windows/spooler ainda nao foi implementado e nenhuma impressora fisica foi acessada nesta validacao. A solucao esta pronta para piloto supervisionado, nao para producao autonoma.
+
+Documentacao inicial:
+
+- `docs/printing/ARCHITECTURE.md`
+- `docs/printing/PRINT_AGENT.md`
+- `docs/printing/LOCAL_TESTING.md`
+- `docs/printing/REAL_PRINTER_VALIDATION.md`
+- `docs/printing/OPERATIONAL_RUNBOOK.md`
+
 ## Setup
 
 Use Node compativel com o `package-lock.json`, instale as dependencias e configure os arquivos locais a partir dos exemplos. `.env` e credenciais nunca devem ser commitados.
@@ -43,6 +57,9 @@ Para desenvolvimento sem Meta/NVIDIA, deixe `WHATSAPP_PROVIDER` e `AI_PROVIDER` 
 npm.cmd run api:test
 npm.cmd run api:test:integration
 npm.cmd run api:build
+npm.cmd run print-agent:typecheck
+npm.cmd run print-agent:test
+npm.cmd run print-agent:build
 npm.cmd test
 npm.cmd run build
 npm.cmd run lint

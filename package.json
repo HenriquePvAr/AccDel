@@ -29,7 +29,8 @@
     "print-agent:build": "npm --prefix apps/print-agent run build",
     "print-agent:lint": "npm --prefix apps/print-agent run lint",
     "print-agent:typecheck": "npm --prefix apps/print-agent run typecheck",
-    "print-agent:test": "npm --prefix apps/print-agent run test"
+    "print-agent:test": "npm --prefix apps/print-agent run test",
+    "print-agent:examples": "npm --prefix apps/print-agent run examples"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
