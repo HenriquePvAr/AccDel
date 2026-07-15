@@ -43,6 +43,7 @@ Os fluxos completos e backup/restore não devem ser adicionados apressadamente a
 - o projeto usa `channel: 'chrome'`, portanto o job instala somente Chrome;
 - confirme que o build gerou `dist` antes do Playwright;
 - o webServer esperado é `http://127.0.0.1:4174`;
+- o build requer `@types/node` do lockfile raiz; preserve o `npm ci` de tooling antes do install do app;
 - não inicie `preview` manualmente em background no workflow;
 - baixe o artefato de falha e verifique primeiro `trace.zip`, depois screenshot e relatório;
 - não versione screenshots ou relatórios gerados.
@@ -55,7 +56,7 @@ A suíte válida não precisa de impressora física. O TCP mock usa loopback e o
 
 ## Driver App
 
-O export usa `EXPO_OFFLINE=1` e não pode chamar EAS. Se lint/typecheck passarem e o export falhar apenas por incompatibilidade comprovada do runner, registre a limitação com o log completo antes de propor que o export volte a ser gate de laboratório. Não publique, não gere APK/AAB e não execute correções automáticas do Expo.
+O lint carrega `eslint.config.js` da raiz, portanto o job instala o lockfile raiz antes do lockfile do app. O export usa `EXPO_OFFLINE=1` e não pode chamar EAS. Se lint/typecheck passarem e o export falhar apenas por incompatibilidade comprovada do runner, registre a limitação com o log completo antes de propor que o export volte a ser gate de laboratório. Não publique, não gere APK/AAB e não execute correções automáticas do Expo.
 
 ## Artefatos, secrets e permissões
 

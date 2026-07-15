@@ -4,7 +4,7 @@
 
 Os workflows desta pasta foram criados em `ci/pilot-rc2-validation`, baseada exatamente no RC2 `20ca789120d9374155710c19eab0f40cda02df47`. Eles validam o código sem publicar, fazer deploy, acessar banco de produção, usar credenciais reais ou chamar Meta/NVIDIA.
 
-Os cinco installs npm continuam independentes: raiz (Admin), `apps/api`, `apps/waiter-app`, `apps/print-agent` e `apps/driver-app`. Todos possuem `package-lock.json` v3. O repositório não possui `.nvmrc`, `.node-version`, `engines` ou `packageManager`; por isso o CI fixa explicitamente Node `24.16.0`, correspondente ao runtime local validado com npm `11.13.0`.
+Os cinco installs npm continuam independentes: raiz (Admin), `apps/api`, `apps/waiter-app`, `apps/print-agent` e `apps/driver-app`. Todos possuem `package-lock.json` v3. Waiter e Driver instalam também o lockfile raiz no próprio job porque seus comandos consomem tooling versionado na raiz (`@types/node` e `eslint.config.js`); os manifests e lockfiles dos apps não são alterados. O repositório não possui `.nvmrc`, `.node-version`, `engines` ou `packageManager`; por isso o CI fixa explicitamente Node `24.16.0`, correspondente ao runtime local validado com npm `11.13.0`.
 
 ## Gatilhos e cancelamento
 
@@ -68,7 +68,7 @@ Os fluxos completos `staging:test:flows` e `staging:backup:test` também permane
 
 `ci-waiter.yml` executa build, `tsc --noEmit` usando o binário já travado no lockfile, lint, 14 testes unitários e 19 testes Playwright. Como `playwright.config.ts` usa explicitamente `channel: 'chrome'`, o job instala somente Chrome e suas dependências, com workers e timeout já limitados pela configuração.
 
-O `webServer` do Playwright inicia `npm run preview` em processo controlado e é encerrado pelo runner de testes. Em falha, somente relatório HTML, screenshots e `trace.zip` são enviados por sete dias. Artefatos não são enviados em sucesso. Referência: [Playwright em CI](https://playwright.dev/docs/ci).
+O `webServer` do Playwright inicia `npm run preview` em processo controlado e é encerrado pelo runner de testes. Os cenários visuais regeneram screenshots documentais rastreadas; o job restaura somente `docs/waiter/screenshots` no runner efêmero antes do guard de integridade, sem versionar os resultados. Em falha, somente relatório HTML, screenshots e `trace.zip` são enviados por sete dias. Artefatos não são enviados em sucesso. Referência: [Playwright em CI](https://playwright.dev/docs/ci).
 
 ### Print Agent
 
@@ -80,7 +80,7 @@ O `webServer` do Playwright inicia `npm run preview` em processo controlado e é
 
 ## Cache, lockfiles e integridade
 
-Cada job usa o cache npm apontando somente para o lockfile do aplicativo correspondente. `npm ci` continua sendo a única instalação. Browser binaries não são cacheados. Ao final, `git diff --exit-code` confirma que comandos de validação não modificaram arquivos rastreados nem lockfiles.
+Cada job usa cache npm apontando somente para os lockfiles que instala. Admin, API e Print Agent usam o lockfile correspondente; Waiter e Driver usam o lockfile raiz mais o lockfile do app para disponibilizar o tooling compartilhado. `npm ci` continua sendo o único mecanismo de instalação. Browser binaries não são cacheados. Ao final, `git diff --exit-code` confirma que comandos de validação não modificaram arquivos rastreados nem lockfiles.
 
 ## Segurança
 

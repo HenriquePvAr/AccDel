@@ -7,11 +7,11 @@
 | `CI / Admin` / `admin` | raiz | Admin | sim | pelo build | 5 unitários | 20 min |
 | `CI / API` / `api-unit` | `apps/api` | API + Prisma | sim | pelo build | 65 unitários | 25 min |
 | `CI / API` / `api-postgres` | `apps/api` | Prisma | não repete | não repete | migrations 0 → 23 + 6 integrações PostgreSQL | 35 min |
-| `CI / Waiter PWA` / `waiter` | `apps/waiter-app` | PWA | sim | `tsc --noEmit` | 14 unitários + 19 Playwright | 30 min |
+| `CI / Waiter PWA` / `waiter` | raiz (tooling) + `apps/waiter-app` | PWA | sim | `tsc --noEmit` | 14 unitários + 19 Playwright | 30 min |
 | `CI / Print Agent` / `print-agent` | `apps/print-agent` | agente | sim | script `typecheck` | 10 testes seguros | 20 min |
-| `CI / Driver App` / `driver` | `apps/driver-app` | export Android offline | sim | script `typecheck` | sem suíte unitária existente | 25 min |
+| `CI / Driver App` / `driver` | raiz (tooling) + `apps/driver-app` | export Android offline | sim | script `typecheck` | sem suíte unitária existente | 25 min |
 
-Todos os jobs usam Node `24.16.0`, npm pelo runtime instalado, `npm ci`, cache separado por lockfile v3 e `ubuntu-24.04`.
+Todos os jobs usam Node `24.16.0`, npm pelo runtime instalado, `npm ci`, cache limitado aos lockfiles v3 instalados pelo job e `ubuntu-24.04`.
 
 ## Cobertura PostgreSQL
 
