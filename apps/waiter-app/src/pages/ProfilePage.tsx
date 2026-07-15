@@ -3,7 +3,7 @@ import { LogOut, ShieldCheck, Store, UserRound } from 'lucide-react'
 
 import { ErrorState, LoadingState } from '@/components/States'
 import { apiRequest } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import type { WaiterProfile } from '@/types'
 
 export function ProfilePage() {

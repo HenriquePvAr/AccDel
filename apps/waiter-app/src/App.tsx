@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { AppShell } from '@/components/AppShell'
 import { LoadingState } from '@/components/States'
-import { useAuth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import { LoginPage } from '@/pages/LoginPage'
 
 const TablesPage = lazy(() => import('@/pages/TablesPage').then((module) => ({ default: module.TablesPage })))

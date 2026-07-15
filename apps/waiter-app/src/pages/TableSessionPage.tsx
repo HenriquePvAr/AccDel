@@ -13,7 +13,7 @@ import { ErrorState, LoadingState, OfflineActionNotice } from '@/components/Stat
 import { TableStatusBadge } from '@/components/StatusBadge'
 import { Toast, type ToastMessage } from '@/components/Toast'
 import { ApiError, apiRequest, createIdempotencyKey } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import { clearDraft, draftKey, loadDraft, saveDraft } from '@/lib/drafts'
 import { currency, elapsedTime } from '@/lib/format'
 import { trackMetric } from '@/lib/metrics'

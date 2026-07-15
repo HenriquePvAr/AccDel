@@ -1,17 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import type { SessionUser } from '@/types'
 import { apiRequest, getAccessToken, setAccessToken } from './api'
+import { AuthContext, type AuthContextValue } from './auth-context'
 import { clearUserDrafts } from './drafts'
-
-interface AuthContextValue {
-  user: SessionUser | null
-  loading: boolean
-  login(email: string, password: string): Promise<void>
-  logout(): void
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null)
@@ -68,10 +60,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const value = useContext(AuthContext)
-  if (!value) throw new Error('useAuth precisa estar dentro de AuthProvider.')
-  return value
 }

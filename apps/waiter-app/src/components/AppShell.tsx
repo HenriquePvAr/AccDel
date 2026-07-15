@@ -2,7 +2,7 @@ import { ClipboardList, LayoutGrid, LogOut, UserRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 
-import { useAuth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import { useOnlineStatus } from '@/lib/online'
 
 const navigation = [

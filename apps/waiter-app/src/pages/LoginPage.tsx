@@ -2,7 +2,7 @@ import { Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
-import { useAuth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import { trackMetric } from '@/lib/metrics'
 
 export function LoginPage() {
