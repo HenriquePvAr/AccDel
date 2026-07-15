@@ -117,7 +117,7 @@ export class DiningController {
   }
 
   @Post('sessions/:id/close')
-  @Permissions('dining:update')
+  @Permissions('dining:sessions:close')
   closeSession(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(closeTableSessionSchema))

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import type { OrderStatus, Prisma } from '@prisma/client'
 
 import type {
@@ -8,7 +8,6 @@ import type {
 } from '@/contracts/kitchen.contract'
 import { OrdersService } from '@/modules/orders/orders.service'
 import { PrismaService } from '@/shared/prisma/prisma.service'
-import { AdminRealtimeService } from '@/shared/realtime/admin-realtime.service'
 import { getCurrentStoreId } from '@/shared/store-context'
 import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 
@@ -26,7 +25,6 @@ export class KitchenService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ordersService: OrdersService,
-    private readonly realtime: AdminRealtimeService,
   ) {}
 
   async getQueue(query: KitchenQueueQuery) {
@@ -93,52 +91,7 @@ export class KitchenService {
     authUser: AuthenticatedRequestUser,
   ) {
     void payload
-    const current = await this.prisma.order.findFirstOrThrow({
-      where: {
-        id: orderId,
-        storeId: getCurrentStoreId(),
-      },
-    })
-
-    if (!['in_preparation', 'ready'].includes(current.status)) {
-      throw new BadRequestException(
-        'A cozinha so pode marcar como pronto pedidos em producao.',
-      )
-    }
-
-    const order = await this.prisma.order.update({
-      where: {
-        id: current.id,
-      },
-      data: {
-        status: 'ready',
-        history:
-          current.status === 'ready'
-            ? undefined
-            : {
-                create: {
-                  status: 'ready',
-                  label: 'Pedido marcado como pronto pela cozinha',
-                  actor: this.cleanDatabaseText(authUser.name),
-                },
-              },
-      },
-      include: {
-        items: true,
-        history: true,
-        driver: true,
-      },
-    })
-
-    this.realtime.emit('order.status_changed', {
-      orderId: order.id,
-      status: order.status,
-      driverId: order.driverId,
-    })
-
-    return {
-      data: mapOrder(order),
-    }
+    return this.ordersService.updateStatus(orderId, { action: 'ready' }, authUser)
   }
 
   async moveOrder(
@@ -257,12 +210,4 @@ export class KitchenService {
     return Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000))
   }
 
-  private cleanDatabaseText(value: string) {
-    const safe = value
-      .replace(/\uFFFD/g, '')
-      .replace(/[^\u0020-\u007E\u00A0-\u00FF]/g, '')
-      .trim()
-
-    return safe || 'Cozinha'
-  }
 }

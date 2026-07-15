@@ -441,7 +441,7 @@ export class DriversService {
       this.prisma.order.findMany({
         where: {
           storeId: getCurrentStoreId(),
-          source: 'delivery',
+          serviceType: 'delivery',
           status: 'ready',
         },
         orderBy: [
@@ -838,7 +838,7 @@ export class DriversService {
       where: {
         storeId: getCurrentStoreId(),
         driverId,
-        source: 'delivery',
+        serviceType: 'delivery',
         status: 'out_for_delivery',
       },
       orderBy: {
@@ -1169,7 +1169,7 @@ export class DriversService {
       where: {
         id: payload.previewOrderId,
         storeId: getCurrentStoreId(),
-        source: 'delivery',
+        serviceType: 'delivery',
         status: 'ready',
       },
     })

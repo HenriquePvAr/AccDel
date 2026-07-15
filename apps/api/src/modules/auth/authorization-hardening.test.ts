@@ -58,6 +58,14 @@ test('garcom recebe somente permissoes operacionais do PWA', () => {
   assert.equal(permissions.includes('printing:manage'), false)
 })
 
+test('caixa fecha sessao sem receber permissao ampla de edicao do salao', () => {
+  const permissions = getPermissionsForRole('cashier')
+
+  assert.equal(permissions.includes('payments:confirm'), true)
+  assert.equal(permissions.includes('dining:sessions:close'), true)
+  assert.equal(permissions.includes('dining:update'), false)
+})
+
 test('PWA invalida imediatamente vinculo desativado ou papel alterado', async () => {
   const prisma = {
     storeUser: {

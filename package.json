@@ -41,7 +41,8 @@
     "staging:restore": "node scripts/pilot-logical-backup.mjs restore",
     "staging:backup:native": "node scripts/pilot-database.mjs backup",
     "staging:backup:native:test": "node scripts/pilot-database.mjs test",
-    "staging:test:migrations": "node scripts/test-migration-matrix.mjs"
+    "staging:test:migrations": "node scripts/test-migration-matrix.mjs",
+    "staging:test:flows": "node scripts/test-pilot-flows.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

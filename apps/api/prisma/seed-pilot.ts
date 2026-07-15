@@ -96,7 +96,10 @@ function assertPilotEnvironment(environment: NodeJS.ProcessEnv) {
   }
   const userPassword = environment.PILOT_USER_PASSWORD ?? ''
   const agentToken = environment.CAIN_PRINT_AGENT_TOKEN ?? ''
-  if (userPassword.length < 20 || agentToken.length < 32) {
+  if (
+    userPassword.length < 20 ||
+    !/^cpa_[a-f0-9]{12}_[A-Za-z0-9_-]{32,}$/.test(agentToken)
+  ) {
     throw new Error('Credenciais piloto devem ser geradas pelo comando de staging.')
   }
   return {
@@ -276,6 +279,33 @@ async function seedModifiers(tx: Prisma.TransactionClient, categoryIds: Record<s
       create: { categoryId, groupId: groups[1].id, required: false, minSelections: 0, maxSelections: 3, sortOrder: 1, description: MARKER, autoApply: true },
       update: { required: false, minSelections: 0, maxSelections: 3, sortOrder: 1, description: MARKER, autoApply: true },
     })
+    const products = await tx.product.findMany({
+      where: { storeId: STORE_ID, categoryId },
+      select: { id: true },
+    })
+    for (const product of products) {
+      await tx.productOptionGroupLink.upsert({
+        where: { productId_groupId: { productId: product.id, groupId: groups[1].id } },
+        create: {
+          productId: product.id,
+          groupId: groups[1].id,
+          required: false,
+          minSelections: 0,
+          maxSelections: 3,
+          sortOrder: 1,
+          description: MARKER,
+          autoApplied: true,
+        },
+        update: {
+          required: false,
+          minSelections: 0,
+          maxSelections: 3,
+          sortOrder: 1,
+          description: MARKER,
+          autoApplied: true,
+        },
+      })
+    }
   }
 }
 
@@ -288,7 +318,7 @@ async function seedPrinting(
   const agent = await tx.printAgent.upsert({
     where: { id: 'pilot_demo_print_agent' },
     create: { id: 'pilot_demo_print_agent', storeId: STORE_ID, name: 'Agente virtual piloto', deviceName: 'docker-dry-run', version: '0.1.0-pilot', tokenHash, tokenPrefix: rawToken.slice(0, 18), enabled: true },
-    update: { name: 'Agente virtual piloto', deviceName: 'docker-dry-run', version: '0.1.0-pilot', tokenPrefix: rawToken.slice(0, 18), enabled: true, revokedAt: null },
+    update: { name: 'Agente virtual piloto', deviceName: 'docker-dry-run', version: '0.1.0-pilot', tokenHash, tokenPrefix: rawToken.slice(0, 18), enabled: true, revokedAt: null },
   })
   const stations = [
     { code: 'COZINHA', name: 'Cozinha piloto' },

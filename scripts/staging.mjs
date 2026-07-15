@@ -78,7 +78,7 @@ function ensureRuntime(environment) {
     DATABASE_URL: databaseUrl,
     DIRECT_URL: databaseUrl,
     JWT_ACCESS_SECRET: randomBytes(48).toString('base64url'),
-    CAIN_PRINT_AGENT_TOKEN: `cpa_pilot_${randomBytes(32).toString('base64url')}`,
+    CAIN_PRINT_AGENT_TOKEN: `cpa_${randomBytes(6).toString('hex')}_${randomBytes(32).toString('base64url')}`,
     PILOT_USER_PASSWORD: `Pilot-${randomBytes(18).toString('base64url')}`,
   }
   writeFileSync(
