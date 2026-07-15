@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Req } from '@nestjs/common'
 import type { FastifyRequest } from 'fastify'
 
 import {
@@ -194,15 +194,13 @@ export class AiAttendantController {
     @Body(new ZodValidationPipe(whatsappWebhookPayloadSchema))
     body: WhatsappWebhookPayload,
     @Req() request: FastifyRequest,
-    @Query('webhook_secret') webhookSecret?: string,
   ) {
     const webhookToken = request.headers['x-webhook-token']
     const authorization = request.headers.authorization
     this.webhookSecurityService.assertValid({
       contentType: request.headers['content-type'],
       authorization,
-      token:
-        (Array.isArray(webhookToken) ? webhookToken[0] : webhookToken) || webhookSecret,
+      token: Array.isArray(webhookToken) ? webhookToken[0] : webhookToken,
       payload: body,
     })
     return this.aiAttendantService.handleIncomingWebhook(body)

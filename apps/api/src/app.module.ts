@@ -24,6 +24,8 @@ import { PrismaModule } from './shared/prisma/prisma.module'
 import { RealtimeModule } from './shared/realtime/realtime.module'
 import { StoreContextInterceptor } from './shared/store-context.interceptor'
 import { SecurityModule } from './shared/security/security.module'
+import { OperationsModule } from './shared/operations/operations.module'
+import { RequestObservabilityInterceptor } from './shared/operations/request-observability.interceptor'
 import { validateEnvironment } from './config/environment.validation'
 
 @Module({
@@ -32,6 +34,7 @@ import { validateEnvironment } from './config/environment.validation'
       isGlobal: true,
       validate: validateEnvironment,
     }),
+    OperationsModule,
     RealtimeModule,
     PrismaModule,
     AuthModule,
@@ -55,6 +58,10 @@ import { validateEnvironment } from './config/environment.validation'
     AiAttendantModule,
   ],
   providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestObservabilityInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: StoreContextInterceptor,

@@ -7,8 +7,10 @@ import {
   Logger,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
-import type { FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyReply } from 'fastify'
 import { ZodError } from 'zod'
+
+import type { CorrelatedRequest } from '@/shared/operations/request-observability.interceptor'
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -17,11 +19,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const context = host.switchToHttp()
     const response = context.getResponse<FastifyReply>()
-    const request = context.getRequest<FastifyRequest>()
+    const request = context.getRequest<CorrelatedRequest>()
     const { statusCode, code, message, details } = this.normalizeException(exception)
 
     if (statusCode >= 500) {
-      this.logger.error(exception)
+      this.logger.error(JSON.stringify({
+        event: 'http_request_failed',
+        timestamp: new Date().toISOString(),
+        correlationId: request.correlationId ?? null,
+        path: request.routeOptions?.url ?? request.url.split('?')[0],
+        statusCode,
+        code,
+        exceptionType: exception instanceof Error ? exception.name : 'UnknownError',
+      }))
     }
 
     void response.status(statusCode).send({
@@ -32,6 +42,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       },
       meta: {
         path: request.url.split('?')[0],
+        correlationId: request.correlationId ?? null,
         timestamp: new Date().toISOString(),
       },
     })
@@ -69,7 +80,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
           statusCode: HttpStatus.NOT_FOUND,
           code: 'NOT_FOUND',
           message: 'Registro não encontrado.',
-          details: exception.meta,
+          details: null,
         }
       }
 
@@ -77,7 +88,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         statusCode: HttpStatus.CONFLICT,
         code: exception.code,
         message: 'Erro de persistência.',
-        details: exception.meta,
+        details: null,
       }
     }
 

@@ -4,10 +4,19 @@ const placeholderPattern = /change|example|placeholder|your[_-]/i
 
 export function validateEnvironment(input: Environment): Environment {
   const environment = { ...input }
-  const whatsappProvider = readOptional(input, 'WHATSAPP_PROVIDER')
-  const aiProvider = readOptional(input, 'AI_PROVIDER')
+  const appEnvironment = resolveAppEnvironment(input)
+  const whatsappProvider = normalizeDisabled(readOptional(input, 'WHATSAPP_PROVIDER'))
+  const aiProvider = normalizeDisabled(readOptional(input, 'AI_PROVIDER'))
   const sandboxConfigured = readOptional(input, 'MESSAGING_SANDBOX_MODE') !== null
   const sandboxMode = readBoolean(input, 'MESSAGING_SANDBOX_MODE', false)
+
+  environment.APP_ENV = appEnvironment
+  environment.WHATSAPP_PROVIDER = whatsappProvider ?? ''
+  environment.AI_PROVIDER = aiProvider ?? ''
+
+  if (appEnvironment === 'staging' || appEnvironment === 'production') {
+    validateOperationalEnvironment(input, appEnvironment)
+  }
 
   if (whatsappProvider && !['cloud', 'whatsapp_cloud', 'evolution_api'].includes(whatsappProvider)) {
     throw new Error(
@@ -47,7 +56,7 @@ export function validateEnvironment(input: Environment): Environment {
     requireSafeValue(input, 'WHATSAPP_WEBHOOK_SECRET', 24)
   }
 
-  if (whatsappProvider && readOptional(input, 'NODE_ENV') === 'production' && !sandboxConfigured) {
+  if (whatsappProvider && appEnvironment === 'production' && !sandboxConfigured) {
     throw new Error(
       'MESSAGING_SANDBOX_MODE deve ser definido explicitamente em producao quando um provider de mensageria esta ativo.',
     )
@@ -60,6 +69,11 @@ export function validateEnvironment(input: Environment): Environment {
   const allowedRecipients = parseAllowedRecipients(input)
   environment.MESSAGING_SANDBOX_MODE = sandboxMode
   environment.MESSAGING_ALLOWED_RECIPIENTS = allowedRecipients.join(',')
+
+  const featureDefault = appEnvironment === 'development' || appEnvironment === 'test'
+  for (const key of FEATURE_FLAG_KEYS) {
+    environment[key] = readBoolean(input, key, featureDefault)
+  }
 
   if (aiProvider === 'nvidia') {
     requireSafeValue(input, 'NVIDIA_API_KEY', 20)
@@ -119,6 +133,13 @@ export function validateEnvironment(input: Environment): Environment {
     15,
     10_080,
   )
+  environment.EXPECTED_MIGRATION_COUNT = readInteger(
+    input,
+    'EXPECTED_MIGRATION_COUNT',
+    23,
+    1,
+    10_000,
+  )
   environment.WHATSAPP_WEBHOOK_MAX_PAYLOAD_BYTES = readInteger(
     input,
     'WHATSAPP_WEBHOOK_MAX_PAYLOAD_BYTES',
@@ -129,6 +150,74 @@ export function validateEnvironment(input: Environment): Environment {
   if (readOptional(input, 'PUBLIC_API_URL')) requireUrl(input, 'PUBLIC_API_URL')
 
   return environment
+}
+
+const FEATURE_FLAG_KEYS = [
+  'FEATURE_WHATSAPP_ENABLED',
+  'FEATURE_AI_ATTENDANT_ENABLED',
+  'FEATURE_PRINTING_ENABLED',
+  'FEATURE_WAITER_PWA_ENABLED',
+  'FEATURE_PUBLIC_TRACKING_ENABLED',
+  'FEATURE_ORDER_NOTIFICATIONS_ENABLED',
+] as const
+
+function resolveAppEnvironment(input: Environment) {
+  const configured = readOptional(input, 'APP_ENV')
+  const nodeEnvironment = readOptional(input, 'NODE_ENV')
+  const resolved = configured ?? nodeEnvironment ?? 'development'
+  if (!['development', 'test', 'staging', 'production'].includes(resolved)) {
+    throw new Error('APP_ENV deve ser development, test, staging ou production.')
+  }
+  return resolved
+}
+
+function normalizeDisabled(value: string | null) {
+  return value === 'disabled' ? null : value
+}
+
+function validateOperationalEnvironment(
+  input: Environment,
+  appEnvironment: 'staging' | 'production',
+) {
+  const databaseUrl = requireUrl(input, 'DATABASE_URL')
+  if (!['postgres:', 'postgresql:'].includes(databaseUrl.protocol)) {
+    throw new Error('DATABASE_URL deve usar PostgreSQL.')
+  }
+  requireSafeValue(input, 'JWT_ACCESS_SECRET', 32)
+
+  const publicWebUrl = requireUrl(input, 'PUBLIC_WEB_URL')
+  const publicApiUrl = requireUrl(input, 'PUBLIC_API_URL')
+  const origins = parseCorsOrigins(input)
+  if (!origins.length) {
+    throw new Error('CORS_ALLOWED_ORIGINS (ou WEB_ORIGIN) deve listar origens exatas.')
+  }
+  if (appEnvironment === 'production') {
+    for (const url of [publicWebUrl, publicApiUrl, ...origins]) {
+      if (url.protocol !== 'https:') {
+        throw new Error('URLs publicas e origens CORS devem usar HTTPS em producao.')
+      }
+    }
+  }
+}
+
+function parseCorsOrigins(input: Environment) {
+  const primary = readOptional(input, 'CORS_ALLOWED_ORIGINS')
+  const legacy = readOptional(input, 'WEB_ORIGIN')
+  if (primary && legacy && primary !== legacy) {
+    throw new Error('CORS_ALLOWED_ORIGINS e WEB_ORIGIN nao podem divergir.')
+  }
+  return (primary ?? legacy ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      if (value.includes('*')) throw new Error('CORS nao aceita origens com wildcard.')
+      const url = new URL(value)
+      if (url.username || url.password || url.search || url.hash || url.pathname !== '/') {
+        throw new Error('CORS deve conter somente origens exatas, sem caminho ou credenciais.')
+      }
+      return url
+    })
 }
 
 function requireValue(input: Environment, key: string) {

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 
 import { MessagingOutboxService } from '@/modules/messaging/application/messaging-outbox.service'
 import { runWithStoreContext } from '@/shared/store-context'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 
 import { NvidiaAiGateway } from './providers/nvidia/nvidia-ai.gateway'
 import type { NvidiaChatMessage } from './providers/nvidia/nvidia-ai.types'
@@ -25,9 +26,14 @@ export class CloudAiConversationProcessor implements OnModuleInit, OnModuleDestr
     private readonly gateway: NvidiaAiGateway,
     private readonly tools: AiToolRegistry,
     private readonly outbox: MessagingOutboxService,
+    private readonly features?: FeatureFlagsService,
   ) {}
 
   onModuleInit() {
+    if (this.features && (
+      !this.features.isEnabled('whatsapp') ||
+      !this.features.isEnabled('aiAttendant')
+    )) return
     const whatsappProvider = this.config.get<string>('WHATSAPP_PROVIDER')?.trim()
     if (!['cloud', 'whatsapp_cloud'].includes(whatsappProvider ?? '') || this.config.get<string>('AI_PROVIDER')?.trim() !== 'nvidia') {
       return

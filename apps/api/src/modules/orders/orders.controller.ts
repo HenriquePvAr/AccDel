@@ -15,7 +15,6 @@ import {
 import { Permissions } from '@/modules/auth/decorators/permissions.decorator'
 import { CurrentAuthUser } from '@/modules/auth/decorators/current-auth-user.decorator'
 import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
-import { Public } from '@/modules/auth/decorators/public.decorator'
 import { ZodValidationPipe } from '@/shared/pipes/zod-validation.pipe'
 import { Idempotent } from '@/shared/security/idempotency.decorator'
 import { RateLimit } from '@/shared/security/rate-limit.decorator'
@@ -33,7 +32,7 @@ export class OrdersController {
   }
 
   @Get(':id/tracking')
-  @Public()
+  @Permissions('orders:view')
   getOrderTracking(@Param('id') id: string) {
     return this.ordersService.getOrderTracking(id)
   }

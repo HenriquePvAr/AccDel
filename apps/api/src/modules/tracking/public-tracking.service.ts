@@ -1,18 +1,39 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import type { Prisma } from '@prisma/client'
 import { createHash, randomBytes } from 'node:crypto'
 
 import { PrismaService } from '@/shared/prisma/prisma.service'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 
 @Injectable()
 export class PublicTrackingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly features?: FeatureFlagsService,
   ) {}
 
   async issue(storeId: string, orderId: string) {
-    const order = await this.prisma.order.findFirst({
+    if (this.features && !this.features.isEnabled('publicTracking')) {
+      throw new ServiceUnavailableException('O rastreamento publico esta desativado.')
+    }
+
+    return this.prisma.$transaction((transaction) =>
+      this.issueInTransaction(transaction, storeId, orderId),
+    )
+  }
+
+  async issueInTransaction(
+    transaction: Prisma.TransactionClient,
+    storeId: string,
+    orderId: string,
+  ) {
+    if (this.features && !this.features.isEnabled('publicTracking')) {
+      throw new ServiceUnavailableException('O rastreamento publico esta desativado.')
+    }
+
+    const order = await transaction.order.findFirst({
       where: { id: orderId, storeId },
       select: { id: true },
     })
@@ -22,20 +43,18 @@ export class PublicTrackingService {
     const tokenHash = hashToken(rawToken)
     const ttlMinutes = this.config.get<number>('PUBLIC_TRACKING_TTL_MINUTES') ?? 1_440
     const issuedAt = new Date()
-    await this.prisma.$transaction([
-      this.prisma.publicTrackingToken.updateMany({
-        where: { orderId, storeId, revokedAt: null },
-        data: { revokedAt: issuedAt },
-      }),
-      this.prisma.publicTrackingToken.create({
-        data: {
-          storeId,
-          orderId,
-          tokenHash,
-          expiresAt: new Date(issuedAt.getTime() + ttlMinutes * 60_000),
-        },
-      }),
-    ])
+    await transaction.publicTrackingToken.updateMany({
+      where: { orderId, storeId, revokedAt: null },
+      data: { revokedAt: issuedAt },
+    })
+    await transaction.publicTrackingToken.create({
+      data: {
+        storeId,
+        orderId,
+        tokenHash,
+        expiresAt: new Date(issuedAt.getTime() + ttlMinutes * 60_000),
+      },
+    })
     return {
       path: `/tracking/${rawToken}`,
       url: `${this.publicBaseUrl()}${`/tracking/${rawToken}`}`,
@@ -43,6 +62,10 @@ export class PublicTrackingService {
   }
 
   async resolve(rawToken: string) {
+    if (this.features && !this.features.isEnabled('publicTracking')) {
+      throw new NotFoundException()
+    }
+
     if (!/^[A-Za-z0-9_-]{40,80}$/.test(rawToken)) throw new NotFoundException()
     const now = new Date()
     const token = await this.prisma.publicTrackingToken.findUnique({

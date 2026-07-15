@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import type { MessageEvent } from '@nestjs/common'
-import { filter, interval, map, merge, Observable, Subject } from 'rxjs'
+import { defer, filter, finalize, interval, map, merge, Observable, Subject } from 'rxjs'
 
+import { ObservabilityService } from '@/shared/operations/observability.service'
 import { getCurrentStoreId } from '@/shared/store-context'
 
 export type AdminRealtimeEventName =
@@ -57,6 +58,8 @@ interface AdminRealtimeEvent<TName extends AdminRealtimeEventName = AdminRealtim
 export class AdminRealtimeService {
   private readonly events$ = new Subject<AdminRealtimeEvent>()
 
+  constructor(private readonly observability?: ObservabilityService) {}
+
   emit<TName extends AdminRealtimeEventName>(
     name: TName,
     payload: AdminRealtimePayloadMap[TName],
@@ -73,24 +76,27 @@ export class AdminRealtimeService {
     storeId = getCurrentStoreId(),
     allowedNames?: ReadonlySet<AdminRealtimeEventName>,
   ): Observable<MessageEvent> {
-    return merge(
-      this.events$.pipe(
-        filter(
-          (event) => event.storeId === storeId && (!allowedNames || allowedNames.has(event.name)),
+    return defer(() => {
+      this.observability?.realtimeOpened()
+      return merge(
+        this.events$.pipe(
+          filter(
+            (event) => event.storeId === storeId && (!allowedNames || allowedNames.has(event.name)),
+          ),
+          map((event) => ({
+            type: event.name,
+            data: event,
+          })),
         ),
-        map((event) => ({
-          type: event.name,
-          data: event,
-        })),
-      ),
-      interval(20_000).pipe(
-        map(() => ({
-          type: 'ping',
-          data: {
-            occurredAt: new Date().toISOString(),
-          },
-        })),
-      ),
-    )
+        interval(20_000).pipe(
+          map(() => ({
+            type: 'ping',
+            data: {
+              occurredAt: new Date().toISOString(),
+            },
+          })),
+        ),
+      ).pipe(finalize(() => this.observability?.realtimeClosed()))
+    })
   }
 }

@@ -13,6 +13,7 @@ import type {
   PrintJobSnapshot,
   PrintSnapshotItem,
 } from './printing.types'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 import {
   hashPrintPayload,
   maskPrintPhone,
@@ -51,10 +52,14 @@ type StationWithPrinters = PrinterStation & { printers: Printer[] }
 
 @Injectable()
 export class PrintingPolicyService {
+  constructor(private readonly features?: FeatureFlagsService) {}
+
   async createOrderJobs(
     tx: Prisma.TransactionClient,
     input: CreateOrderPrintJobsInput,
   ) {
+    if (this.features && !this.features.isEnabled('printing')) return []
+
     const settings = await tx.printingSettings.findUnique({
       where: { storeId: input.storeId },
       include: { fallbackStation: true },
@@ -175,6 +180,8 @@ export class PrintingPolicyService {
     tx: Prisma.TransactionClient,
     input: CreateOperationalPrintJobInput,
   ) {
+    if (this.features && !this.features.isEnabled('printing')) return null
+
     const settings = await tx.printingSettings.findUnique({
       where: { storeId: input.storeId },
     })

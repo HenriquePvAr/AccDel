@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createHash, timingSafeEqual } from 'node:crypto'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 
 const messageEvents = new Set(['messagesupsert', 'messageupsert'])
 
@@ -28,9 +29,15 @@ export interface WebhookSecurityOptions {
 
 @Injectable()
 export class WebhookSecurityService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly features?: FeatureFlagsService,
+  ) {}
 
   assertValid(input: WebhookSecurityInput) {
+    if (this.features && !this.features.isEnabled('whatsapp')) {
+      throw new NotFoundException()
+    }
     if (this.configService.get<string>('WHATSAPP_PROVIDER')?.trim() !== 'evolution_api') {
       throw new NotFoundException()
     }

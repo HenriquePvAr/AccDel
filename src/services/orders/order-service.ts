@@ -58,9 +58,7 @@ export const orderService = {
 
   async getOrderTracking(request: GetOrderTrackingRequest): Promise<GetOrderTrackingResponse> {
     if (shouldUseApi) {
-      return apiClient.get<GetOrderTrackingResponse>(`/orders/${request.orderId}/tracking`, {
-        skipAuth: true,
-      })
+      return apiClient.get<GetOrderTrackingResponse>(`/orders/${request.orderId}/tracking`)
     }
 
     const order = getDemoDatabase().orders.find((entry) => entry.id === request.orderId)

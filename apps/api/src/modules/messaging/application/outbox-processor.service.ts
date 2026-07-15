@@ -4,6 +4,7 @@ import type { OutboundMessage } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
 
 import { PrismaService } from '@/shared/prisma/prisma.service'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 
 import { MessagingProviderError } from '../domain/messaging-provider'
 import { MessagingSandboxPolicy } from './messaging-sandbox-policy.service'
@@ -23,9 +24,11 @@ export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
     private readonly providers: MessagingProviderRouter,
     private readonly sandbox: MessagingSandboxPolicy,
     private readonly statuses: OutboundStatusService,
+    private readonly features?: FeatureFlagsService,
   ) {}
 
   onModuleInit() {
+    if (this.features && !this.features.isEnabled('whatsapp')) return
     if (!this.config.get<string>('WHATSAPP_PROVIDER')?.trim()) return
     const intervalMs = this.config.get<number>('WHATSAPP_OUTBOX_POLL_INTERVAL_MS') ?? 1_000
     this.interval = setInterval(() => void this.tick(), intervalMs)

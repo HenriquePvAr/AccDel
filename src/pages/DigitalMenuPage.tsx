@@ -25,7 +25,6 @@ import { useCatalogMenuSourceQuery, useCreatePublicOrderMutation } from '@/hooks
 import { usePageTitle } from '@/hooks/use-page-title'
 import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { apiBaseUrl } from '@/services/http/api-client'
 import type {
   CatalogMenuProduct,
   CatalogMenuSource,
@@ -93,6 +92,7 @@ export function DigitalMenuPage() {
   const [orderMode, setOrderMode] = useState<DigitalOrderMode>('delivery')
   const [paymentMethodId, setPaymentMethodId] = useState('')
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null)
+  const [publicTrackingUrl, setPublicTrackingUrl] = useState('')
   const [prefillWarning, setPrefillWarning] = useState<string | null>(null)
   const whatsappNumber = source?.store.publicWhatsapp?.replace(/\D/g, '') ?? ''
   const effectiveOrderMode = resolveEffectiveOrderMode(orderMode, source?.checkout.channels ?? null)
@@ -163,7 +163,6 @@ export function DigitalMenuPage() {
     deliveryRequiresKnownNeighborhood: Boolean(source?.checkout.delivery.requiresKnownNeighborhood),
     selectedNeighborhoodFound: Boolean(selectedNeighborhood),
   })
-  const trackingUrl = createdOrder ? `${apiBaseUrl}/orders/${createdOrder.id}/tracking` : ''
   const whatsappFollowUrl =
     whatsappNumber && createdOrder
       ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
@@ -244,10 +243,12 @@ export function DigitalMenuPage() {
     })
 
     setCreatedOrder(response.data)
+    setPublicTrackingUrl(response.tracking?.url ?? '')
   }
 
   function resetOrder() {
     setCreatedOrder(null)
+    setPublicTrackingUrl('')
     setCartItems([])
     setCustomer(emptyCustomer)
     setOrderMode('delivery')
@@ -278,7 +279,7 @@ export function DigitalMenuPage() {
     return (
       <DigitalOrderSuccess
         order={createdOrder}
-        trackingUrl={trackingUrl}
+        trackingUrl={publicTrackingUrl}
         whatsappFollowUrl={whatsappFollowUrl}
         onNewOrder={resetOrder}
       />
@@ -1021,9 +1022,11 @@ function DigitalOrderSuccess({
             Fazer novo pedido
           </Button>
         </div>
-        <p className="mt-4 text-xs leading-5 text-slate-500">
-          Tracking tecnico publico: {trackingUrl}
-        </p>
+        {trackingUrl ? (
+          <p className="mt-4 break-all text-xs leading-5 text-slate-500">
+            Rastreamento protegido por link temporario: {trackingUrl}
+          </p>
+        ) : null}
       </section>
     </main>
   )

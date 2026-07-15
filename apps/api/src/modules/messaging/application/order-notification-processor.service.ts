@@ -4,6 +4,7 @@ import type { OrderNotificationType } from '@prisma/client'
 
 import { PublicTrackingService } from '@/modules/tracking/public-tracking.service'
 import { PrismaService } from '@/shared/prisma/prisma.service'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 
 import { ConversationWindowService } from './conversation-window.service'
 import { MessagingAccountService } from './messaging-account.service'
@@ -22,9 +23,14 @@ export class OrderNotificationProcessorService implements OnModuleInit, OnModule
     private readonly accounts: MessagingAccountService,
     private readonly outbox: MessagingOutboxService,
     private readonly tracking: PublicTrackingService,
+    private readonly features?: FeatureFlagsService,
   ) {}
 
   onModuleInit() {
+    if (this.features && (
+      !this.features.isEnabled('whatsapp') ||
+      !this.features.isEnabled('orderNotifications')
+    )) return
     if (!this.config.get<string>('WHATSAPP_PROVIDER')?.trim()) return
     this.interval = setInterval(() => void this.tick(), 1_500)
     this.interval.unref()

@@ -10,6 +10,7 @@ import type { AdminPermission } from '@/types'
 
 const LoginPage = lazy(() => import('@/pages/LoginPage').then((module) => ({ default: module.LoginPage })))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((module) => ({ default: module.DashboardPage })))
+const OperationalReadinessPage = lazy(() => import('@/pages/OperationalReadinessPage').then((module) => ({ default: module.OperationalReadinessPage })))
 const OrdersPage = lazy(() => import('@/pages/OrdersPage').then((module) => ({ default: module.OrdersPage })))
 const OrderDetailsPage = lazy(() =>
   import('@/pages/OrderDetailsPage').then((module) => ({ default: module.OrderDetailsPage })),
@@ -115,6 +116,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DefaultAdminRedirect /> },
       { path: 'dashboard', element: protectedPage('dashboard:view', <DashboardPage />) },
+      { path: 'operations/readiness', element: protectedPage('dashboard:view', <OperationalReadinessPage />) },
       { path: 'ai-attendant', element: protectedPage('ai_attendant:view', <AiAttendantPage />) },
       { path: 'orders', element: protectedPage('orders:view', <OrdersPage />) },
       { path: 'orders/new', element: protectedPage('orders:create', <NewOrderPage />) },

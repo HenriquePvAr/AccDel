@@ -13,12 +13,11 @@ export class WhatsappProviderFactory {
     const baseUrl = this.configService.get<string>('WHATSAPP_PROVIDER_BASE_URL')
     const apiKey = this.configService.get<string>('WHATSAPP_PROVIDER_API_KEY')
     const webhookUrl = this.configService.get<string>('WHATSAPP_PROVIDER_WEBHOOK_URL')
-    const webhookSecret = this.configService.get<string>('WHATSAPP_WEBHOOK_SECRET')
     const integration = this.configService.get<string>('WHATSAPP_PROVIDER_INTEGRATION')
 
     if (provider === 'evolution_api') {
       return new EvolutionApiWhatsappProvider(baseUrl, apiKey, {
-        webhookUrl: buildSecuredWebhookUrl(webhookUrl, webhookSecret),
+        webhookUrl: buildWebhookUrl(webhookUrl),
         integration:
           integration === 'WHATSAPP-BUSINESS' || integration === 'WHATSAPP-BAILEYS'
             ? integration
@@ -31,12 +30,16 @@ export class WhatsappProviderFactory {
   }
 }
 
-function buildSecuredWebhookUrl(webhookUrl?: string, secret?: string) {
-  if (!webhookUrl?.trim() || !secret?.trim()) {
+export function buildWebhookUrl(webhookUrl?: string) {
+  if (!webhookUrl?.trim()) {
     return undefined
   }
 
   const url = new URL(webhookUrl)
-  url.searchParams.set('webhook_secret', secret.trim())
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error(
+      'WHATSAPP_PROVIDER_WEBHOOK_URL nao pode conter credenciais, query string ou fragmento.',
+    )
+  }
   return url.toString()
 }

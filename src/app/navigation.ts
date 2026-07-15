@@ -8,6 +8,7 @@ import {
   CreditCard,
   Eye,
   LayoutDashboard,
+  Activity,
   MapPinned,
   Receipt,
   Printer,
@@ -74,6 +75,7 @@ export const navigationGroups: NavigationGroup[] = [
     label: 'Gestao',
     items: [
       { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard, permission: 'dashboard:view' },
+      { label: 'Prontidao', to: '/operations/readiness', icon: Activity, permission: 'dashboard:view' },
       { label: 'Historico', to: '/history/orders', icon: ChartColumn, permission: 'history:view' },
       { label: 'Relatorios', to: '/reports', icon: ChartNoAxesCombined, permission: 'reports:view' },
     ],

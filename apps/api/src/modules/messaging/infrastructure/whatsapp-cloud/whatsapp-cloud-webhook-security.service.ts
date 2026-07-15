@@ -7,13 +7,17 @@ import {
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
 import { WhatsappCloudConfig } from './whatsapp-cloud.config'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 
 @Injectable()
 export class WhatsappCloudWebhookSecurityService {
-  constructor(private readonly config: WhatsappCloudConfig) {}
+  constructor(
+    private readonly config: WhatsappCloudConfig,
+    private readonly features?: FeatureFlagsService,
+  ) {}
 
   verifyChallenge(mode?: string, token?: string, challenge?: string) {
-    if (!this.config.isEnabled()) {
+    if (!this.config.isEnabled() || (this.features && !this.features.isEnabled('whatsapp'))) {
       throw new NotFoundException()
     }
 
@@ -34,7 +38,7 @@ export class WhatsappCloudWebhookSecurityService {
     signature?: string | string[]
     rawBody?: Buffer
   }) {
-    if (!this.config.isEnabled()) {
+    if (!this.config.isEnabled() || (this.features && !this.features.isEnabled('whatsapp'))) {
       throw new NotFoundException()
     }
 

@@ -25,6 +25,8 @@ import type {
 } from '@/contracts/orders.contract'
 import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 import { PrintingPolicyService } from '@/modules/printing/printing-policy.service'
+import { PublicTrackingService } from '@/modules/tracking/public-tracking.service'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 import {
   type ResolvedProductOption,
   type SelectedProductOptionInput,
@@ -110,6 +112,8 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly realtime: AdminRealtimeService,
     private readonly printingPolicy: PrintingPolicyService,
+    private readonly publicTracking: PublicTrackingService,
+    private readonly features?: FeatureFlagsService,
   ) {}
 
   async listOrders(query: ListOrdersQuery) {
@@ -637,7 +641,7 @@ export class OrdersService {
         : null
     const total = Math.max(0, subtotal - discount) + deliveryFee
 
-    const order = await this.prisma.$transaction(async (transaction) => {
+    const result = await this.prisma.$transaction(async (transaction) => {
       const createdOrder = await transaction.order.create({
         data: {
           id: orderId,
@@ -725,8 +729,18 @@ export class OrdersService {
         })),
       })
 
-      return createdOrder
+      const tracking =
+        !this.features || this.features.isEnabled('publicTracking')
+          ? await this.publicTracking.issueInTransaction(
+              transaction,
+              getCurrentStoreId(),
+              createdOrder.id,
+            )
+          : null
+
+      return { order: createdOrder, tracking }
     })
+    const { order, tracking } = result
 
     this.realtime.emit('order.created', {
       orderId: order.id,
@@ -739,6 +753,7 @@ export class OrdersService {
 
     return {
       data: mapOrder(order),
+      tracking,
     }
   }
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { verifyWebhookSecurity } from './webhook-security.service'
+import { buildWebhookUrl } from './whatsapp-provider.factory'
 
 const now = Date.parse('2026-07-14T20:00:00.000Z')
 const secret = 'a-secure-webhook-secret-with-32-characters'
@@ -12,6 +13,15 @@ const validPayload = {
     key: { id: 'message-1' },
   },
 }
+
+test('Evolution nunca transporta segredo, query ou credencial na URL do webhook', () => {
+  assert.equal(
+    buildWebhookUrl('https://gateway.cain.test/evolution/webhook'),
+    'https://gateway.cain.test/evolution/webhook',
+  )
+  assert.throws(() => buildWebhookUrl('https://gateway.cain.test/webhook?token=secret'))
+  assert.throws(() => buildWebhookUrl('https://user:secret@gateway.cain.test/webhook'))
+})
 
 test('aceita evento valido autenticado uma unica vez na borda', () => {
   const result = verifyWebhookSecurity(
