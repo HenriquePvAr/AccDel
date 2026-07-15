@@ -6,6 +6,7 @@ import { PublicTrackingService } from '@/modules/tracking/public-tracking.servic
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
 import { ConversationWindowService } from './conversation-window.service'
+import { MessagingAccountService } from './messaging-account.service'
 import { MessagingOutboxService } from './messaging-outbox.service'
 
 @Injectable()
@@ -18,6 +19,7 @@ export class OrderNotificationProcessorService implements OnModuleInit, OnModule
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly window: ConversationWindowService,
+    private readonly accounts: MessagingAccountService,
     private readonly outbox: MessagingOutboxService,
     private readonly tracking: PublicTrackingService,
   ) {}
@@ -95,10 +97,7 @@ export class OrderNotificationProcessorService implements OnModuleInit, OnModule
 
       const account =
         notification.account ??
-        (await this.prisma.messagingAccount.findFirst({
-          where: { storeId: notification.storeId, enabled: true },
-          orderBy: { createdAt: 'desc' },
-        }))
+        (await this.accounts.getEnabledForStore(notification.storeId))
       if (!account || !notification.order.customerPhone) {
         throw new Error('notification_recipient_unavailable')
       }

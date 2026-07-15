@@ -1520,7 +1520,9 @@ model OutboundMessage {
   @@unique([storeId, idempotencyKey])
   @@unique([accountId, externalMessageId])
   @@index([status, availableAt])
+  @@index([status, lockedAt])
   @@index([conversationId, createdAt])
+  @@index([conversationId, status, createdAt])
   @@index([orderId, createdAt])
   @@index([retentionUntil])
   @@map("outbound_messages")
@@ -1550,6 +1552,7 @@ model InboundEvent {
 
   @@unique([accountId, externalEventId])
   @@index([status, receivedAt])
+  @@index([status, processedAt])
   @@index([conversationId, receivedAt])
   @@index([retentionUntil])
   @@map("inbound_events")
@@ -1623,6 +1626,7 @@ model OrderNotification {
   @@unique([orderId, type])
   @@unique([storeId, idempotencyKey])
   @@index([status, createdAt])
+  @@index([status, processedAt])
   @@map("order_notifications")
 }
 

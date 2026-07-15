@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Prisma, type MessagingContentType } from '@prisma/client'
 
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
 import { ConversationWindowService } from './conversation-window.service'
+import { normalizeWhatsappRecipient } from './messaging-sandbox-policy.service'
 
 export interface EnqueueMessageInput {
   storeId: string
@@ -68,11 +69,37 @@ export class MessagingOutboxService {
 
   async enqueue(input: EnqueueMessageInput) {
     const retentionUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000)
-    const recipient = input.recipient.replace(/\D/g, '')
+    const recipient = normalizeWhatsappRecipient(input.recipient)
+    if (!recipient) throw new BadRequestException('Destinatario WhatsApp invalido.')
     const maxAttempts = this.config.get<number>('WHATSAPP_OUTBOX_MAX_ATTEMPTS') ?? 5
 
     try {
       return await this.prisma.$transaction(async (transaction) => {
+        const account = await transaction.messagingAccount.findFirst({
+          where: { id: input.accountId, storeId: input.storeId, enabled: true },
+        })
+        if (!account) throw new NotFoundException('Conta de mensageria nao encontrada para a loja.')
+
+        if (input.conversationId) {
+          const conversation = await transaction.aiConversation.findFirst({
+            where: { id: input.conversationId, storeId: input.storeId },
+            select: { messagingAccountId: true, whatsappSessionId: true },
+          })
+          const accountMatches = account.provider === 'whatsapp_cloud'
+            ? conversation?.messagingAccountId === account.id
+            : conversation?.whatsappSessionId === account.legacySessionId
+          if (!conversation || !accountMatches) {
+            throw new NotFoundException('Conversa nao pertence a conta de mensageria informada.')
+          }
+        }
+        if (input.orderId) {
+          const order = await transaction.order.findFirst({
+            where: { id: input.orderId, storeId: input.storeId },
+            select: { id: true },
+          })
+          if (!order) throw new NotFoundException('Pedido nao pertence a loja informada.')
+        }
+
         const outbound = await transaction.outboundMessage.create({
           data: {
             storeId: input.storeId,
@@ -115,9 +142,46 @@ export class MessagingOutboxService {
             },
           },
         })
+        if (existing && !sameOutboundRequest(existing, { ...input, recipient })) {
+          throw new ConflictException('A chave de idempotencia foi reutilizada com outra mensagem.')
+        }
         if (existing) return existing
       }
       throw error
     }
   }
+}
+
+function sameOutboundRequest(
+  existing: {
+    accountId: string
+    conversationId: string | null
+    orderId: string | null
+    notificationId: string | null
+    recipient: string
+    contentType: MessagingContentType
+    payload: Prisma.JsonValue
+    replyToExternalId: string | null
+  },
+  input: EnqueueMessageInput & { recipient: string },
+) {
+  return existing.accountId === input.accountId &&
+    existing.conversationId === (input.conversationId ?? null) &&
+    existing.orderId === (input.orderId ?? null) &&
+    existing.notificationId === (input.notificationId ?? null) &&
+    existing.recipient === input.recipient &&
+    existing.contentType === input.contentType &&
+    existing.replyToExternalId === (input.replyToExternalId ?? null) &&
+    stableJson(existing.payload) === stableJson(input.payload)
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (typeof value === 'object' && value !== null) {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'undefined'
 }

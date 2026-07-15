@@ -6,6 +6,8 @@ export function validateEnvironment(input: Environment): Environment {
   const environment = { ...input }
   const whatsappProvider = readOptional(input, 'WHATSAPP_PROVIDER')
   const aiProvider = readOptional(input, 'AI_PROVIDER')
+  const sandboxConfigured = readOptional(input, 'MESSAGING_SANDBOX_MODE') !== null
+  const sandboxMode = readBoolean(input, 'MESSAGING_SANDBOX_MODE', false)
 
   if (whatsappProvider && !['cloud', 'whatsapp_cloud', 'evolution_api'].includes(whatsappProvider)) {
     throw new Error(
@@ -45,6 +47,20 @@ export function validateEnvironment(input: Environment): Environment {
     requireSafeValue(input, 'WHATSAPP_WEBHOOK_SECRET', 24)
   }
 
+  if (whatsappProvider && readOptional(input, 'NODE_ENV') === 'production' && !sandboxConfigured) {
+    throw new Error(
+      'MESSAGING_SANDBOX_MODE deve ser definido explicitamente em producao quando um provider de mensageria esta ativo.',
+    )
+  }
+
+  if (sandboxMode && whatsappProvider === 'evolution_api') {
+    throw new Error('Evolution API deve permanecer desativada quando MESSAGING_SANDBOX_MODE=true.')
+  }
+
+  const allowedRecipients = parseAllowedRecipients(input)
+  environment.MESSAGING_SANDBOX_MODE = sandboxMode
+  environment.MESSAGING_ALLOWED_RECIPIENTS = allowedRecipients.join(',')
+
   if (aiProvider === 'nvidia') {
     requireSafeValue(input, 'NVIDIA_API_KEY', 20)
     requireUrl(input, 'NVIDIA_BASE_URL')
@@ -73,14 +89,22 @@ export function validateEnvironment(input: Environment): Environment {
     60_000,
   )
   environment.NVIDIA_TIMEOUT_MS = readInteger(input, 'NVIDIA_TIMEOUT_MS', 20_000, 1_000, 120_000)
-  environment.NVIDIA_REQUESTS_PER_MINUTE = readInteger(
+  environment.NVIDIA_MAX_REQUESTS_PER_MINUTE = readAliasedInteger(
     input,
+    'NVIDIA_MAX_REQUESTS_PER_MINUTE',
     'NVIDIA_REQUESTS_PER_MINUTE',
     30,
     1,
-    600,
+    35,
   )
-  environment.NVIDIA_MAX_CONCURRENT = readInteger(input, 'NVIDIA_MAX_CONCURRENT', 2, 1, 20)
+  environment.NVIDIA_MAX_CONCURRENT_REQUESTS = readAliasedInteger(
+    input,
+    'NVIDIA_MAX_CONCURRENT_REQUESTS',
+    'NVIDIA_MAX_CONCURRENT',
+    2,
+    1,
+    10,
+  )
   environment.NVIDIA_MAX_OUTPUT_TOKENS = readInteger(
     input,
     'NVIDIA_MAX_OUTPUT_TOKENS',
@@ -95,6 +119,14 @@ export function validateEnvironment(input: Environment): Environment {
     15,
     10_080,
   )
+  environment.WHATSAPP_WEBHOOK_MAX_PAYLOAD_BYTES = readInteger(
+    input,
+    'WHATSAPP_WEBHOOK_MAX_PAYLOAD_BYTES',
+    262_144,
+    1_024,
+    1_048_576,
+  )
+  if (readOptional(input, 'PUBLIC_API_URL')) requireUrl(input, 'PUBLIC_API_URL')
 
   return environment
 }
@@ -142,4 +174,46 @@ function readInteger(
     throw new Error(`${key} deve ser um inteiro entre ${minimum} e ${maximum}.`)
   }
   return parsed
+}
+
+function readAliasedInteger(
+  input: Environment,
+  primaryKey: string,
+  legacyKey: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+) {
+  const primary = readOptional(input, primaryKey)
+  const legacy = readOptional(input, legacyKey)
+  if (primary !== null && legacy !== null && primary !== legacy) {
+    throw new Error(`${primaryKey} e ${legacyKey} nao podem divergir.`)
+  }
+  return readInteger(
+    { ...input, [primaryKey]: primary ?? legacy },
+    primaryKey,
+    fallback,
+    minimum,
+    maximum,
+  )
+}
+
+function readBoolean(input: Environment, key: string, fallback: boolean) {
+  const raw = readOptional(input, key)
+  if (raw === null) return fallback
+  if (raw === 'true') return true
+  if (raw === 'false') return false
+  throw new Error(`${key} deve ser true ou false.`)
+}
+
+function parseAllowedRecipients(input: Environment) {
+  const raw = readOptional(input, 'MESSAGING_ALLOWED_RECIPIENTS')
+  if (!raw) return []
+  return raw.split(/[;,\r\n]+/).filter(Boolean).map((value) => {
+    const normalized = value.replace(/\D/g, '')
+    if (!/^\d{8,15}$/.test(normalized)) {
+      throw new Error('MESSAGING_ALLOWED_RECIPIENTS contem um numero invalido.')
+    }
+    return normalized
+  })
 }

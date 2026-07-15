@@ -13,7 +13,7 @@ export class UnconfiguredWhatsappProvider implements WhatsappProviderAdapter {
 
   async startSession(): Promise<WhatsappSessionResult> {
     throw new HttpException(
-      'Provider de WhatsApp não configurado nas variáveis de ambiente (.env). Configure WHATSAPP_PROVIDER, WHATSAPP_PROVIDER_BASE_URL e WHATSAPP_PROVIDER_API_KEY.',
+      'Provider de WhatsApp não configurado. Use WHATSAPP_PROVIDER=cloud com as variáveis WHATSAPP_* da Meta, ou evolution_api com WHATSAPP_PROVIDER_BASE_URL e WHATSAPP_PROVIDER_API_KEY.',
       HttpStatus.NOT_IMPLEMENTED,
     )
   }

@@ -127,8 +127,8 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
               Provider de WhatsApp nao configurado
             </AlertTitle>
             <AlertDescription>
-              Configure WHATSAPP_PROVIDER, WHATSAPP_PROVIDER_BASE_URL e WHATSAPP_PROVIDER_API_KEY no backend.
-              A tela nao gera QR Code sem resposta real do provider.
+              Use WHATSAPP_PROVIDER=cloud com as variaveis WHATSAPP_* da Meta para a integracao
+              oficial sem QR Code, ou evolution_api com BASE_URL e API_KEY para o fluxo legado.
             </AlertDescription>
           </Alert>
         ) : null}

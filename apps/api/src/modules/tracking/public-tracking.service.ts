@@ -12,17 +12,30 @@ export class PublicTrackingService {
   ) {}
 
   async issue(storeId: string, orderId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, storeId },
+      select: { id: true },
+    })
+    if (!order) throw new NotFoundException()
+
     const rawToken = randomBytes(32).toString('base64url')
     const tokenHash = hashToken(rawToken)
     const ttlMinutes = this.config.get<number>('PUBLIC_TRACKING_TTL_MINUTES') ?? 1_440
-    await this.prisma.publicTrackingToken.create({
-      data: {
-        storeId,
-        orderId,
-        tokenHash,
-        expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
-      },
-    })
+    const issuedAt = new Date()
+    await this.prisma.$transaction([
+      this.prisma.publicTrackingToken.updateMany({
+        where: { orderId, storeId, revokedAt: null },
+        data: { revokedAt: issuedAt },
+      }),
+      this.prisma.publicTrackingToken.create({
+        data: {
+          storeId,
+          orderId,
+          tokenHash,
+          expiresAt: new Date(issuedAt.getTime() + ttlMinutes * 60_000),
+        },
+      }),
+    ])
     return {
       path: `/tracking/${rawToken}`,
       url: `${this.publicBaseUrl()}${`/tracking/${rawToken}`}`,
@@ -75,12 +88,23 @@ export class PublicTrackingService {
   }
 
   private publicBaseUrl() {
-    const configured =
-      this.config.get<string>('PUBLIC_WEB_URL')?.trim() ??
-      this.config.get<string>('WEB_ORIGIN')?.split(',')[0]?.trim() ??
-      'http://localhost:5173'
-    return configured.replace(/\/+$/, '')
+    return publicTrackingBaseUrl(this.config)
   }
+}
+
+export function publicTrackingBaseUrl(config: Pick<ConfigService, 'get'>) {
+  const configured = config.get<string>('PUBLIC_API_URL')?.trim()
+  if (configured) return configured.replace(/\/+$/, '')
+
+  const webhookUrl = config.get<string>('WHATSAPP_WEBHOOK_PUBLIC_URL')?.trim()
+  if (webhookUrl) {
+    try {
+      return new URL(webhookUrl).origin
+    } catch {
+      // Startup validation reports malformed configured URLs.
+    }
+  }
+  return 'http://localhost:3333'
 }
 
 export function hashToken(rawToken: string) {

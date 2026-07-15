@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import type { MessagingAccount } from '@prisma/client'
 
 import { PrismaService } from '@/shared/prisma/prisma.service'
@@ -10,6 +11,7 @@ export class MessagingAccountService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudConfig: WhatsappCloudConfig,
+    private readonly config: ConfigService,
   ) {}
 
   async resolveCloudAccount(input: {
@@ -82,8 +84,15 @@ export class MessagingAccountService {
   }
 
   async getEnabledForStore(storeId: string) {
+    const selected = this.config.get<string>('WHATSAPP_PROVIDER')?.trim()
+    const provider = selected === 'cloud' || selected === 'whatsapp_cloud'
+      ? 'whatsapp_cloud'
+      : selected === 'evolution_api'
+        ? 'evolution_legacy'
+        : null
+    if (!provider) return null
     return this.prisma.messagingAccount.findFirst({
-      where: { storeId, enabled: true },
+      where: { storeId, enabled: true, provider },
       orderBy: { createdAt: 'desc' },
     })
   }

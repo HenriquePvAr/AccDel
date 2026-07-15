@@ -42,8 +42,12 @@ export class WhatsappCloudWebhookSecurityService {
       throw new UnsupportedMediaTypeException('O webhook aceita somente application/json.')
     }
 
-    if (!input.rawBody) {
+    if (!input.rawBody?.length) {
       throw new UnauthorizedException('Corpo bruto indisponivel para validar a assinatura.')
+    }
+
+    if (input.rawBody.length > this.config.maxPayloadBytes) {
+      throw new UnauthorizedException('Payload do webhook excede o limite permitido.')
     }
 
     const header = Array.isArray(input.signature) ? input.signature[0] : input.signature

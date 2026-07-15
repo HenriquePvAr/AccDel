@@ -1886,28 +1886,12 @@ export class AiAttendantService {
 
   async assignConversation(storeId: string, id: string, userId: string) {
     await this.assertActiveMembership(storeId, userId)
-    const conversation = await this.prisma.aiConversation.findFirst({
-      where: { id, storeId },
-    })
-
-    if (!conversation) {
-      throw new HttpException('Conversation not found.', HttpStatus.NOT_FOUND)
-    }
-
-    const updated = await this.prisma.aiConversation.update({
-      where: { id },
-      data: {
-        status: 'human_assigned',
-        operationalStatus: 'HUMAN_ACTIVE',
-        assignedUserId: userId,
-        assignedAt: new Date(),
-        unreadCount: 0,
-        isAiPaused: true,
-        lastStatus: 'Humano assumiu a conversa; IA pausada.',
-        lastError: null,
-      },
-      include: this.getConversationInclude(),
-    })
+    const updated = await this.activateHumanConversation(
+      storeId,
+      id,
+      userId,
+      'Humano assumiu a conversa; IA pausada.',
+    )
 
     await this.writeIntegrationLog({
       storeId,
@@ -1962,6 +1946,10 @@ export class AiAttendantService {
     idempotencyKey?: string,
   ) {
     await this.assertActiveMembership(storeId, userId)
+    const requestKey = idempotencyKey?.trim()
+    if (requestKey && !/^[A-Za-z0-9._:-]{8,120}$/.test(requestKey)) {
+      throw new HttpException('Idempotency-Key invalida.', HttpStatus.BAD_REQUEST)
+    }
     const conversation = await this.prisma.aiConversation.findFirst({
       where: { id, storeId },
       include: { messagingAccount: true },
@@ -1971,20 +1959,12 @@ export class AiAttendantService {
       throw new HttpException('Conversation not found.', HttpStatus.NOT_FOUND)
     }
 
-    // Force human assign if they send manual message
-    await this.prisma.aiConversation.update({
-      where: { id },
-      data: {
-        status: 'human_assigned',
-        operationalStatus: 'HUMAN_ACTIVE',
-        assignedUserId: userId,
-        assignedAt: new Date(),
-        unreadCount: 0,
-        isAiPaused: true,
-        lastStatus: 'Humano enviou mensagem; IA pausada nesta conversa.',
-        lastError: null,
-      },
-    })
+    await this.activateHumanConversation(
+      storeId,
+      id,
+      userId,
+      'Humano enviou mensagem; IA pausada nesta conversa.',
+    )
 
     const provider = this.configService.get<string>('WHATSAPP_PROVIDER')?.trim()
     if (provider === 'cloud' || provider === 'whatsapp_cloud') {
@@ -1997,7 +1977,7 @@ export class AiAttendantService {
         conversationId: id,
         recipient: conversation.whatsappNumber,
         body,
-        idempotencyKey: `human:${id}:${idempotencyKey?.trim() || randomUUID()}`,
+        idempotencyKey: `human:${id}:${requestKey || randomUUID()}`,
         senderType: 'human',
       })
     } else {
@@ -2054,6 +2034,82 @@ export class AiAttendantService {
     })
 
     return AiAttendantMapper.toConversationDto(updated)
+  }
+
+  private async activateHumanConversation(
+    storeId: string,
+    id: string,
+    userId: string,
+    lastStatus: string,
+  ) {
+    return this.prisma.$transaction(async (transaction) => {
+      const changed = await transaction.aiConversation.updateMany({
+        where: {
+          id,
+          storeId,
+          OR: [
+            { operationalStatus: 'HUMAN_ACTIVE', assignedUserId: userId },
+            {
+              operationalStatus: { in: ['AI_ACTIVE', 'WAITING_HUMAN', 'PAUSED'] },
+              assignedUserId: null,
+            },
+          ],
+        },
+        data: {
+          status: 'human_assigned',
+          operationalStatus: 'HUMAN_ACTIVE',
+          assignedUserId: userId,
+          assignedAt: new Date(),
+          unreadCount: 0,
+          isAiPaused: true,
+          lastStatus,
+          lastError: null,
+        },
+      })
+
+      if (changed.count !== 1) {
+        const current = await transaction.aiConversation.findFirst({
+          where: { id, storeId },
+          select: { id: true },
+        })
+        if (!current) throw new HttpException('Conversation not found.', HttpStatus.NOT_FOUND)
+        throw new HttpException('A conversa ja foi assumida por outro atendente.', HttpStatus.CONFLICT)
+      }
+
+      const queuedAiMessages = await transaction.aiMessage.findMany({
+        where: { conversationId: id, senderType: 'ai', status: 'queued' },
+        select: { id: true, metadata: true },
+      })
+      const cancelledAt = new Date()
+      for (const message of queuedAiMessages) {
+        const outboundMessageId = readOutboundMessageId(message.metadata)
+        if (!outboundMessageId) continue
+        const cancelled = await transaction.outboundMessage.updateMany({
+          where: { id: outboundMessageId, status: 'PENDING' },
+          data: {
+            status: 'FAILED',
+            failedAt: cancelledAt,
+            lastErrorCode: 'conversation_handoff',
+            lastErrorMessage: 'Resposta da IA cancelada por handoff humano.',
+          },
+        })
+        if (cancelled.count === 1) {
+          await transaction.aiMessage.update({
+            where: { id: message.id },
+            data: {
+              status: 'failed',
+              failedAt: cancelledAt,
+              errorMessage: 'Resposta da IA cancelada por handoff humano.',
+            },
+          })
+        }
+      }
+
+      return transaction.aiConversation.findUniqueOrThrow({
+        where: { id },
+        include: this.getConversationInclude(),
+      })
+    })
   }
 
   private async assertActiveMembership(storeId: string, userId: string) {
@@ -2510,6 +2566,13 @@ export class AiAttendantService {
 
     return normalized
   }
+}
+
+function readOutboundMessageId(value: Prisma.JsonValue) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) &&
+    typeof value.outboundMessageId === 'string'
+    ? value.outboundMessageId
+    : null
 }
 
 function parseOrderDraftItems(value: Prisma.JsonValue): AiOrderDraftParsedItem[] {

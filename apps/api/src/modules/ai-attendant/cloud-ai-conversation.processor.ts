@@ -62,6 +62,15 @@ export class CloudAiConversationProcessor implements OnModuleInit, OnModuleDestr
       return
     }
 
+    const existingExecution = await this.conversations.getExecutionForInbound(event.id)
+    if (existingExecution) {
+      await runWithStoreContext(
+        { storeId: event.storeId, source: 'webhook' },
+        async () => this.recoverInterruptedExecution(event, conversation, existingExecution),
+      )
+      return
+    }
+
     await runWithStoreContext(
       { storeId: event.storeId, source: 'webhook' },
       async () => this.processInStoreContext(event, conversation),
@@ -73,7 +82,7 @@ export class CloudAiConversationProcessor implements OnModuleInit, OnModuleDestr
     conversation: NonNullable<Awaited<ReturnType<AiConversationRepository['getInboundEvent']>>>['conversation'] & {},
   ) {
     if (!conversation || !conversation.messagingAccount) return
-    if (['WAITING_HUMAN', 'HUMAN_ACTIVE', 'PAUSED', 'CLOSED'].includes(conversation.operationalStatus)) {
+    if (shouldSuppressAiReply(conversation.operationalStatus)) {
       await this.conversations.markInboundProcessed(event.id)
       return
     }
@@ -167,7 +176,7 @@ export class CloudAiConversationProcessor implements OnModuleInit, OnModuleDestr
         throw new Error('invalid_ai_reply')
       }
       const latestOperationalStatus = await this.conversations.getOperationalStatus(conversation.id)
-      if (['HUMAN_ACTIVE', 'PAUSED', 'CLOSED'].includes(latestOperationalStatus)) {
+      if (shouldSuppressAiReply(latestOperationalStatus)) {
         await this.conversations.markInboundProcessed(event.id)
         await this.conversations.completeExecution(execution.id, {
           status: 'SUCCEEDED',
@@ -206,6 +215,43 @@ export class CloudAiConversationProcessor implements OnModuleInit, OnModuleDestr
     }
   }
 
+  private async recoverInterruptedExecution(
+    event: NonNullable<Awaited<ReturnType<AiConversationRepository['getInboundEvent']>>>,
+    conversation: NonNullable<NonNullable<Awaited<ReturnType<AiConversationRepository['getInboundEvent']>>>['conversation']>,
+    execution: NonNullable<Awaited<ReturnType<AiConversationRepository['getExecutionForInbound']>>>,
+  ) {
+    if (execution.status !== 'RUNNING') {
+      await this.conversations.markInboundProcessed(event.id)
+      return
+    }
+
+    await this.conversations.requestHandoff(conversation.id, 'interrupted_ai_execution')
+    if (conversation.messagingAccount) {
+      try {
+        await this.outbox.enqueueText({
+          storeId: event.storeId,
+          accountId: conversation.messagingAccount.id,
+          conversationId: conversation.id,
+          recipient: conversation.whatsappNumber,
+          body: 'O atendimento automatico foi interrompido e uma pessoa da equipe vai continuar por aqui.',
+          idempotencyKey: `ai-recovery:${event.externalEventId}`,
+          replyToExternalId: event.externalEventId,
+          senderType: 'system',
+        })
+      } catch {
+        // The handoff remains the safe terminal action even if the notice cannot be queued.
+      }
+    }
+    await this.conversations.completeExecution(execution.id, {
+      status: 'FALLBACK',
+      latencyMs: 0,
+      toolCallCount: 0,
+      errorCode: 'interrupted_execution_recovered',
+    })
+    await this.conversations.markInboundProcessed(event.id)
+    this.logger.warn(`Execucao ${execution.id} interrompida foi encerrada com handoff.`)
+  }
+
   private async handleFallback(
     event: NonNullable<Awaited<ReturnType<AiConversationRepository['getInboundEvent']>>>,
     conversation: NonNullable<NonNullable<Awaited<ReturnType<AiConversationRepository['getInboundEvent']>>>['conversation']>,
@@ -234,6 +280,10 @@ export function isExplicitOrderConfirmation(value: string) {
     .replace(/\s+/g, ' ')
     .trim()
   return /^(confirmar|confirmo|pode fechar|pode fazer o pedido|sim,? (esta correto|pode fazer|pode fechar))[.! ]*$/.test(normalized)
+}
+
+export function shouldSuppressAiReply(status: string) {
+  return ['WAITING_HUMAN', 'HUMAN_ACTIVE', 'PAUSED', 'CLOSED'].includes(status)
 }
 
 function limitToolResult(value: unknown) {

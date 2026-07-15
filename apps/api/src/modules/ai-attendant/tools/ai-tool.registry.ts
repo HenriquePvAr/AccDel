@@ -75,6 +75,23 @@ export class AiToolRegistry {
         await this.conversations.completeToolCall(audit.id, 'REJECTED', 'tool_not_allowed', Date.now() - startedAt)
         return { ok: false, code: 'tool_not_allowed' }
       }
+      if (
+        mutatingTools.has(input.name) &&
+        await this.conversations.hasSuccessfulToolCall(
+          input.executionId,
+          input.name,
+          audit.argumentsHash,
+          audit.id,
+        )
+      ) {
+        await this.conversations.completeToolCall(
+          audit.id,
+          'REJECTED',
+          'duplicate_tool_call_ignored',
+          Date.now() - startedAt,
+        )
+        return { ok: false, code: 'duplicate_tool_call_ignored' }
+      }
       if (Buffer.byteLength(input.rawArguments, 'utf8') > 10_240) {
         await this.conversations.completeToolCall(audit.id, 'REJECTED', 'arguments_too_large', Date.now() - startedAt)
         return { ok: false, code: 'arguments_too_large' }
@@ -134,6 +151,15 @@ export class AiToolRegistry {
 function isToolName(name: string): name is AiToolName {
   return Object.prototype.hasOwnProperty.call(schemas, name)
 }
+
+const mutatingTools = new Set<string>([
+  'create_draft_order',
+  'add_item_to_draft',
+  'remove_item_from_draft',
+  'set_delivery_information',
+  'confirm_draft_order',
+  'request_human_handoff',
+])
 
 const toolDefinitions: NvidiaToolDefinition[] = [
   definition('get_store_status', 'Consulta horarios, canais e estimativas atuais da loja.', {}),

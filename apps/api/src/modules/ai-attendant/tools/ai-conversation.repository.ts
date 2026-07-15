@@ -22,17 +22,32 @@ export class AiConversationRepository {
   }
 
   findPendingInboundEvent() {
+    const staleProcessing = new Date(Date.now() - 30 * 60_000)
     return this.prisma.inboundEvent.findFirst({
-      where: { status: 'RECEIVED', eventType: 'message', conversationId: { not: null } },
+      where: {
+        eventType: 'message',
+        conversationId: { not: null },
+        OR: [
+          { status: 'RECEIVED' },
+          { status: 'PROCESSING', processedAt: { lt: staleProcessing } },
+        ],
+      },
       orderBy: { receivedAt: 'asc' },
       select: { id: true },
     })
   }
 
   async claimInboundEvent(eventId: string) {
+    const staleProcessing = new Date(Date.now() - 30 * 60_000)
     const claimed = await this.prisma.inboundEvent.updateMany({
-      where: { id: eventId, status: 'RECEIVED' },
-      data: { status: 'PROCESSING' },
+      where: {
+        id: eventId,
+        OR: [
+          { status: 'RECEIVED' },
+          { status: 'PROCESSING', processedAt: { lt: staleProcessing } },
+        ],
+      },
+      data: { status: 'PROCESSING', processedAt: new Date() },
     })
     return claimed.count === 1
   }
@@ -60,7 +75,7 @@ export class AiConversationRepository {
     })
     return messages.reverse().map((message) => ({
       role: message.direction === 'inbound' ? 'user' as const : 'assistant' as const,
-      content: message.body,
+      content: message.body.slice(0, 1_200),
     }))
   }
 
@@ -97,7 +112,7 @@ export class AiConversationRepository {
       assistantName: settings?.assistantName ?? 'Atendente Cain',
       tone: settings?.tone ?? 'friendly',
       useEmojis: settings?.useEmojis ?? true,
-      mainPrompt: settings?.mainPrompt ?? '',
+      mainPrompt: settings?.mainPrompt.slice(0, 4_000) ?? '',
       knowledge: knowledge.map((entry) => ({
         type: entry.type,
         title: entry.title.slice(0, 120),
@@ -241,14 +256,40 @@ export class AiConversationRepository {
     })
   }
 
+  getExecutionForInbound(inboundEventId: string) {
+    return this.prisma.aiExecution.findUnique({
+      where: { inboundEventId },
+      select: { id: true, status: true },
+    })
+  }
+
   createToolCall(executionId: string, name: string, rawArguments: string) {
     return this.prisma.aiToolCall.create({
       data: {
         executionId,
         name,
-        argumentsHash: createHash('sha256').update(rawArguments).digest('hex'),
+        argumentsHash: createHash('sha256').update(canonicalArguments(rawArguments)).digest('hex'),
       },
     })
+  }
+
+  async hasSuccessfulToolCall(
+    executionId: string,
+    name: string,
+    argumentsHash: string,
+    excludeId: string,
+  ) {
+    const existing = await this.prisma.aiToolCall.findFirst({
+      where: {
+        executionId,
+        name,
+        argumentsHash,
+        status: 'SUCCEEDED',
+        id: { not: excludeId },
+      },
+      select: { id: true },
+    })
+    return Boolean(existing)
   }
 
   completeToolCall(id: string, status: 'SUCCEEDED' | 'REJECTED' | 'FAILED', resultCode: string, latencyMs: number) {
@@ -262,8 +303,8 @@ export class AiConversationRepository {
     id: string,
     input: { status: 'SUCCEEDED' | 'FAILED' | 'FALLBACK'; latencyMs: number; toolCallCount: number; errorCode?: string },
   ) {
-    return this.prisma.aiExecution.update({
-      where: { id },
+    return this.prisma.aiExecution.updateMany({
+      where: { id, status: 'RUNNING' },
       data: { ...input, completedAt: new Date() },
     })
   }
@@ -308,4 +349,20 @@ export function parseDraftMetadata(value: Prisma.JsonValue): DraftMetadata {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function canonicalArguments(raw: string) {
+  try {
+    return stableJson(JSON.parse(raw || '{}'))
+  } catch {
+    return raw
+  }
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (isRecord(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'undefined'
 }

@@ -31,8 +31,11 @@ export class NvidiaAiGateway {
     }
 
     this.queuedRequests += 1
-    await this.acquireCapacity()
-    this.queuedRequests -= 1
+    try {
+      await this.acquireConcurrency()
+    } finally {
+      this.queuedRequests -= 1
+    }
 
     try {
       const result = await this.executeWithRetry(request)
@@ -49,22 +52,29 @@ export class NvidiaAiGateway {
     }
   }
 
-  private async acquireCapacity() {
-    const maxConcurrent = this.config.get<number>('NVIDIA_MAX_CONCURRENT') ?? 2
-    const requestsPerMinute = this.config.get<number>('NVIDIA_REQUESTS_PER_MINUTE') ?? 30
+  private async acquireConcurrency() {
+    const maxConcurrent = this.config.get<number>('NVIDIA_MAX_CONCURRENT_REQUESTS') ?? 2
+    while (true) {
+      if (this.activeRequests < maxConcurrent) {
+        this.activeRequests += 1
+        return
+      }
+      await delay(50)
+    }
+  }
 
+  private async acquireRateSlot() {
+    const requestsPerMinute = this.config.get<number>('NVIDIA_MAX_REQUESTS_PER_MINUTE') ?? 30
     while (true) {
       const now = Date.now()
       this.requestStarts = this.requestStarts.filter((timestamp) => now - timestamp < 60_000)
-      if (this.activeRequests < maxConcurrent && this.requestStarts.length < requestsPerMinute) {
-        this.activeRequests += 1
+      if (this.requestStarts.length < requestsPerMinute) {
         this.requestStarts.push(now)
         return
       }
-
       const oldest = this.requestStarts[0]
-      const rateWait = oldest ? Math.max(50, 60_000 - (now - oldest)) : 50
-      await delay(Math.min(rateWait, 1_000))
+      const waitMs = oldest ? Math.max(50, 60_000 - (now - oldest)) : 50
+      await delay(Math.min(waitMs, 1_000))
     }
   }
 
@@ -84,6 +94,7 @@ export class NvidiaAiGateway {
   }
 
   private async execute(request: NvidiaCompletionRequest): Promise<NvidiaCompletionResult> {
+    await this.acquireRateSlot()
     const controller = new AbortController()
     const timeout = setTimeout(
       () => controller.abort(),

@@ -42,6 +42,10 @@ export class WhatsappCloudConfig {
     return this.config.get<number>('WHATSAPP_HTTP_TIMEOUT_MS') ?? 10_000
   }
 
+  get maxPayloadBytes() {
+    return this.config.get<number>('WHATSAPP_WEBHOOK_MAX_PAYLOAD_BYTES') ?? 262_144
+  }
+
   private required(name: string) {
     const value = this.config.get<string>(name)?.trim()
     if (!value) {

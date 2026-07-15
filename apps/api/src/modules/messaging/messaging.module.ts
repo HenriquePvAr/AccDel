@@ -6,6 +6,7 @@ import { ConversationWindowService } from './application/conversation-window.ser
 import { InboundEventIngressService } from './application/inbound-event-ingress.service'
 import { MessagingAccountService } from './application/messaging-account.service'
 import { MessagingOutboxService } from './application/messaging-outbox.service'
+import { MessagingSandboxPolicy } from './application/messaging-sandbox-policy.service'
 import { MessagingProviderRouter } from './application/messaging-provider-router.service'
 import { OutboundStatusService } from './application/outbound-status.service'
 import { OutboxProcessorService } from './application/outbox-processor.service'
@@ -29,6 +30,7 @@ import { WhatsappCloudWebhookSecurityService } from './infrastructure/whatsapp-c
     MessagingAccountService,
     ConversationWindowService,
     MessagingOutboxService,
+    MessagingSandboxPolicy,
     OutboundStatusService,
     InboundEventIngressService,
     OutboxProcessorService,

@@ -40,48 +40,66 @@ export class InboundEventIngressService {
     const correlationId = randomUUID()
     const normalizedPayload = toJson(event)
 
-    let receipt
     try {
-      receipt = await this.prisma.inboundEvent.create({
-        data: {
-          storeId: account.storeId,
-          accountId: account.id,
-          externalEventId: event.externalEventId,
-          eventType: event.kind,
-          payloadHash: createHash('sha256').update(JSON.stringify(normalizedPayload)).digest('hex'),
-          normalizedPayload,
-          correlationId,
-          retentionUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000),
-        },
+      await this.prisma.$transaction(async (transaction) => {
+        const receipt = await transaction.inboundEvent.create({
+          data: {
+            storeId: account.storeId,
+            accountId: account.id,
+            externalEventId: event.externalEventId,
+            eventType: event.kind,
+            payloadHash: createHash('sha256').update(JSON.stringify(normalizedPayload)).digest('hex'),
+            normalizedPayload,
+            correlationId,
+            retentionUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000),
+          },
+        })
+
+        if (event.kind === 'status') {
+          await this.statuses.apply({
+            accountId: account.id,
+            externalMessageId: event.externalMessageId,
+            status: event.status,
+            occurredAt: event.occurredAt,
+            errorCode: event.errorCode,
+            errorMessage: event.errorMessage,
+          }, transaction)
+          await transaction.inboundEvent.update({
+            where: { id: receipt.id },
+            data: { status: 'PROCESSED', processedAt: new Date() },
+          })
+          return
+        }
+
+        await this.persistInboundMessage(
+          transaction,
+          receipt.id,
+          account.id,
+          account.storeId,
+          account.legacySessionId,
+          event,
+        )
       })
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        return 'duplicate' as const
+        const duplicate = await this.prisma.inboundEvent.findUnique({
+          where: {
+            accountId_externalEventId: {
+              accountId: account.id,
+              externalEventId: event.externalEventId,
+            },
+          },
+          select: { id: true },
+        })
+        if (duplicate) return 'duplicate' as const
       }
       throw error
     }
-
-    if (event.kind === 'status') {
-      await this.statuses.apply({
-        accountId: account.id,
-        externalMessageId: event.externalMessageId,
-        status: event.status,
-        occurredAt: event.occurredAt,
-        errorCode: event.errorCode,
-        errorMessage: event.errorMessage,
-      })
-      await this.prisma.inboundEvent.update({
-        where: { id: receipt.id },
-        data: { status: 'PROCESSED', processedAt: new Date() },
-      })
-      return 'accepted' as const
-    }
-
-    await this.persistInboundMessage(receipt.id, account.id, account.storeId, account.legacySessionId, event)
     return 'accepted' as const
   }
 
   private async persistInboundMessage(
+    transaction: Prisma.TransactionClient,
     receiptId: string,
     accountId: string,
     storeId: string,
@@ -92,10 +110,10 @@ export class InboundEventIngressService {
       throw new Error('Conta de mensageria sem sessao de compatibilidade.')
     }
 
-    const existingIdentity = await this.prisma.customerChannelIdentity.findUnique({
+    const existingIdentity = await transaction.customerChannelIdentity.findUnique({
       where: { accountId_providerUserId: { accountId, providerUserId: event.sender } },
     })
-    const identity = await this.prisma.customerChannelIdentity.upsert({
+    const identity = await transaction.customerChannelIdentity.upsert({
       where: { accountId_providerUserId: { accountId, providerUserId: event.sender } },
       create: {
         storeId,
@@ -109,15 +127,15 @@ export class InboundEventIngressService {
         lastInboundAt: latestDate(existingIdentity?.lastInboundAt, event.occurredAt),
       },
     })
-    const customerId = identity.customerId ?? (await this.resolveCustomer(storeId, event))
+    const customerId = identity.customerId ?? (await this.resolveCustomer(transaction, storeId, event))
     if (!identity.customerId) {
-      await this.prisma.customerChannelIdentity.update({
+      await transaction.customerChannelIdentity.update({
         where: { id: identity.id },
         data: { customerId },
       })
     }
 
-    const existingConversation = await this.prisma.aiConversation.findUnique({
+    const existingConversation = await transaction.aiConversation.findUnique({
       where: {
         messagingAccountId_whatsappNumber: {
           messagingAccountId: accountId,
@@ -126,7 +144,7 @@ export class InboundEventIngressService {
       },
     })
     const conversation = existingConversation
-      ? await this.prisma.aiConversation.update({
+      ? await transaction.aiConversation.update({
           where: { id: existingConversation.id },
           data: {
             customerId,
@@ -140,7 +158,7 @@ export class InboundEventIngressService {
               : {}),
           },
         })
-      : await this.prisma.aiConversation.create({
+      : await transaction.aiConversation.create({
           data: {
             storeId,
             whatsappSessionId: compatibilitySessionId,
@@ -157,33 +175,35 @@ export class InboundEventIngressService {
           },
         })
 
-    await this.prisma.$transaction([
-      this.prisma.aiMessage.create({
-        data: {
-          conversationId: conversation.id,
-          direction: 'inbound',
-          senderType: 'customer',
-          body: event.body ?? `[${event.contentType.toLowerCase()}]`,
-          status: 'received',
-          rawPayload: event.metadata as Prisma.InputJsonValue,
-          metadata: {
-            externalMessageId: event.externalEventId,
-            contentType: event.contentType,
-            correlationId: receiptId,
-          },
-          createdAt: event.occurredAt,
+    await transaction.aiMessage.create({
+      data: {
+        conversationId: conversation.id,
+        direction: 'inbound',
+        senderType: 'customer',
+        body: event.body ?? `[${event.contentType.toLowerCase()}]`,
+        status: 'received',
+        rawPayload: event.metadata as Prisma.InputJsonValue,
+        metadata: {
+          externalMessageId: event.externalEventId,
+          contentType: event.contentType,
+          correlationId: receiptId,
         },
-      }),
-      this.prisma.inboundEvent.update({
-        where: { id: receiptId },
-        data: { conversationId: conversation.id },
-      }),
-    ])
+        createdAt: event.occurredAt,
+      },
+    })
+    await transaction.inboundEvent.update({
+      where: { id: receiptId },
+      data: { conversationId: conversation.id },
+    })
   }
 
-  private async resolveCustomer(storeId: string, event: NormalizedInboundMessage) {
+  private async resolveCustomer(
+    transaction: Prisma.TransactionClient,
+    storeId: string,
+    event: NormalizedInboundMessage,
+  ) {
     const suffix = event.sender.slice(-8)
-    const candidates = await this.prisma.customer.findMany({
+    const candidates = await transaction.customer.findMany({
       where: { storeId, phone: { contains: suffix } },
       select: { id: true, phone: true },
       take: 20,
@@ -191,7 +211,7 @@ export class InboundEventIngressService {
     const matching = candidates.find((candidate) => phonesMatch(candidate.phone, event.sender))
     if (matching) return matching.id
 
-    const customer = await this.prisma.customer.create({
+    const customer = await transaction.customer.create({
       data: {
         storeId,
         name: event.contactName ?? `Cliente WhatsApp ${event.sender.slice(-4)}`,
@@ -203,10 +223,10 @@ export class InboundEventIngressService {
   }
 }
 
-function phonesMatch(left: string, right: string) {
+export function phonesMatch(left: string, right: string) {
   const leftDigits = left.replace(/\D/g, '')
   const rightDigits = right.replace(/\D/g, '')
-  return leftDigits === rightDigits || leftDigits.slice(-8) === rightDigits.slice(-8)
+  return leftDigits === rightDigits
 }
 
 function latestDate(current: Date | null | undefined, candidate: Date) {

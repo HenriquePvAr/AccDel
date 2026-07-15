@@ -143,8 +143,9 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
             Provider de WhatsApp nao configurado
           </AlertTitle>
           <AlertDescription>
-            O backend registrou esta sessao como unconfigured. Configure WHATSAPP_PROVIDER,
-            WHATSAPP_PROVIDER_BASE_URL e WHATSAPP_PROVIDER_API_KEY para receber um QR Code real.
+            Para a Cloud API oficial, use WHATSAPP_PROVIDER=cloud e configure os identificadores,
+            tokens e App Secret da Meta; esse fluxo nao usa QR Code. O modo evolution_api usa
+            WHATSAPP_PROVIDER_BASE_URL e WHATSAPP_PROVIDER_API_KEY para gerar QR Code.
           </AlertDescription>
         </Alert>
         <SessionSummary />
