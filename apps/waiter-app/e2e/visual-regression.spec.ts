@@ -4,6 +4,10 @@ import { addSimpleProduct, installMockApi, login, openTable } from './mock-api'
 
 const screenshotDir = '../../docs/waiter/screenshots'
 
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-07-15T16:00:00.000Z'))
+})
+
 test('login em celular pequeno — 360 × 800', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 })
   await page.goto('/login')
