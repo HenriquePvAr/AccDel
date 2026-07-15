@@ -9,6 +9,7 @@ import { PrismaService } from '@/shared/prisma/prisma.service'
 
 import { getPermissionsForRole } from './auth.permissions'
 import type { AuthTokenPayload } from './auth.types'
+import { readJwtSecret } from './auth-secret'
 
 @Injectable()
 export class AuthService {
@@ -65,7 +66,7 @@ export class AuthService {
     const accessTokenExpiresIn =
       this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') ?? '8h'
     const accessToken = await this.jwtService.signAsync(tokenPayload, {
-      secret: this.configService.get<string>('JWT_ACCESS_SECRET') ?? 'cain-admin-local-secret',
+      secret: readJwtSecret(this.configService),
       expiresIn: accessTokenExpiresIn as never,
     })
 

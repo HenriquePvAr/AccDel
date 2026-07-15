@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post } from '@nestjs/common'
 
 import { loginSchema, type LoginPayload } from '@/contracts/auth.contract'
 import { ZodValidationPipe } from '@/shared/pipes/zod-validation.pipe'
+import { RateLimit } from '@/shared/security/rate-limit.decorator'
 
 import { CurrentAuthUser } from './decorators/current-auth-user.decorator'
 import { Public } from './decorators/public.decorator'
@@ -14,6 +15,7 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @RateLimit({ limit: 8, windowMs: 60_000, scopes: ['ip', 'store'] })
   login(@Body(new ZodValidationPipe(loginSchema)) body: LoginPayload) {
     return this.authService.login(body)
   }
