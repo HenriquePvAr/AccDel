@@ -39,6 +39,20 @@ test('permite apenas a sequencia operacional esperada', () => {
   )
 })
 
+test('pedido de origem WhatsApp usa modalidade delivery para despacho', () => {
+  assert.equal(
+    resolveOrderTransition({
+      ...base,
+      source: 'whatsapp',
+      serviceType: 'delivery',
+      currentStatus: 'ready',
+      action: 'dispatch',
+      requestedDriverId: 'driver-a',
+    }).nextStatus,
+    'out_for_delivery',
+  )
+})
+
 test('bloqueia salto arbitrario e atualizacao indevida de pedido concluido', () => {
   assertTransitionError(
     { ...base, action: 'ready' },
