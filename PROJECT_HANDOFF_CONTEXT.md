@@ -1187,3 +1187,15 @@ Limites que devem permanecer explicitos:
 
 Documentacao canonica: `docs/printing/`. O primeiro teste fisico deve seguir `REAL_PRINTER_VALIDATION.md` e `OPERATIONAL_RUNBOOK.md` sem contornar o driver por scripts locais.
 
+## 30. Cain Garçom (15/07/2026)
+
+Branch: `feature/waiter-pwa`, baseada em `317d6c5`.
+
+Foi adicionado `apps/waiter-app`, PWA React/TypeScript para garçom e gerente. O app tem login operacional, salas/mesas, abertura de sessão, catálogo pesquisável, modificadores obrigatórios, rascunho isolado, envio inicial e adições, acompanhamento de cozinha/impressão, cancelamento auditado, entrega, transferência e solicitação de fechamento. Offline mantém apenas leitura recente e rascunho; todas as mutações são bloqueadas.
+
+A API recebeu módulo `/waiter` de superfície mínima, permissões próprias, guard que revalida usuário/membership/perfil, ownership de sessão, tenant obrigatório, idempotência, rate limit, versões otimistas e SSE por loja. Itens da sessão agora apontam para `Order`/`OrderItem` reais; primeiro envio, adição e remoção produzem eventos de impressão distintos. Preço, disponibilidade e total continuam calculados no servidor.
+
+Validação automatizada inclui API, PWA, fluxos E2E A–G, 12 cenários visuais e cargas sintéticas. Nenhum hardware, rede de restaurante ou impressora física foi usado. Classificação: pronto para piloto supervisionado em staging, não homologado para produção autônoma.
+
+Documentação canônica: `docs/waiter/`. O próximo gate está descrito em `docs/waiter/TESTING.md` e `docs/waiter/LIMITATIONS.md`.
+

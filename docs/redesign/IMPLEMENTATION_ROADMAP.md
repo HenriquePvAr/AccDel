@@ -242,3 +242,9 @@ Itens deliberadamente fora desta etapa: WhatsApp Cloud API oficial, agente novo,
 Em `feature/whatsapp-cloud-ai-attendant`, os itens WhatsApp Cloud API oficial, atendente NVIDIA com tools, outbox persistente, handoff seguro, notificações de pedido e tracking público tokenizado foram implementados. A Evolution foi preservada apenas como compatibilidade explícita, sem fallback automático.
 
 Continuam fora desta entrega de mensageria: rate limit distribuído para várias instâncias, worker externo/queue gerenciada, teste com credenciais Meta/NVIDIA reais, aprovação operacional dos templates, revogação JWT, app novo do garçom e gateway novo de pagamento. A impressão passou a ser tratada na branch dedicada `feature/thermal-printing-agent`.
+
+## Cain Garçom implementado em branch dedicada
+
+Em `feature/waiter-pwa`, o app novo do garçom deixou de ser backlog: foi implementado como PWA independente em `apps/waiter-app`, acompanhado por contrato mínimo `/waiter`, RBAC, tenant, ownership, idempotência, concorrência otimista, SSE, operação offline segura e integração com produção/impressão reais do domínio.
+
+Os limites remanescentes são operacionais: teste em dispositivos, Wi-Fi e impressora físicos; barramento compartilhado para SSE/rate limit multi-instância; observabilidade externa; revogação central de JWT; e homologação em piloto supervisionado. Pagamento continua fora do app do garçom por desenho.

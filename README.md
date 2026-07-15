@@ -32,6 +32,20 @@ Documentacao inicial:
 - `docs/printing/REAL_PRINTER_VALIDATION.md`
 - `docs/printing/OPERATIONAL_RUNBOOK.md`
 
+## Cain Garçom
+
+`apps/waiter-app` é uma PWA React/TypeScript independente para operação de salão. Garçom e gerente autenticados consultam mesas, abrem sessão, montam rascunho, enviam itens para produção, acompanham cozinha/impressão, cancelam, entregam, transferem mesa e solicitam fechamento. Preço, disponibilidade, permissões, ownership, tenant, idempotência e versões são validados na API.
+
+O app preserva somente leitura recente e rascunho quando offline; nenhuma mutação recebe confirmação falsa. O primeiro envio e as adições posteriores criam eventos de impressão distintos. Pagamento e liberação da mesa permanecem no caixa/admin.
+
+```powershell
+Set-Location apps/waiter-app
+npm.cmd install
+npm.cmd run dev
+```
+
+Documentação: `docs/waiter/`. Estado atual: pronto para piloto supervisionado em staging, ainda sem homologação em dispositivo, rede ou impressora físicos.
+
 ## Setup
 
 Use Node compativel com o `package-lock.json`, instale as dependencias e configure os arquivos locais a partir dos exemplos. `.env` e credenciais nunca devem ser commitados.
