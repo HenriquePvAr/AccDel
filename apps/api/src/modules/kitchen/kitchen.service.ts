@@ -8,6 +8,7 @@ import type {
 } from '@/contracts/kitchen.contract'
 import { OrdersService } from '@/modules/orders/orders.service'
 import { PrismaService } from '@/shared/prisma/prisma.service'
+import { AdminRealtimeService } from '@/shared/realtime/admin-realtime.service'
 import { getCurrentStoreId } from '@/shared/store-context'
 import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 
@@ -25,6 +26,7 @@ export class KitchenService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ordersService: OrdersService,
+    private readonly realtime: AdminRealtimeService,
   ) {}
 
   async getQueue(query: KitchenQueueQuery) {
@@ -126,6 +128,12 @@ export class KitchenService {
         history: true,
         driver: true,
       },
+    })
+
+    this.realtime.emit('order.status_changed', {
+      orderId: order.id,
+      status: order.status,
+      driverId: order.driverId,
     })
 
     return {

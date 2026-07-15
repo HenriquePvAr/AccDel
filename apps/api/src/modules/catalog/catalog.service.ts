@@ -21,6 +21,7 @@ import type {
 } from '@/contracts/catalog.contract'
 import { buildListResponse, normalizePagination } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
+import { AdminRealtimeService } from '@/shared/realtime/admin-realtime.service'
 import { getCurrentStoreId } from '@/shared/store-context'
 
 import { mapCategory, mapCoupon, mapOptionGroup, mapProduct, mapPromotion } from './catalog.mapper'
@@ -29,7 +30,10 @@ const catalogChannels = ['dine_in', 'delivery', 'digital_menu', 'counter'] as co
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: AdminRealtimeService,
+  ) {}
 
   async listCategories() {
     const categories = await this.prisma.category.findMany({
@@ -564,6 +568,7 @@ export class CatalogService {
       },
     })
 
+    this.realtime.emit('catalog.product_updated', { productId: created.id })
     return {
       data: mapProduct(created),
     }
@@ -639,6 +644,7 @@ export class CatalogService {
       },
     })
 
+    this.realtime.emit('catalog.product_updated', { productId: updated.id })
     return {
       data: mapProduct(updated),
     }
@@ -686,6 +692,7 @@ export class CatalogService {
       },
     })
 
+    this.realtime.emit('catalog.product_updated', { productId: updated.id })
     return {
       data: mapProduct(updated),
     }
@@ -733,6 +740,7 @@ export class CatalogService {
       },
     })
 
+    this.realtime.emit('catalog.product_updated', { productId: updated.id })
     return {
       data: mapProduct(updated),
     }
@@ -858,6 +866,7 @@ export class CatalogService {
       },
     })
 
+    this.realtime.emit('catalog.product_updated', { productId: '*' })
     return { data: mapOptionGroup(option.group) }
   }
 

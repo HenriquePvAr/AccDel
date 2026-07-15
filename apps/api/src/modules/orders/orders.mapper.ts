@@ -62,6 +62,8 @@ export function mapOrder(order: OrderWithRelations) {
       unitPrice: toNumber(item.unitPrice),
       notes: item.notes ?? undefined,
       options: Array.isArray(item.options) ? item.options : [],
+      cancelledAt: item.cancelledAt?.toISOString(),
+      cancelReason: item.cancelReason ?? undefined,
     })),
     timeline: order.history
       .slice()

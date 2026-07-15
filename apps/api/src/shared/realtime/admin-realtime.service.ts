@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common'
 import type { MessageEvent } from '@nestjs/common'
-import { interval, map, merge, Observable, Subject } from 'rxjs'
+import { filter, interval, map, merge, Observable, Subject } from 'rxjs'
 
-type AdminRealtimeEventName =
+import { getCurrentStoreId } from '@/shared/store-context'
+
+export type AdminRealtimeEventName =
   | 'driver.location_updated'
   | 'driver.queue_updated'
   | 'driver.status_updated'
   | 'order.created'
   | 'order.status_changed'
+  | 'dining.session_updated'
+  | 'catalog.product_updated'
 
 interface AdminRealtimePayloadMap {
   'driver.location_updated': {
@@ -31,10 +35,20 @@ interface AdminRealtimePayloadMap {
     status: string
     driverId?: string | null
   }
+  'dining.session_updated': {
+    sessionId: string
+    tableId: string
+    reason: string
+    fromTableId?: string
+  }
+  'catalog.product_updated': {
+    productId: string
+  }
 }
 
 interface AdminRealtimeEvent<TName extends AdminRealtimeEventName = AdminRealtimeEventName> {
   name: TName
+  storeId: string
   occurredAt: string
   payload: AdminRealtimePayloadMap[TName]
 }
@@ -49,14 +63,21 @@ export class AdminRealtimeService {
   ) {
     this.events$.next({
       name,
+      storeId: getCurrentStoreId(),
       payload,
       occurredAt: new Date().toISOString(),
     })
   }
 
-  stream(): Observable<MessageEvent> {
+  stream(
+    storeId = getCurrentStoreId(),
+    allowedNames?: ReadonlySet<AdminRealtimeEventName>,
+  ): Observable<MessageEvent> {
     return merge(
       this.events$.pipe(
+        filter(
+          (event) => event.storeId === storeId && (!allowedNames || allowedNames.has(event.name)),
+        ),
         map((event) => ({
           type: event.name,
           data: event,

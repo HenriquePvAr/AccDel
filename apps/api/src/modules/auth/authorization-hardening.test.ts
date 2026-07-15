@@ -5,10 +5,12 @@ import type { ExecutionContext } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import type { Reflector } from '@nestjs/core'
 import type { JwtService } from '@nestjs/jwt'
+import type { PrismaService } from '@/shared/prisma/prisma.service'
 
 import { getPermissionsForRole } from './auth.permissions'
 import { PermissionsGuard } from './guards/permissions.guard'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
+import { WaiterActiveGuard } from '../waiter/waiter-active.guard'
 
 test('motoboy recebe somente permissao self e nao acessa endpoint administrativo', () => {
   const permissions = getPermissionsForRole('driver')
@@ -43,6 +45,36 @@ test('token invalido ou expirado e rejeitado antes do controller', async () => {
 
     await assert.rejects(() => guard.canActivate(context), UnauthorizedException)
   }
+})
+
+test('garcom recebe somente permissoes operacionais do PWA', () => {
+  const permissions = getPermissionsForRole('waiter')
+
+  assert.equal(permissions.includes('waiter:tables:view'), true)
+  assert.equal(permissions.includes('waiter:orders:send'), true)
+  assert.equal(permissions.includes('dining:update'), false)
+  assert.equal(permissions.includes('orders:update'), false)
+  assert.equal(permissions.includes('catalog:products:manage'), false)
+  assert.equal(permissions.includes('printing:manage'), false)
+})
+
+test('PWA invalida imediatamente vinculo desativado ou papel alterado', async () => {
+  const prisma = {
+    storeUser: {
+      findFirst: () => Promise.resolve(null),
+    },
+  } as unknown as PrismaService
+  const guard = new WaiterActiveGuard(prisma)
+  const context = buildContext({
+    authUser: {
+      sub: 'user-waiter',
+      storeId: 'store-a',
+      role: 'waiter',
+      permissions: getPermissionsForRole('waiter'),
+    },
+  })
+
+  await assert.rejects(() => guard.canActivate(context), UnauthorizedException)
 })
 
 function buildContext(request: object) {

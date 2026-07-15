@@ -19,6 +19,7 @@ import { SettingsModule } from './modules/settings/settings.module'
 import { TrackingModule } from './modules/tracking/tracking.module'
 import { UsersModule } from './modules/users/users.module'
 import { WaitersModule } from './modules/waiters/waiters.module'
+import { WaiterModule } from './modules/waiter/waiter.module'
 import { PrismaModule } from './shared/prisma/prisma.module'
 import { RealtimeModule } from './shared/realtime/realtime.module'
 import { StoreContextInterceptor } from './shared/store-context.interceptor'
@@ -46,6 +47,7 @@ import { validateEnvironment } from './config/environment.validation'
     DriversModule,
     DiningModule,
     WaitersModule,
+    WaiterModule,
     KitchenModule,
     ReportsModule,
     SettingsModule,

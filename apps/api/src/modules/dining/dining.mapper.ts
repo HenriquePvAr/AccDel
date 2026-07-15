@@ -12,7 +12,22 @@ type DiningTableRecord = Prisma.DiningTableGetPayload<{
       include: {
         table: true
         waiter: true
-        items: true
+        items: {
+          include: {
+            productionOrder: {
+              select: {
+                id: true
+                number: true
+                status: true
+                printJobs: {
+                  select: {
+                    status: true
+                  }
+                }
+              }
+            }
+          }
+        }
         events: true
       }
     }
@@ -23,7 +38,22 @@ type TableSessionRecord = Prisma.TableSessionGetPayload<{
   include: {
     table: true
     waiter: true
-    items: true
+    items: {
+      include: {
+        productionOrder: {
+          select: {
+            id: true
+            number: true
+            status: true
+            printJobs: {
+              select: {
+                status: true
+              }
+            }
+          }
+        }
+      }
+    }
     events: true
   }
 }>
@@ -49,6 +79,7 @@ export function mapDiningTable(table: DiningTableRecord) {
     waiterId: table.waiterId ?? undefined,
     waiterName: table.waiter?.name ?? undefined,
     currentSessionId: table.currentSessionId ?? undefined,
+    version: table.version,
     notes: table.notes ?? undefined,
   }
 }
@@ -69,6 +100,7 @@ export function mapTableSession(session: TableSessionRecord) {
     total: toNumber(session.total),
     paymentMethod: session.paymentMethod ?? undefined,
     status: session.status,
+    version: session.version,
     notes: session.notes ?? undefined,
     items: session.items
       .slice()
@@ -84,6 +116,15 @@ export function mapTableSession(session: TableSessionRecord) {
         options: Array.isArray(item.options) ? item.options : [],
         createdAt: item.createdAt.toISOString(),
         createdByName: item.createdByName ?? undefined,
+        productionOrderId: item.productionOrderId ?? undefined,
+        productionOrderNumber: item.productionOrder?.number ?? undefined,
+        productionStatus: item.productionOrder?.status ?? undefined,
+        printStatus: resolvePrintStatus(
+          item.productionOrder?.printJobs.map((job) => job.status) ?? [],
+        ),
+        cancelledAt: item.cancelledAt?.toISOString(),
+        cancelReason: item.cancelReason ?? undefined,
+        deliveredAt: item.deliveredAt?.toISOString(),
       })),
     timeline: session.events
       .slice()
@@ -95,6 +136,14 @@ export function mapTableSession(session: TableSessionRecord) {
         at: event.createdAt.toISOString(),
       })),
   }
+}
+
+function resolvePrintStatus(statuses: string[]) {
+  if (!statuses.length) return 'not_required' as const
+  if (statuses.includes('PRINT_RESULT_UNKNOWN')) return 'unknown' as const
+  if (statuses.includes('FAILED')) return 'failed' as const
+  if (statuses.every((status) => status === 'PRINTED')) return 'confirmed' as const
+  return 'pending' as const
 }
 
 export function buildDiningTablesSnapshot(args: {

@@ -48,6 +48,15 @@ export type AdminPermission =
   | 'printing:view'
   | 'printing:manage'
   | 'printing:reprint'
+  | 'waiter:tables:view'
+  | 'waiter:sessions:create'
+  | 'waiter:orders:create'
+  | 'waiter:orders:update'
+  | 'waiter:orders:send'
+  | 'waiter:orders:cancel_item'
+  | 'waiter:items:deliver'
+  | 'waiter:sessions:close_request'
+  | 'waiter:tables:transfer'
 
 export type OrderStatus =
   | 'in_analysis'
@@ -216,6 +225,8 @@ export interface OrderItem {
   unitPrice: number
   notes?: string
   options: OrderItemOption[]
+  cancelledAt?: string
+  cancelReason?: string
 }
 
 export interface TimelineEntry {
