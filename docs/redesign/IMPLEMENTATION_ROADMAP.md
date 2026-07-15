@@ -230,3 +230,9 @@ Segurança crítica deve usar PR separado, com commits para testes de exploraç�
 Em `security/critical-operational-hardening` foram implementados: autorização self/admin de drivers, webhook autenticado e deduplicado, máquina de estados server-side, repetição reprecificada, rate limiting contextual, idempotência persistida e confirmação manual de pagamento auditada. A migration é aditiva; testes unitários e de integração PostgreSQL foram incluídos.
 
 Itens deliberadamente fora desta etapa: WhatsApp Cloud API oficial, agente novo, impressão, app novo do garçom, gateway novo de pagamento, rate limit distribuído, revogação JWT e tracking público tokenizado.
+
+## Integração oficial de mensageria e IA concluída
+
+Em `feature/whatsapp-cloud-ai-attendant`, os itens WhatsApp Cloud API oficial, atendente NVIDIA com tools, outbox persistente, handoff seguro, notificações de pedido e tracking público tokenizado foram implementados. A Evolution foi preservada apenas como compatibilidade explícita, sem fallback automático.
+
+Continuam fora desta entrega: rate limit distribuído para várias instâncias, worker externo/queue gerenciada, teste com credenciais Meta/NVIDIA reais, aprovação operacional dos templates, revogação JWT, impressão, app novo do garçom e gateway novo de pagamento.

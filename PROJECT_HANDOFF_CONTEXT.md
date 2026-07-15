@@ -1082,3 +1082,24 @@ Use esta frase:
 Use PROJECT_HANDOFF_CONTEXT.md como fonte principal de verdade do projeto Cain Delivery. Preserve a arquitetura atual, nao reintroduza mocks silenciosos e continue a partir do estado verificado em 2026-05-14.
 ```
 
+## 27. WhatsApp Cloud API e atendente NVIDIA (14/07/2026)
+
+Branch: `feature/whatsapp-cloud-ai-attendant`, baseada em `f04b335`.
+
+Estado implementado:
+
+- Meta WhatsApp Cloud API oficial como provider principal e Evolution como legado explicito;
+- GET/POST `/webhooks/whatsapp`, raw body e HMAC `X-Hub-Signature-256`;
+- conta de mensageria, identidade de canal, inbound deduplicado, outbox, audit de IA/tools, notificacoes e tracking tokenizado;
+- NVIDIA NIM OpenAI-compatible com timeout, fila, RPM, concorrencia, retry e circuit breaker;
+- allowlist de onze tools, sem Prisma exposto ao modelo e sem catalogo completo no prompt;
+- rascunho controlado, reprecificacao e confirmacao explicita/idempotente antes do pedido `source=whatsapp`;
+- handoff persistente com usuario derivado do JWT;
+- notificacoes deterministicas por transicao, janela de 24 horas e templates;
+- `/tracking/:token` sem PII, com hash, TTL, revogacao e coordenada arredondada;
+- interface Cloud sem QR Code e com status `queued/sent/delivered/read/failed`.
+
+Documentos operacionais estao em `docs/integrations`. O arquivo `.env` permanece local/ignorado; use apenas `apps/api/.env.example` como lista de variaveis.
+
+Validacao conhecida desta branch: 38 testes API, 1 teste persistente de integracao, 5 testes web, builds API/admin, Prisma validate e 20 migrations aplicadas do zero em PostgreSQL isolado. Nao houve chamada real a Meta/NVIDIA por ausencia deliberada de credenciais no repositorio.
+
