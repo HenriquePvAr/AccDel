@@ -30,7 +30,18 @@
     "print-agent:lint": "npm --prefix apps/print-agent run lint",
     "print-agent:typecheck": "npm --prefix apps/print-agent run typecheck",
     "print-agent:test": "npm --prefix apps/print-agent run test",
-    "print-agent:examples": "npm --prefix apps/print-agent run examples"
+    "print-agent:examples": "npm --prefix apps/print-agent run examples",
+    "staging:up": "node scripts/staging.mjs up",
+    "staging:seed": "node scripts/staging.mjs seed",
+    "staging:status": "node scripts/staging.mjs status",
+    "staging:logs": "node scripts/staging.mjs logs",
+    "staging:down": "node scripts/staging.mjs down",
+    "staging:backup": "node scripts/pilot-logical-backup.mjs backup",
+    "staging:backup:test": "node scripts/pilot-logical-backup.mjs test",
+    "staging:restore": "node scripts/pilot-logical-backup.mjs restore",
+    "staging:backup:native": "node scripts/pilot-database.mjs backup",
+    "staging:backup:native:test": "node scripts/pilot-database.mjs test",
+    "staging:test:migrations": "node scripts/test-migration-matrix.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

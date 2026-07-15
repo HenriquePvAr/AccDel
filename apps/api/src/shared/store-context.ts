@@ -150,7 +150,7 @@ function buildDefaultStoreContext(host?: string): StoreContextState {
 }
 
 function isDefaultStoreFallbackAllowed() {
-  return process.env.NODE_ENV !== 'production'
+  return process.env.APP_ENV !== 'production'
 }
 
 function readHeader(request: FastifyRequest, header: string) {

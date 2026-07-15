@@ -22,3 +22,23 @@ test('webhook Cloud ignora header de tenant controlado pelo caller', () => {
     else process.env.WHATSAPP_STORE_ID = previous
   }
 })
+
+test('fallback da loja padrao existe no staging local e falha fechado em producao', () => {
+  const previous = process.env.APP_ENV
+  try {
+    process.env.APP_ENV = 'staging'
+    assert.equal(resolveStoreContextFromRequest({
+      url: '/auth/login',
+      headers: { host: 'localhost:3333' },
+    } as unknown as StoreScopedRequest).storeId, 'store_main')
+
+    process.env.APP_ENV = 'production'
+    assert.throws(() => resolveStoreContextFromRequest({
+      url: '/auth/login',
+      headers: { host: 'localhost:3333' },
+    } as unknown as StoreScopedRequest))
+  } finally {
+    if (previous === undefined) delete process.env.APP_ENV
+    else process.env.APP_ENV = previous
+  }
+})
