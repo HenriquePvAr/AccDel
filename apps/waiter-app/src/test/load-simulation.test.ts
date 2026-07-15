@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 describe('carga sintética de domínio', () => {
-  it('filtra 100 mesas e aplica 100 atualizações sem travar', () => {
+  it('filtra 100 mesas e aplica 100 atualizações concorrentes sem travar', async () => {
     const tables = Array.from({ length: 100 }, (_, index) => ({ id: `table-${index}`, code: String(index + 1).padStart(3, '0'), status: index % 3 === 0 ? 'free' : 'occupied', version: 1 }))
     const startedAt = performance.now()
     const occupied = tables.filter((table) => table.status === 'occupied' && table.code.includes('0'))
-    const updated = tables.map((table, index) => ({ ...table, version: table.version + (index < 100 ? 1 : 0) }))
+    const updated = await Promise.all(tables.map(async (table) => ({ ...table, version: table.version + 1 })))
     const duration = performance.now() - startedAt
     expect(occupied.length).toBeGreaterThan(0)
     expect(updated.every((table) => table.version === 2)).toBe(true)
@@ -20,10 +20,12 @@ describe('carga sintética de domínio', () => {
     const order = products.slice(0, 100).map((product) => ({ ...product, quantity: 1 }))
     const total = order.reduce((sum, item) => sum + item.price * item.quantity, 0)
     const duration = performance.now() - startedAt
+    const serializedFootprint = new TextEncoder().encode(JSON.stringify({ categories, products, order })).byteLength
     expect(result.length).toBeGreaterThan(0)
     expect(order).toHaveLength(100)
     expect(total).toBeGreaterThan(0)
     expect(duration).toBeLessThan(2_000)
+    expect(serializedFootprint).toBeLessThan(1024 * 1024)
   })
 
   it('mantém 50 usuários e 100 eventos isolados por loja', () => {

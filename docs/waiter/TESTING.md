@@ -24,7 +24,7 @@
 
 Foram exercitados 360×800, 390×844, 768×1024, 1024×768 e 1366×768. As imagens sanitizadas ficam em `docs/waiter/screenshots`.
 
-A suíte sintética cobre 100 mesas, 500 produtos, 20 categorias, 50 usuários, 100 atualizações e comando com 100 itens. Isso encontra regressões locais de renderização e transformação, mas não substitui teste de carga distribuído ou medição em Wi-Fi de restaurante.
+A suíte sintética cobre 100 mesas, 500 produtos, 20 categorias, 50 usuários, 100 atualizações concorrentes e comanda com 100 itens. Transformação/busca têm limite local de 2 segundos e a pegada serializada da fixture tem teto de 1 MiB; conflito é coberto pelo E2E. Esses sinais encontram regressões locais, mas a pegada é apenas um proxy e não substitui perfil de heap, teste de carga distribuído ou medição em Wi-Fi de restaurante.
 
 ## Teste real recomendado
 
