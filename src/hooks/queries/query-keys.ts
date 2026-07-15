@@ -71,4 +71,9 @@ export const queryKeys = {
     conversationDetail: (id: string) => ['ai-attendant', 'conversation', id] as const,
     orderDrafts: ['ai-attendant', 'order-drafts'] as const,
   },
+  printing: {
+    all: ['printing'] as const,
+    overview: ['printing', 'overview'] as const,
+    jobs: (filters?: unknown) => ['printing', 'jobs', filters] as const,
+  },
 } as const

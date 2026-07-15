@@ -45,6 +45,9 @@ export type AdminPermission =
   | 'users:manage'
   | 'ai_attendant:view'
   | 'ai_attendant:manage'
+  | 'printing:view'
+  | 'printing:manage'
+  | 'printing:reprint'
 
 export type OrderStatus =
   | 'in_analysis'

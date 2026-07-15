@@ -61,6 +61,9 @@ const PaymentSettingsPage = lazy(() =>
 const PreferencesSettingsPage = lazy(() =>
   import('@/pages/PreferencesSettingsPage').then((module) => ({ default: module.PreferencesSettingsPage })),
 )
+const PrintingSettingsPage = lazy(() =>
+  import('@/pages/PrintingSettingsPage').then((module) => ({ default: module.PrintingSettingsPage })),
+)
 const AiAttendantPage = lazy(() =>
   import('@/pages/AiAttendantPage').then((module) => ({ default: module.AiAttendantPage })),
 )
@@ -136,6 +139,7 @@ const router = createBrowserRouter([
       { path: 'settings/delivery', element: protectedPage('settings:delivery:view', <DeliverySettingsPage />) },
       { path: 'settings/payments', element: protectedPage('settings:preferences:view', <PaymentSettingsPage />) },
       { path: 'settings/preferences', element: protectedPage('settings:preferences:view', <PreferencesSettingsPage />) },
+      { path: 'settings/printing', element: protectedPage('printing:view', <PrintingSettingsPage />) },
     ],
   },
 ])

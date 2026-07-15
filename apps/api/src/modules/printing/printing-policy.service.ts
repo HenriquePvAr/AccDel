@@ -121,6 +121,11 @@ export class PrintingPolicyService {
       where: { storeId: input.storeId, id: { in: stationIds } },
       include: {
         printers: {
+          where: {
+            enabled: true,
+            agentId: { not: null },
+            agent: { enabled: true, revokedAt: null },
+          },
           orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
         },
       },
@@ -177,6 +182,11 @@ export class PrintingPolicyService {
       },
       include: {
         printers: {
+          where: {
+            enabled: true,
+            agentId: { not: null },
+            agent: { enabled: true, revokedAt: null },
+          },
           orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
         },
       },
@@ -206,10 +216,7 @@ export class PrintingPolicyService {
     },
   ) {
     const id = randomUUID()
-    const printer =
-      input.station?.printers.find((candidate) => candidate.enabled) ??
-      input.station?.printers[0] ??
-      null
+    const printer = input.station?.printers[0] ?? null
     const template = templateFor(input.jobType, input.station?.code ?? null)
     const persistedTemplate = await tx.printTemplate.findFirst({
       where: {
@@ -221,14 +228,12 @@ export class PrintingPolicyService {
       orderBy: { createdAt: 'asc' },
     })
     const status: PrintJobStatus =
-      !input.station || !printer || !printer.enabled ? 'FAILED' : 'PENDING'
+      !input.station || !printer ? 'FAILED' : 'PENDING'
     const errorCode = !input.station
       ? 'ROUTING_MISSING'
       : !printer
         ? 'PRINTER_MISSING'
-        : !printer.enabled
-          ? 'PRINTER_DISABLED'
-          : null
+      : null
     const snapshot = buildSnapshot({
       id,
       jobType: input.jobType,
@@ -403,7 +408,7 @@ function errorMessageFor(code: string | null) {
     case 'ROUTING_MISSING':
       return 'Nenhuma estacao segura foi resolvida para os itens.'
     case 'PRINTER_MISSING':
-      return 'A estacao nao possui impressora configurada.'
+      return 'A estacao nao possui impressora ativa com agente autorizado.'
     case 'PRINTER_DISABLED':
       return 'A impressora configurada para a estacao esta desativada.'
     default:

@@ -274,14 +274,22 @@ export class PrintingAdminService {
       }
       const fallback = await this.prisma.printerStation.findFirst({
         where: { id: payload.fallbackStationId, storeId, enabled: true },
-        include: { printers: { where: { enabled: true } } },
+        include: {
+          printers: {
+            where: {
+              enabled: true,
+              agentId: { not: null },
+              agent: { enabled: true, revokedAt: null },
+            },
+          },
+        },
       })
       if (!fallback) {
         throw new BadRequestException('A estacao de fallback nao pertence a esta loja.')
       }
       if (payload.enabled && !fallback.printers.length) {
         throw new BadRequestException(
-          'Configure uma impressora ativa na estacao de fallback antes de ativar a impressao.',
+          'Configure uma impressora ativa com agente autorizado na estacao de fallback antes de ativar a impressao.',
         )
       }
     }
@@ -430,10 +438,15 @@ export class PrintingAdminService {
     await this.ensureDefaults(storeId)
     const printer = await this.prisma.printer.findFirst({
       where: { id: printerId, storeId },
-      include: { station: true },
+      include: { station: true, agent: true },
     })
     if (!printer?.enabled) {
       throw new BadRequestException('Ative a impressora antes de criar a pagina de teste.')
+    }
+    if (!printer.agentId || !printer.agent?.enabled || printer.agent.revokedAt) {
+      throw new BadRequestException(
+        'Atribua um Cain Print Agent autorizado antes de criar a pagina de teste.',
+      )
     }
     const template = await this.prisma.printTemplate.findFirst({
       where: { storeId, key: 'test-page', version: 'v1' },
@@ -501,7 +514,13 @@ export class PrintingAdminService {
     }
     const printer = current.stationId
       ? await this.prisma.printer.findFirst({
-          where: { storeId, stationId: current.stationId, enabled: true },
+          where: {
+            storeId,
+            stationId: current.stationId,
+            enabled: true,
+            agentId: { not: null },
+            agent: { enabled: true, revokedAt: null },
+          },
           orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
         })
       : null
@@ -576,7 +595,13 @@ export class PrintingAdminService {
     }
     const printer = original.stationId
       ? await this.prisma.printer.findFirst({
-          where: { storeId, stationId: original.stationId, enabled: true },
+          where: {
+            storeId,
+            stationId: original.stationId,
+            enabled: true,
+            agentId: { not: null },
+            agent: { enabled: true, revokedAt: null },
+          },
           orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
         })
       : null
@@ -755,7 +780,16 @@ export class PrintingAdminService {
   private async validatePrinterConfiguration(storeId: string, payload: SavePrinterPayload) {
     await this.ensureStation(payload.stationId, storeId)
     if (payload.agentId) {
-      await this.ensureAgent(payload.agentId, storeId)
+      const agent = await this.ensureAgent(payload.agentId, storeId)
+      if (!agent.enabled || agent.revokedAt) {
+        throw new BadRequestException('O Cain Print Agent selecionado esta revogado.')
+      }
+    }
+
+    if (payload.enabled && !payload.agentId) {
+      throw new BadRequestException(
+        'Uma impressora ativa deve estar vinculada a um Cain Print Agent autorizado.',
+      )
     }
 
     if (payload.connectionType === 'NETWORK_TCP') {
