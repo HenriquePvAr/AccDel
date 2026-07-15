@@ -154,6 +154,8 @@ const visiblePerColumn = 6
 const paymentStatusLabel: Record<Order['paymentStatus'], string> = {
   paid: 'Pago',
   pending: 'Pendente',
+  failed: 'Falhou',
+  cancelled: 'Cancelado',
   refunded: 'Estornado',
 }
 

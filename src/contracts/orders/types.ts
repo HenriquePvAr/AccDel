@@ -110,6 +110,7 @@ export interface UpdateOrderStatusResponse {
 
 export interface RepeatOrderRequest {
   orderId: string
+  paymentMethod: Order['paymentMethod']
 }
 
 export interface RepeatOrderResponse {

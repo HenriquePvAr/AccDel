@@ -233,6 +233,7 @@ export const orderService = {
     if (shouldUseApi) {
       const response = await apiClient.post<RepeatOrderResponse>(
         `/orders/${request.orderId}/repeat`,
+        { paymentMethod: request.paymentMethod },
       )
       mockRealtimeBus.emit('order.created', { orderId: response.data.id })
       return response

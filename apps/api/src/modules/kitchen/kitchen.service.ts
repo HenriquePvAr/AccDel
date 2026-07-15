@@ -9,6 +9,7 @@ import type {
 import { OrdersService } from '@/modules/orders/orders.service'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { getCurrentStoreId } from '@/shared/store-context'
+import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 
 import { mapOrder } from '../orders/orders.mapper'
 
@@ -84,7 +85,12 @@ export class KitchenService {
     }
   }
 
-  async markOrderReady(orderId: string, payload: MarkKitchenOrderReadyPayload) {
+  async markOrderReady(
+    orderId: string,
+    payload: MarkKitchenOrderReadyPayload,
+    authUser: AuthenticatedRequestUser,
+  ) {
+    void payload
     const current = await this.prisma.order.findFirstOrThrow({
       where: {
         id: orderId,
@@ -111,7 +117,7 @@ export class KitchenService {
                 create: {
                   status: 'ready',
                   label: 'Pedido marcado como pronto pela cozinha',
-                  actor: this.cleanDatabaseText(payload.actor ?? 'Cozinha'),
+                  actor: this.cleanDatabaseText(authUser.name),
                 },
               },
       },
@@ -127,12 +133,15 @@ export class KitchenService {
     }
   }
 
-  async moveOrder(orderId: string, payload: MoveKitchenOrderPayload) {
+  async moveOrder(
+    orderId: string,
+    payload: MoveKitchenOrderPayload,
+    authUser: AuthenticatedRequestUser,
+  ) {
     return this.ordersService.updateStatus(orderId, {
       action: payload.action,
-      actor: payload.actor ?? 'Cozinha',
       driverId: payload.driverId,
-    })
+    }, authUser)
   }
 
   private buildWhere(query: KitchenQueueQuery): Prisma.OrderWhereInput {

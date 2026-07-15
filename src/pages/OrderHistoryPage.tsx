@@ -125,7 +125,12 @@ export function OrderHistoryPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => repeatOrderMutation.mutate(order.id)}
+                            onClick={() =>
+                              repeatOrderMutation.mutate({
+                                orderId: order.id,
+                                paymentMethod: order.paymentMethod,
+                              })
+                            }
                           >
                             Repetir
                           </Button>
