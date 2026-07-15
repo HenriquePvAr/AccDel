@@ -17,6 +17,8 @@
     "api:dev": "npm --prefix apps/api run dev",
     "api:build": "npm --prefix apps/api run build",
     "api:lint": "npm --prefix apps/api run lint",
+    "api:test": "npm --prefix apps/api run test",
+    "api:test:integration": "npm --prefix apps/api run test:integration",
     "api:prisma:generate": "npm --prefix apps/api run prisma:generate",
     "api:prisma:migrate": "npm --prefix apps/api run prisma:migrate",
     "api:prisma:migrate:dev": "npm --prefix apps/api run prisma:migrate:dev",
