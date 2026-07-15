@@ -5,9 +5,11 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common'
+import { randomUUID } from 'node:crypto'
 import type {
   OrderChannel,
   OrderItem,
+  OrderNotificationType,
   OrderStatus,
   Prisma,
   ProductChannel,
@@ -274,7 +276,15 @@ export class OrdersService {
     }
   }
 
-  async createOrder(payload: CreateOrderPayload, authUser: AuthenticatedRequestUser) {
+  async createOrder(
+    payload: CreateOrderPayload,
+    authUser: AuthenticatedRequestUser,
+    trustedContext?: {
+      source: OrderChannel
+      messagingAccountId?: string
+      conversationId?: string
+    },
+  ) {
     const store = await this.prisma.store.findUniqueOrThrow({
       where: {
         id: getCurrentStoreId(),
@@ -338,6 +348,7 @@ export class OrdersService {
     const estimatedTotalTimeMinutes =
       estimatedPrepTimeMinutes + (estimatedDeliveryTimeMinutes ?? 0)
     const number = await this.nextOrderNumber()
+    const orderId = randomUUID()
     const createdAt = new Date()
     const deliveryCoordinate =
       payload.channel === 'delivery'
@@ -349,12 +360,13 @@ export class OrdersService {
 
     const order = await this.prisma.order.create({
       data: {
+        id: orderId,
         storeId: getCurrentStoreId(),
         number,
         customerId: customer?.id,
         customerName: customer?.name ?? 'Cliente sem cadastro',
         customerPhone: customer?.phone ?? '',
-        source: payload.channel,
+        source: trustedContext?.source ?? payload.channel,
         serviceType: payload.channel,
         status,
         paymentMethod: payload.paymentMethod,
@@ -429,6 +441,19 @@ export class OrdersService {
               : []),
           ],
         },
+        ...(trustedContext?.source === 'whatsapp'
+          ? {
+              notifications: {
+                create: {
+                  storeId: getCurrentStoreId(),
+                  accountId: trustedContext.messagingAccountId,
+                  conversationId: trustedContext.conversationId,
+                  type: 'ORDER_CONFIRMED' as const,
+                  idempotencyKey: `order:${orderId}:confirmed`,
+                },
+              },
+            }
+          : {}),
       },
       include: {
         items: true,
@@ -462,6 +487,34 @@ export class OrdersService {
     return {
       data: mapOrder(order),
     }
+  }
+
+  async createWhatsappOrder(
+    payload: Omit<CreateOrderPayload, 'channel' | 'sendToProduction'> & {
+      serviceType: 'delivery' | 'pickup'
+    },
+    messaging?: { accountId: string; conversationId: string },
+  ) {
+    return this.createOrder(
+      {
+        ...payload,
+        channel: payload.serviceType,
+        sendToProduction: false,
+      },
+      {
+        sub: 'whatsapp-ai-system',
+        email: 'whatsapp-ai@internal.invalid',
+        name: 'Atendente WhatsApp',
+        storeId: getCurrentStoreId(),
+        role: 'owner',
+        permissions: [],
+      },
+      {
+        source: 'whatsapp',
+        messagingAccountId: messaging?.accountId,
+        conversationId: messaging?.conversationId,
+      },
+    )
   }
 
   async createPublicOrder(payload: CreatePublicOrderPayload) {
@@ -675,6 +728,7 @@ export class OrdersService {
         currentStatus: current.status,
         action: payload.action,
         source: current.source,
+        serviceType: current.serviceType,
         paymentMethod: current.paymentMethod,
         paymentStatus: current.paymentStatus,
         assignedDriverId: current.driverId,
@@ -709,7 +763,7 @@ export class OrdersService {
     const nextStatus = transition.nextStatus
     const nextDriverId =
       payload.action === 'dispatch'
-        ? await this.resolveDriverAssignment(current.source, payload.driverId)
+        ? await this.resolveDriverAssignment(current.serviceType, payload.driverId)
         : current.driverId
 
     const order = await this.prisma.$transaction(async (transaction) => {
@@ -741,6 +795,29 @@ export class OrdersService {
           actor: this.cleanDatabaseText(authUser.name),
         },
       })
+
+      const notificationType = notificationTypeForStatus(nextStatus)
+      if (current.source === 'whatsapp' && notificationType) {
+        await transaction.orderNotification.upsert({
+          where: {
+            orderId_type: { orderId: current.id, type: notificationType },
+          },
+          create: {
+            storeId: getCurrentStoreId(),
+            orderId: current.id,
+            type: notificationType,
+            idempotencyKey: `order:${current.id}:${notificationType.toLowerCase()}`,
+          },
+          update: {},
+        })
+      }
+
+      if (nextStatus === 'completed' || nextStatus === 'cancelled') {
+        await transaction.publicTrackingToken.updateMany({
+          where: { orderId: current.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        })
+      }
 
       return transaction.order.findUniqueOrThrow({
         where: { id: current.id },
@@ -1881,6 +1958,14 @@ function formatAddressText(address: {
   ]
     .filter((entry): entry is string => entry !== null)
     .join(' | ')
+}
+
+function notificationTypeForStatus(status: OrderStatus): OrderNotificationType | null {
+  if (status === 'in_preparation') return 'ORDER_PREPARING'
+  if (status === 'out_for_delivery') return 'ORDER_OUT_FOR_DELIVERY'
+  if (status === 'completed') return 'ORDER_DELIVERED'
+  if (status === 'cancelled') return 'ORDER_CANCELLED'
+  return null
 }
 
 function roundCoordinate(value: number) {

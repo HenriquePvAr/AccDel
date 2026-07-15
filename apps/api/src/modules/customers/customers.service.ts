@@ -257,6 +257,57 @@ export class CustomersService {
     }
   }
 
+  async saveWhatsappDeliveryAddress(
+    customerId: string,
+    input:
+      | { addressId: string }
+      | {
+          label: string
+          street: string
+          number: string
+          district: string
+          complement?: string
+          city: string
+          state: string
+          reference?: string
+        },
+  ) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, storeId: getCurrentStoreId() },
+      include: { addresses: true },
+    })
+    if (!customer) throw new NotFoundException('Cliente nao encontrado.')
+
+    if ('addressId' in input) {
+      const existing = customer.addresses.find((address) => address.id === input.addressId)
+      if (!existing) throw new NotFoundException('Endereco nao pertence ao cliente.')
+      return { data: { id: existing.id, label: existing.label } }
+    }
+
+    const matching = customer.addresses.find(
+      (address) =>
+        address.street.toLowerCase() === input.street.toLowerCase() &&
+        address.number.toLowerCase() === input.number.toLowerCase() &&
+        address.district.toLowerCase() === input.district.toLowerCase(),
+    )
+    if (matching) return { data: { id: matching.id, label: matching.label } }
+
+    const created = await this.prisma.customerAddress.create({
+      data: {
+        customerId,
+        label: input.label,
+        street: input.street,
+        number: input.number,
+        district: input.district,
+        complement: input.complement,
+        city: input.city,
+        state: input.state.toUpperCase(),
+        reference: input.reference,
+      },
+    })
+    return { data: { id: created.id, label: created.label } }
+  }
+
   private async findCustomerByPhone(phone: string) {
     const normalizedPhone = normalizePhone(phone)
     const customers = await this.prisma.customer.findMany({

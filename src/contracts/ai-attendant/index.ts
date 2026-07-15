@@ -17,8 +17,22 @@ export type AiTestChannel = 'whatsapp' | 'delivery' | 'counter' | 'dine_in'
 export type WhatsappSessionStatus = 'disconnected' | 'waiting_qr' | 'connecting' | 'connected' | 'expired' | 'error'
 export type WhatsappMessageDirection = 'inbound' | 'outbound'
 export type WhatsappMessageSenderType = 'customer' | 'ai' | 'human' | 'system'
-export type WhatsappMessageStatus = 'received' | 'queued' | 'sent' | 'failed'
-export type AiConversationStatus = 'open' | 'waiting_ai' | 'waiting_human' | 'human_assigned' | 'closed'
+export type WhatsappMessageStatus = 'received' | 'queued' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
+export type AiConversationStatus =
+  | 'open'
+  | 'waiting_ai'
+  | 'waiting_human'
+  | 'human_assigned'
+  | 'closed'
+  | 'ai_active'
+  | 'human_active'
+  | 'paused'
+export type ConversationOperationalStatus =
+  | 'AI_ACTIVE'
+  | 'WAITING_HUMAN'
+  | 'HUMAN_ACTIVE'
+  | 'PAUSED'
+  | 'CLOSED'
 export type AiConversationType = 'real' | 'test'
 export type AiOrderDraftStatus = 'suggested' | 'approved' | 'converted' | 'discarded'
 export type WhatsappIntegrationLogType =
@@ -40,6 +54,12 @@ export type WhatsappIntegrationLogType =
   | 'conversation_closed'
   | 'test_chat'
   | 'test_whatsapp_sent'
+  | 'duplicate_ignored'
+  | 'outbox_enqueued'
+  | 'outbox_retry'
+  | 'notification_queued'
+  | 'tracking_created'
+  | 'ai_tool_called'
 export type IntegrationLogStatus = 'info' | 'success' | 'warning' | 'error'
 
 // ── Overview ────────────────────────────────────────────────────────
@@ -346,6 +366,7 @@ export interface AiConversation {
   customerName: string | null
   type: AiConversationType
   status: AiConversationStatus
+  operationalStatus: ConversationOperationalStatus
   assignedUserId: string | null
   assignedAt: string | null
   unreadCount: number

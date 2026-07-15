@@ -92,6 +92,48 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
     return <Skeleton className="h-96" />
   }
 
+  if (session?.provider === 'whatsapp_cloud') {
+    const active = session.status === 'connected'
+    return (
+      <div className="space-y-4">
+        <Alert variant={active ? 'success' : 'warning'}>
+          <AlertTitle>
+            {active ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+            Meta WhatsApp Cloud API
+          </AlertTitle>
+          <AlertDescription>
+            {active
+              ? 'Conta oficial vinculada e eventos assinados da Meta ja foram recebidos.'
+              : 'Configuracao carregada. A integracao sera ativada quando o primeiro webhook assinado da Meta for validado.'}
+          </AlertDescription>
+        </Alert>
+        <Card>
+          <CardHeader>
+            <CardTitle>Integracao oficial sem QR Code</CardTitle>
+            <CardDescription>
+              Token, App Secret e identificadores ficam somente no ambiente da API. Vinculo e webhook sao administrados no Meta Business.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-3">
+            <Badge variant={active ? 'success' : 'warning'}>
+              {active ? 'Webhook ativo' : 'Aguardando webhook'}
+            </Badge>
+            <Badge variant="default">Cloud API oficial</Badge>
+            <Button onClick={onOpenConversations} disabled={!active}>
+              <MessageCircle className="h-4 w-4" />
+              Abrir conversas
+            </Button>
+          </CardContent>
+        </Card>
+        <IntegrationLogsPanel />
+      </div>
+    )
+  }
+
   if (providerUnconfigured) {
     return (
       <div className="space-y-4">

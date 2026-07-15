@@ -107,6 +107,7 @@ export class AiAttendantMapper {
       customerName: conversation.customerName,
       type: conversation.type,
       status: conversation.status,
+      operationalStatus: conversation.operationalStatus,
       assignedUserId: conversation.assignedUserId,
       assignedAt: conversation.assignedAt,
       unreadCount: conversation.unreadCount,

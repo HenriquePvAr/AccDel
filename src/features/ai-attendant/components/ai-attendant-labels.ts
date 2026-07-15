@@ -66,6 +66,9 @@ export const conversationStatusLabels: Record<AiConversationStatus, string> = {
   waiting_human: 'Aguardando humano',
   human_assigned: 'Humano assumiu',
   closed: 'Fechada',
+  ai_active: 'IA ativa',
+  human_active: 'Humano ativo',
+  paused: 'Pausada',
 }
 
 export const messageSenderLabels: Record<WhatsappMessageSenderType, string> = {
@@ -78,7 +81,10 @@ export const messageSenderLabels: Record<WhatsappMessageSenderType, string> = {
 export const messageStatusLabels: Record<WhatsappMessageStatus, string> = {
   received: 'Recebida',
   queued: 'Na fila',
+  sending: 'Enviando',
   sent: 'Enviada',
+  delivered: 'Entregue',
+  read: 'Lida',
   failed: 'Falhou',
 }
 
@@ -101,6 +107,12 @@ export const integrationLogTypeLabels: Record<WhatsappIntegrationLogType, string
   conversation_closed: 'Conversa fechada',
   test_chat: 'Teste de IA',
   test_whatsapp_sent: 'Teste WhatsApp',
+  duplicate_ignored: 'Duplicata ignorada',
+  outbox_enqueued: 'Mensagem enfileirada',
+  outbox_retry: 'Nova tentativa da outbox',
+  notification_queued: 'Notificacao enfileirada',
+  tracking_created: 'Rastreio criado',
+  ai_tool_called: 'Ferramenta de IA executada',
 }
 
 export const integrationLogStatusLabels: Record<IntegrationLogStatus, string> = {

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req } from '@nestjs/common'
 import type { FastifyRequest } from 'fastify'
 
 import {
@@ -224,8 +224,11 @@ export class AiAttendantController {
 
   @Post('conversations/:id/assign')
   @Permissions('ai_attendant:manage')
-  assignConversation(@Param('id') id: string, @Body('userId') userId: string) {
-    return this.aiAttendantService.assignConversation(getCurrentStoreId(), id, userId)
+  assignConversation(
+    @Param('id') id: string,
+    @CurrentAuthUser() authUser: AuthenticatedRequestUser,
+  ) {
+    return this.aiAttendantService.assignConversation(getCurrentStoreId(), id, authUser.sub)
   }
 
   @Post('conversations/:id/release')
@@ -241,8 +244,15 @@ export class AiAttendantController {
     @Body(new ZodValidationPipe(sendConversationMessageSchema))
     body: SendConversationMessagePayload,
     @CurrentAuthUser() authUser: AuthenticatedRequestUser,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.aiAttendantService.sendManualMessage(getCurrentStoreId(), id, body.body, authUser.sub)
+    return this.aiAttendantService.sendManualMessage(
+      getCurrentStoreId(),
+      id,
+      body.body,
+      authUser.sub,
+      idempotencyKey,
+    )
   }
 
   @Post('conversations/:id/close')

@@ -32,7 +32,6 @@ import {
   useSendManualMessageMutation,
   useWhatsappSessionQuery,
 } from '@/hooks/queries/ai-attendant'
-import { useAuthStore } from '@/stores/auth-store'
 import { useNewOrderStore } from '@/stores/new-order-store'
 import { useToastStore } from '@/stores/toast-store'
 import type {
@@ -215,26 +214,13 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
   const releaseConversation = useReleaseConversationMutation()
   const closeConversation = useCloseConversationMutation()
   const sendMessage = useSendManualMessageMutation()
-  const currentUser = useAuthStore((state) => state.user)
   const { pushToast } = useToastStore()
   const [messageBody, setMessageBody] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
   const pendingDelayMessage = getPendingDelayMessage(conversation)
 
   const handleAssign = async () => {
-    if (!currentUser) {
-      pushToast({
-        title: 'Usuario nao identificado',
-        description: 'Entre novamente para assumir a conversa.',
-        variant: 'warning',
-      })
-      return
-    }
-
-    await assignConversation.mutateAsync({
-      id: conversation.id,
-      userId: currentUser.id,
-    })
+    await assignConversation.mutateAsync(conversation.id)
   }
 
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {

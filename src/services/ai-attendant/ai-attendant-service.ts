@@ -122,8 +122,8 @@ export const aiAttendantService = {
     return apiClient.get<AiConversation>(`/ai-attendant/conversations/${id}`)
   },
 
-  async assignConversation(id: string, userId: string): Promise<AiConversation> {
-    return apiClient.post<AiConversation>(`/ai-attendant/conversations/${id}/assign`, { userId })
+  async assignConversation(id: string): Promise<AiConversation> {
+    return apiClient.post<AiConversation>(`/ai-attendant/conversations/${id}/assign`)
   },
 
   async releaseConversation(id: string): Promise<AiConversation> {

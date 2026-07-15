@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   PayloadTooLargeException,
+  NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
   UnsupportedMediaTypeException,
@@ -30,6 +31,10 @@ export class WebhookSecurityService {
   constructor(private readonly configService: ConfigService) {}
 
   assertValid(input: WebhookSecurityInput) {
+    if (this.configService.get<string>('WHATSAPP_PROVIDER')?.trim() !== 'evolution_api') {
+      throw new NotFoundException()
+    }
+
     const secret = this.configService.get<string>('WHATSAPP_WEBHOOK_SECRET')?.trim()
 
     if (!secret || secret.length < 24 || /change|example|placeholder/i.test(secret)) {

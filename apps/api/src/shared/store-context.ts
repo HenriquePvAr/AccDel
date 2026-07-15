@@ -5,7 +5,7 @@ import type { FastifyRequest } from 'fastify'
 export const DEFAULT_STORE_ID = 'store_main'
 export const STORE_ID_HEADER = 'x-cain-store-id'
 
-export type StoreContextSource = 'auth' | 'header' | 'subdomain' | 'default'
+export type StoreContextSource = 'auth' | 'header' | 'subdomain' | 'webhook' | 'public' | 'default'
 
 export interface StoreContextState {
   storeId: string
@@ -58,6 +58,25 @@ export function resolveStoreContextFromRequest(
   const headerStoreId = readHeader(request, STORE_ID_HEADER)
   const host = readHost(request)
   const subdomainStoreId = resolveStoreIdFromSubdomain(host)
+  const webhookStoreId = resolveWebhookStoreId(request)
+  const publicEndpointStoreId = resolvePublicEndpoint(request)
+
+  // Public provider/token routes must never accept tenant selection from caller headers.
+  if (webhookStoreId) {
+    return {
+      storeId: webhookStoreId,
+      source: 'webhook',
+      ...(host ? { host } : {}),
+    }
+  }
+
+  if (publicEndpointStoreId) {
+    return {
+      storeId: publicEndpointStoreId,
+      source: 'public',
+      ...(host ? { host } : {}),
+    }
+  }
 
   if (authStoreId) {
     return {
@@ -84,6 +103,21 @@ export function resolveStoreContextFromRequest(
   }
 
   return buildDefaultStoreContext(host ?? undefined)
+}
+
+function resolvePublicEndpoint(request: FastifyRequest) {
+  const path = request.url.split('?')[0]
+  return path.startsWith('/tracking/') ? 'public-tracking-token' : null
+}
+
+function resolveWebhookStoreId(request: FastifyRequest) {
+  const path = request.url.split('?')[0]
+  if (path !== '/webhooks/whatsapp') {
+    return null
+  }
+
+  const storeId = process.env.WHATSAPP_STORE_ID?.trim()
+  return storeId || null
 }
 
 function buildDefaultStoreContext(host?: string): StoreContextState {

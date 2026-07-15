@@ -12,6 +12,7 @@ export interface OrderTransitionContext {
   currentStatus: OrderStatus
   action: UpdateOrderStatusPayload['action']
   source: OrderChannel
+  serviceType?: OrderChannel
   paymentMethod: PaymentMethod
   paymentStatus: PaymentStatus
   assignedDriverId: string | null
@@ -53,6 +54,7 @@ export const allowedOrderTransitions: Record<OrderStatus, OrderStatus[]> = {
 
 export function resolveOrderTransition(context: OrderTransitionContext) {
   const nextStatus = actionTarget[context.action]
+  const fulfillmentChannel = context.serviceType ?? context.source
 
   if (Number.isNaN(context.dueAt.getTime())) {
     throw new OrderTransitionError(
@@ -110,7 +112,7 @@ export function resolveOrderTransition(context: OrderTransitionContext) {
   }
 
   if (context.action === 'dispatch') {
-    if (context.source !== 'delivery') {
+    if (fulfillmentChannel !== 'delivery') {
       throw new OrderTransitionError(
         'NON_DELIVERY_DISPATCH',
         'Somente pedidos de delivery podem ser despachados.',
@@ -126,14 +128,14 @@ export function resolveOrderTransition(context: OrderTransitionContext) {
   }
 
   if (context.action === 'complete') {
-    if (context.source === 'delivery' && context.currentStatus !== 'out_for_delivery') {
+    if (fulfillmentChannel === 'delivery' && context.currentStatus !== 'out_for_delivery') {
       throw new OrderTransitionError(
         'DELIVERY_NOT_STARTED',
         'A entrega precisa estar em rota antes de ser concluida.',
       )
     }
 
-    if (context.source !== 'delivery' && context.currentStatus !== 'ready') {
+    if (fulfillmentChannel !== 'delivery' && context.currentStatus !== 'ready') {
       throw new OrderTransitionError(
         'ORDER_NOT_READY',
         'O pedido precisa estar pronto antes de ser concluido.',

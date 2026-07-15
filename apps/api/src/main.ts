@@ -15,6 +15,7 @@ async function bootstrap() {
       logger: false,
       bodyLimit: 262_144,
     }),
+    { rawBody: true },
   )
   const config = app.get(ConfigService)
   const port = config.get<number>('API_PORT') ?? 3333

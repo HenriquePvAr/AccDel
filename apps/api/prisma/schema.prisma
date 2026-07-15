@@ -187,7 +187,10 @@ enum WhatsappMessageSenderType {
 enum WhatsappMessageStatus {
   received
   queued
+  sending
   sent
+  delivered
+  read
   failed
 }
 
@@ -197,6 +200,79 @@ enum AiConversationStatus {
   waiting_human
   human_assigned
   closed
+  ai_active
+  human_active
+  paused
+}
+
+enum MessagingProviderKind {
+  whatsapp_cloud
+  evolution_legacy
+}
+
+enum ConversationOperationalStatus {
+  AI_ACTIVE
+  WAITING_HUMAN
+  HUMAN_ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum MessagingContentType {
+  TEXT
+  INTERACTIVE
+  IMAGE
+  DOCUMENT
+  LOCATION
+  TEMPLATE
+  UNKNOWN
+}
+
+enum OutboundMessageStatus {
+  PENDING
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum InboundEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum AiExecutionStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  FALLBACK
+}
+
+enum AiToolCallStatus {
+  REQUESTED
+  SUCCEEDED
+  REJECTED
+  FAILED
+}
+
+enum OrderNotificationType {
+  ORDER_CONFIRMED
+  ORDER_PREPARING
+  ORDER_OUT_FOR_DELIVERY
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+}
+
+enum OrderNotificationStatus {
+  PENDING
+  PROCESSING
+  QUEUED
+  SKIPPED
+  FAILED
 }
 
 enum AiConversationType {
@@ -223,6 +299,12 @@ enum WhatsappIntegrationLogType {
   conversation_closed
   test_chat
   test_whatsapp_sent
+  duplicate_ignored
+  outbox_enqueued
+  outbox_retry
+  notification_queued
+  tracking_created
+  ai_tool_called
 }
 
 enum IntegrationLogStatus {
@@ -335,6 +417,13 @@ model Store {
   idempotencyRecords   IdempotencyRecord[]
   webhookReceipts      WebhookReceipt[]
   paymentAudits        PaymentAudit[]
+  messagingAccounts    MessagingAccount[]
+  channelIdentities    CustomerChannelIdentity[]
+  outboundMessages     OutboundMessage[]
+  inboundEvents        InboundEvent[]
+  aiExecutions         AiExecution[]
+  orderNotifications   OrderNotification[]
+  publicTrackingTokens PublicTrackingToken[]
 
   @@map("stores")
 }
@@ -448,6 +537,7 @@ model Customer {
   addresses       CustomerAddress[]
   orders          Order[]
   aiConversations AiConversation[]
+  channelIdentities CustomerChannelIdentity[]
 
   @@index([storeId, phone])
   @@map("customers")
@@ -757,6 +847,9 @@ model Order {
   etaSnapshots EtaSnapshot[]
   driverLocations DriverLocation[]
   paymentAudits PaymentAudit[]
+  outboundMessages OutboundMessage[]
+  notifications OrderNotification[]
+  publicTrackingTokens PublicTrackingToken[]
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -1120,6 +1213,7 @@ model WhatsappSession {
   conversations AiConversation[]
   integrationLogs WhatsappIntegrationLog[]
   webhookReceipts WebhookReceipt[]
+  messagingAccount MessagingAccount?
 
   @@index([storeId, status])
   @@map("whatsapp_sessions")
@@ -1173,6 +1267,11 @@ model AiConversation {
   lastError          String?              @map("last_error")
   lastMessageAt      DateTime?            @map("last_message_at")
   lastAiResponseAt   DateTime?            @map("last_ai_response_at")
+  messagingAccountId String?              @map("messaging_account_id")
+  channelIdentityId  String?              @map("channel_identity_id")
+  operationalStatus  ConversationOperationalStatus @default(AI_ACTIVE) @map("operational_status")
+  lastInboundAt      DateTime?            @map("last_inbound_at")
+  promptVersion      String?              @map("prompt_version")
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
 
@@ -1182,10 +1281,19 @@ model AiConversation {
   messages         AiMessage[]
   whatsappMessages WhatsappMessage[]
   orderDrafts      AiOrderDraft[]
+  messagingAccount MessagingAccount? @relation(fields: [messagingAccountId], references: [id], onDelete: SetNull)
+  channelIdentity  CustomerChannelIdentity? @relation(fields: [channelIdentityId], references: [id], onDelete: SetNull)
+  outboundMessages OutboundMessage[]
+  inboundEvents    InboundEvent[]
+  aiExecutions     AiExecution[]
+  orderNotifications OrderNotification[]
 
   @@index([storeId, status, lastMessageAt])
   @@index([whatsappSessionId, whatsappNumber])
   @@index([customerId])
+  @@unique([messagingAccountId, whatsappNumber])
+  @@index([storeId, operationalStatus, lastMessageAt])
+  @@index([channelIdentityId])
   @@map("ai_conversations")
 }
 
@@ -1313,6 +1421,9 @@ model AiOrderDraft {
   status         AiOrderDraftStatus @default(suggested)
   approvedAt     DateTime?          @map("approved_at")
   convertedOrderId String?          @map("converted_order_id")
+  version          Int              @default(1)
+  confirmedAt      DateTime?        @map("confirmed_at")
+  confirmationMessageId String?     @map("confirmation_message_id")
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 
@@ -1320,4 +1431,215 @@ model AiOrderDraft {
 
   @@index([conversationId, status])
   @@map("ai_order_drafts")
+}
+
+model MessagingAccount {
+  id                   String                @id @default(uuid())
+  storeId              String                @map("store_id")
+  provider             MessagingProviderKind
+  externalAccountId    String?               @map("external_account_id")
+  phoneNumberId        String?               @map("phone_number_id")
+  displayPhoneNumber   String?               @map("display_phone_number")
+  legacySessionId      String?               @unique @map("legacy_session_id")
+  enabled              Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  store                Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  legacySession        WhatsappSession?      @relation(fields: [legacySessionId], references: [id], onDelete: SetNull)
+  identities           CustomerChannelIdentity[]
+  conversations        AiConversation[]
+  outboundMessages     OutboundMessage[]
+  inboundEvents        InboundEvent[]
+  notifications        OrderNotification[]
+
+  @@unique([storeId, provider])
+  @@unique([provider, phoneNumberId])
+  @@index([storeId, enabled])
+  @@map("messaging_accounts")
+}
+
+model CustomerChannelIdentity {
+  id                   String                @id @default(uuid())
+  storeId              String                @map("store_id")
+  accountId            String                @map("account_id")
+  customerId           String?               @map("customer_id")
+  providerUserId       String                @map("provider_user_id")
+  displayName          String?               @map("display_name")
+  lastInboundAt        DateTime?             @map("last_inbound_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  store                Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  account              MessagingAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  customer             Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversations        AiConversation[]
+
+  @@unique([accountId, providerUserId])
+  @@index([storeId, customerId])
+  @@index([lastInboundAt])
+  @@map("customer_channel_identities")
+}
+
+model OutboundMessage {
+  id                   String                @id @default(uuid())
+  storeId              String                @map("store_id")
+  accountId            String                @map("account_id")
+  conversationId       String?               @map("conversation_id")
+  orderId              String?               @map("order_id")
+  notificationId       String?               @map("notification_id")
+  recipient            String
+  contentType          MessagingContentType  @map("content_type")
+  payload              Json
+  status               OutboundMessageStatus @default(PENDING)
+  idempotencyKey       String                @map("idempotency_key")
+  externalMessageId    String?               @map("external_message_id")
+  replyToExternalId    String?               @map("reply_to_external_id")
+  attempts             Int                   @default(0)
+  maxAttempts          Int                   @default(5) @map("max_attempts")
+  availableAt          DateTime              @default(now()) @map("available_at")
+  lockedAt             DateTime?             @map("locked_at")
+  lockedBy             String?               @map("locked_by")
+  lastAttemptAt        DateTime?             @map("last_attempt_at")
+  sentAt               DateTime?             @map("sent_at")
+  deliveredAt          DateTime?             @map("delivered_at")
+  readAt               DateTime?             @map("read_at")
+  failedAt             DateTime?             @map("failed_at")
+  lastErrorCode        String?               @map("last_error_code")
+  lastErrorMessage     String?               @map("last_error_message")
+  retentionUntil       DateTime              @map("retention_until")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  store                Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  account              MessagingAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  conversation         AiConversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  order                Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  notification         OrderNotification?    @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, idempotencyKey])
+  @@unique([accountId, externalMessageId])
+  @@index([status, availableAt])
+  @@index([conversationId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([retentionUntil])
+  @@map("outbound_messages")
+}
+
+model InboundEvent {
+  id                   String                @id @default(uuid())
+  storeId              String                @map("store_id")
+  accountId            String                @map("account_id")
+  conversationId       String?               @map("conversation_id")
+  externalEventId      String                @map("external_event_id")
+  eventType            String                @map("event_type")
+  payloadHash          String                @map("payload_hash")
+  normalizedPayload    Json                  @map("normalized_payload")
+  status               InboundEventStatus    @default(RECEIVED)
+  correlationId        String                @map("correlation_id")
+  receivedAt           DateTime              @default(now()) @map("received_at")
+  processedAt          DateTime?             @map("processed_at")
+  failedAt             DateTime?             @map("failed_at")
+  errorCode            String?               @map("error_code")
+  retentionUntil       DateTime              @map("retention_until")
+
+  store                Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  account              MessagingAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  conversation         AiConversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  aiExecution          AiExecution?
+
+  @@unique([accountId, externalEventId])
+  @@index([status, receivedAt])
+  @@index([conversationId, receivedAt])
+  @@index([retentionUntil])
+  @@map("inbound_events")
+}
+
+model AiExecution {
+  id                   String                @id @default(uuid())
+  storeId              String                @map("store_id")
+  conversationId       String                @map("conversation_id")
+  inboundEventId       String?               @unique @map("inbound_event_id")
+  provider             String
+  model                String
+  promptVersion        String                @map("prompt_version")
+  status               AiExecutionStatus     @default(RUNNING)
+  correlationId        String                @map("correlation_id")
+  toolCallCount        Int                   @default(0) @map("tool_call_count")
+  latencyMs            Int?                  @map("latency_ms")
+  errorCode            String?               @map("error_code")
+  startedAt            DateTime              @default(now()) @map("started_at")
+  completedAt          DateTime?             @map("completed_at")
+
+  store                Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  conversation         AiConversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  inboundEvent         InboundEvent?         @relation(fields: [inboundEventId], references: [id], onDelete: SetNull)
+  toolCalls            AiToolCall[]
+
+  @@index([storeId, startedAt])
+  @@index([conversationId, startedAt])
+  @@index([status, startedAt])
+  @@map("ai_executions")
+}
+
+model AiToolCall {
+  id                   String                @id @default(uuid())
+  executionId          String                @map("execution_id")
+  name                 String
+  argumentsHash        String                @map("arguments_hash")
+  status               AiToolCallStatus      @default(REQUESTED)
+  resultCode           String?               @map("result_code")
+  latencyMs            Int?                  @map("latency_ms")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  completedAt          DateTime?             @map("completed_at")
+
+  execution            AiExecution           @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId, createdAt])
+  @@index([name, status, createdAt])
+  @@map("ai_tool_calls")
+}
+
+model OrderNotification {
+  id                   String                  @id @default(uuid())
+  storeId              String                  @map("store_id")
+  orderId              String                  @map("order_id")
+  accountId            String?                 @map("account_id")
+  conversationId       String?                 @map("conversation_id")
+  type                 OrderNotificationType
+  status               OrderNotificationStatus @default(PENDING)
+  idempotencyKey       String                  @map("idempotency_key")
+  templateName         String?                 @map("template_name")
+  lastError            String?                 @map("last_error")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  processedAt          DateTime?               @map("processed_at")
+
+  store                Store                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order                Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  account              MessagingAccount?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  conversation         AiConversation?         @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  outboundMessages     OutboundMessage[]
+
+  @@unique([orderId, type])
+  @@unique([storeId, idempotencyKey])
+  @@index([status, createdAt])
+  @@map("order_notifications")
+}
+
+model PublicTrackingToken {
+  id                   String    @id @default(uuid())
+  storeId              String    @map("store_id")
+  orderId              String    @map("order_id")
+  tokenHash            String    @unique @map("token_hash")
+  expiresAt            DateTime  @map("expires_at")
+  revokedAt            DateTime? @map("revoked_at")
+  lastAccessAt         DateTime? @map("last_access_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  store                Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order                Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, expiresAt])
+  @@index([storeId, expiresAt])
+  @@map("public_tracking_tokens")
 }

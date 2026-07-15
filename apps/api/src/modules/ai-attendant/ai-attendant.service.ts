@@ -1,5 +1,6 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common'
-import { createHash } from 'node:crypto'
+import { ConfigService } from '@nestjs/config'
+import { createHash, randomUUID } from 'node:crypto'
 import { PrismaService } from '../../shared/prisma/prisma.service'
 import { WhatsappProviderFactory } from './whatsapp-provider.factory'
 import { AiProviderFactory } from './ai-provider.factory'
@@ -27,6 +28,7 @@ import {
 } from '@prisma/client'
 import { isMessageWebhookEvent } from './webhook-security.service'
 import { WebhookReceiptService } from './webhook-receipt.service'
+import { MessagingOutboxService } from '@/modules/messaging/application/messaging-outbox.service'
 
 interface AiOrderDraftParsedOption {
   groupId?: string
@@ -82,6 +84,8 @@ export class AiAttendantService {
     private readonly orderStatusService: AiOrderStatusService,
     private readonly lovableSupabaseIntegration: LovableSupabaseIntegrationService,
     private readonly webhookReceiptService: WebhookReceiptService,
+    private readonly configService: ConfigService,
+    private readonly messagingOutbox: MessagingOutboxService,
   ) {}
 
   // ── Overview & Statistics ──────────────────────────────────────────
@@ -99,15 +103,20 @@ export class AiAttendantService {
       knowledgeCount,
     ] = await Promise.all([
       this.getOrCreateSettings(storeId),
-      this.prisma.whatsappSession.findFirst({ where: { storeId } }),
+      this.getSession(storeId),
       this.prisma.aiConversation.count({
         where: { storeId, createdAt: { gte: today } },
       }),
-      this.prisma.whatsappMessage.count({
-        where: { storeId, createdAt: { gte: today }, direction: 'outbound', senderType: 'ai' },
+      this.prisma.aiMessage.count({
+        where: {
+          conversation: { storeId },
+          createdAt: { gte: today },
+          direction: 'outbound',
+          senderType: 'ai',
+        },
       }),
       this.prisma.aiConversation.count({
-        where: { storeId, status: 'waiting_human' },
+        where: { storeId, operationalStatus: 'WAITING_HUMAN' },
       }),
       this.prisma.aiKnowledgeEntry.count({
         where: { storeId, isActive: true },
@@ -842,6 +851,30 @@ export class AiAttendantService {
   // ── WhatsApp Session Lifecycle ──────────────────────────────────────
 
   async getSession(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      const account = await this.prisma.messagingAccount.findFirst({
+        where: { storeId, provider: 'whatsapp_cloud', enabled: true },
+      })
+      const now = new Date()
+      return {
+        id: account?.id ?? 'whatsapp-cloud-configured',
+        storeId,
+        provider: 'whatsapp_cloud',
+        sessionName: 'WhatsApp Cloud API',
+        phoneNumber: account?.displayPhoneNumber ?? null,
+        displayName: 'Meta WhatsApp Cloud API',
+        status: account ? 'connected' : 'connecting',
+        qrCode: null,
+        qrCodeExpiresAt: null,
+        lastConnectedAt: account?.updatedAt ?? null,
+        lastDisconnectedAt: null,
+        isEnabled: true,
+        lastError: account ? null : 'Configuracao carregada; aguardando o primeiro webhook valido da Meta.',
+        createdAt: account?.createdAt ?? now,
+        updatedAt: account?.updatedAt ?? now,
+      }
+    }
+
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -881,6 +914,12 @@ export class AiAttendantService {
   }
 
   async startSession(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      throw new HttpException(
+        'WhatsApp Cloud API nao usa sessao ou QR Code. Configure o webhook no Meta Business.',
+        HttpStatus.CONFLICT,
+      )
+    }
     const provider = this.whatsappFactory.getProvider()
     const sessionName = `session_${storeId}`
 
@@ -954,6 +993,12 @@ export class AiAttendantService {
   }
 
   async getQrCode(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      throw new HttpException(
+        'WhatsApp Cloud API nao usa QR Code.',
+        HttpStatus.CONFLICT,
+      )
+    }
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -993,6 +1038,17 @@ export class AiAttendantService {
   }
 
   async getSessionStatus(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      const account = await this.prisma.messagingAccount.findFirst({
+        where: { storeId, provider: 'whatsapp_cloud', enabled: true },
+      })
+      return {
+        status: account ? 'connected' : 'connecting',
+        displayName: 'Meta WhatsApp Cloud API',
+        phoneNumber: account?.displayPhoneNumber ?? undefined,
+        lastError: account ? undefined : 'Aguardando o primeiro webhook valido da Meta.',
+      }
+    }
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -1031,6 +1087,12 @@ export class AiAttendantService {
   }
 
   async disconnectSession(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      throw new HttpException(
+        'Desative a integracao Cloud por configuracao e no Meta Business, nao por sessao local.',
+        HttpStatus.CONFLICT,
+      )
+    }
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -1064,6 +1126,12 @@ export class AiAttendantService {
   }
 
   async restartSession(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      throw new HttpException(
+        'WhatsApp Cloud API nao possui sessao local para reiniciar.',
+        HttpStatus.CONFLICT,
+      )
+    }
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -1817,6 +1885,7 @@ export class AiAttendantService {
   }
 
   async assignConversation(storeId: string, id: string, userId: string) {
+    await this.assertActiveMembership(storeId, userId)
     const conversation = await this.prisma.aiConversation.findFirst({
       where: { id, storeId },
     })
@@ -1829,6 +1898,7 @@ export class AiAttendantService {
       where: { id },
       data: {
         status: 'human_assigned',
+        operationalStatus: 'HUMAN_ACTIVE',
         assignedUserId: userId,
         assignedAt: new Date(),
         unreadCount: 0,
@@ -1863,6 +1933,7 @@ export class AiAttendantService {
       where: { id },
       data: {
         status: 'open',
+        operationalStatus: 'AI_ACTIVE',
         assignedUserId: null,
         assignedAt: null,
         isAiPaused: false,
@@ -1883,24 +1954,21 @@ export class AiAttendantService {
     return AiAttendantMapper.toConversationDto(updated)
   }
 
-  async sendManualMessage(storeId: string, id: string, body: string, userId: string) {
+  async sendManualMessage(
+    storeId: string,
+    id: string,
+    body: string,
+    userId: string,
+    idempotencyKey?: string,
+  ) {
+    await this.assertActiveMembership(storeId, userId)
     const conversation = await this.prisma.aiConversation.findFirst({
       where: { id, storeId },
+      include: { messagingAccount: true },
     })
 
     if (!conversation) {
       throw new HttpException('Conversation not found.', HttpStatus.NOT_FOUND)
-    }
-
-    const session = await this.prisma.whatsappSession.findFirst({
-      where: { storeId },
-    })
-
-    if (!session || session.status !== 'connected') {
-      throw new HttpException(
-        'Cannot send message: WhatsApp is not connected.',
-        HttpStatus.BAD_REQUEST,
-      )
     }
 
     // Force human assign if they send manual message
@@ -1908,6 +1976,7 @@ export class AiAttendantService {
       where: { id },
       data: {
         status: 'human_assigned',
+        operationalStatus: 'HUMAN_ACTIVE',
         assignedUserId: userId,
         assignedAt: new Date(),
         unreadCount: 0,
@@ -1917,14 +1986,37 @@ export class AiAttendantService {
       },
     })
 
-    await this.sendDirectReply(
-      storeId,
-      session.sessionName,
-      id,
-      conversation.whatsappNumber,
-      body,
-      'human',
-    )
+    const provider = this.configService.get<string>('WHATSAPP_PROVIDER')?.trim()
+    if (provider === 'cloud' || provider === 'whatsapp_cloud') {
+      if (!conversation.messagingAccount) {
+        throw new HttpException('Conta WhatsApp Cloud nao vinculada.', HttpStatus.BAD_REQUEST)
+      }
+      await this.messagingOutbox.enqueueText({
+        storeId,
+        accountId: conversation.messagingAccount.id,
+        conversationId: id,
+        recipient: conversation.whatsappNumber,
+        body,
+        idempotencyKey: `human:${id}:${idempotencyKey?.trim() || randomUUID()}`,
+        senderType: 'human',
+      })
+    } else {
+      const session = await this.prisma.whatsappSession.findFirst({ where: { storeId } })
+      if (!session || session.status !== 'connected') {
+        throw new HttpException(
+          'Cannot send message: WhatsApp is not connected.',
+          HttpStatus.BAD_REQUEST,
+        )
+      }
+      await this.sendDirectReply(
+        storeId,
+        session.sessionName,
+        id,
+        conversation.whatsappNumber,
+        body,
+        'human',
+      )
+    }
 
     const reloaded = await this.getConversationDetail(storeId, id)
     return reloaded
@@ -1943,6 +2035,7 @@ export class AiAttendantService {
       where: { id },
       data: {
         status: 'closed',
+        operationalStatus: 'CLOSED',
         assignedUserId: null,
         assignedAt: null,
         isAiPaused: true,
@@ -1961,6 +2054,26 @@ export class AiAttendantService {
     })
 
     return AiAttendantMapper.toConversationDto(updated)
+  }
+
+  private async assertActiveMembership(storeId: string, userId: string) {
+    const membership = await this.prisma.storeUser.findFirst({
+      where: {
+        storeId,
+        userId,
+        active: true,
+        user: { status: 'active' },
+      },
+      select: { id: true },
+    })
+    if (!membership) {
+      throw new HttpException('Usuario sem vinculo ativo com a loja.', HttpStatus.FORBIDDEN)
+    }
+  }
+
+  private isCloudWhatsappProvider() {
+    const provider = this.configService.get<string>('WHATSAPP_PROVIDER')?.trim()
+    return provider === 'cloud' || provider === 'whatsapp_cloud'
   }
 
   // ── Order Drafts CRUD ───────────────────────────────────────────────
