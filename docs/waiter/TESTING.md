@@ -2,7 +2,7 @@
 
 ## Cobertura automatizada
 
-- API: build, lint, testes unitários e suíte de integração PostgreSQL existente.
+- API: build, lint, 61 testes unitários e 6 integrações PostgreSQL; a integração específica do garçom cobre tenant, ownership, preço do servidor, concorrência, produção, impressão, entrega e fechamento.
 - PWA: 14 testes Vitest para catálogo, rascunhos, status e cargas sintéticas.
 - E2E: 7 fluxos operacionais e 12 cenários visuais no Chrome.
 - Monorepo: build, lint e testes do admin, API, driver e agente de impressão.
