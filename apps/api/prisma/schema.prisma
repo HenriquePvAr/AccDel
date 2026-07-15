@@ -43,6 +43,8 @@ enum PaymentProvider {
 enum PaymentStatus {
   paid
   pending
+  failed
+  cancelled
   refunded
 }
 
@@ -330,6 +332,9 @@ model Store {
   aiKnowledgeEntries   AiKnowledgeEntry[]
   aiProviderConfigs    AiProviderConfig[]
   aiAttendantSettings  AiAttendantSettings[]
+  idempotencyRecords   IdempotencyRecord[]
+  webhookReceipts      WebhookReceipt[]
+  paymentAudits        PaymentAudit[]
 
   @@map("stores")
 }
@@ -751,6 +756,7 @@ model Order {
   deliveryAssignments DeliveryAssignment[]
   etaSnapshots EtaSnapshot[]
   driverLocations DriverLocation[]
+  paymentAudits PaymentAudit[]
 
   @@unique([storeId, number])
   @@index([storeId, status, createdAt])
@@ -876,6 +882,68 @@ model OrderStatusHistory {
 
   @@index([orderId, createdAt])
   @@map("order_status_history")
+}
+
+model IdempotencyRecord {
+  id           String   @id @default(uuid())
+  storeId      String   @map("store_id")
+  actorId      String   @map("actor_id")
+  operation    String
+  key          String
+  requestHash  String   @map("request_hash")
+  status       String   @default("processing")
+  responseData Json?    @map("response_data")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, actorId, operation, key])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+model WebhookReceipt {
+  id          String    @id @default(uuid())
+  storeId     String    @map("store_id")
+  sessionId   String    @map("session_id")
+  provider    String
+  eventId     String    @map("event_id")
+  requestHash String    @map("request_hash")
+  status      String    @default("processing")
+  receivedAt  DateTime  @default(now()) @map("received_at")
+  processedAt DateTime? @map("processed_at")
+  expiresAt   DateTime  @map("expires_at")
+
+  store   Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  session WhatsappSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, sessionId, eventId])
+  @@index([storeId, receivedAt])
+  @@index([expiresAt])
+  @@map("webhook_receipts")
+}
+
+model PaymentAudit {
+  id                String        @id @default(uuid())
+  storeId           String        @map("store_id")
+  orderId           String        @map("order_id")
+  status            PaymentStatus
+  amount            Decimal       @db.Decimal(10, 2)
+  method            PaymentMethod
+  source            String
+  actorId           String?       @map("actor_id")
+  actorName         String         @map("actor_name")
+  externalReference String?       @map("external_reference")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, orderId, createdAt])
+  @@index([externalReference])
+  @@map("payment_audits")
 }
 
 model CashRegister {
@@ -1051,6 +1119,7 @@ model WhatsappSession {
   messages      WhatsappMessage[]
   conversations AiConversation[]
   integrationLogs WhatsappIntegrationLog[]
+  webhookReceipts WebhookReceipt[]
 
   @@index([storeId, status])
   @@map("whatsapp_sessions")

@@ -13,6 +13,7 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter({
       logger: false,
+      bodyLimit: 262_144,
     }),
   )
   const config = app.get(ConfigService)

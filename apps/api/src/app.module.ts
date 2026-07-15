@@ -19,6 +19,7 @@ import { WaitersModule } from './modules/waiters/waiters.module'
 import { PrismaModule } from './shared/prisma/prisma.module'
 import { RealtimeModule } from './shared/realtime/realtime.module'
 import { StoreContextInterceptor } from './shared/store-context.interceptor'
+import { SecurityModule } from './shared/security/security.module'
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { StoreContextInterceptor } from './shared/store-context.interceptor'
     RealtimeModule,
     PrismaModule,
     AuthModule,
+    SecurityModule,
     HealthModule,
     CustomersModule,
     OrdersModule,
