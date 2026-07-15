@@ -107,6 +107,10 @@ export class PrintAgentService {
 
     const claimed = await this.prisma.$transaction(async (tx) => {
       await this.recoverExpiredLeases(tx, agent.storeId)
+      const settings = await tx.printingSettings.findUnique({
+        where: { storeId: agent.storeId },
+        select: { leaseDurationSeconds: true },
+      })
       const candidates = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT j.id
         FROM print_jobs AS j
@@ -117,9 +121,20 @@ export class PrintAgentService {
           AND p.enabled = TRUE
           AND p.id IN (${Prisma.join(validPrinterIds)})
           AND j.status IN ('PENDING'::"PrintJobStatus", 'RETRY_WAIT'::"PrintJobStatus")
-          AND j.available_at <= NOW()
+          AND j.available_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
           AND j.attempt_count < j.max_attempts
-        ORDER BY j.priority DESC, j.available_at ASC, j.created_at ASC
+        ORDER BY (
+          j.priority + LEAST(
+            100,
+            FLOOR(
+              EXTRACT(
+                EPOCH FROM ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - j.created_at)
+              ) / 300
+            )::INTEGER
+          )
+        ) DESC,
+        j.available_at ASC,
+        j.created_at ASC
         LIMIT ${payload.limit}
         FOR UPDATE OF j SKIP LOCKED
       `)
@@ -127,10 +142,6 @@ export class PrintAgentService {
 
       for (const candidate of candidates) {
         const lease = createLeaseCredential()
-        const settings = await tx.printingSettings.findUnique({
-          where: { storeId: agent.storeId },
-          select: { leaseDurationSeconds: true },
-        })
         const now = new Date()
         const leaseExpiresAt = new Date(
           now.getTime() + (settings?.leaseDurationSeconds ?? 60) * 1000,
@@ -346,6 +357,15 @@ export class PrintAgentService {
     })
 
     if (!result) {
+      const latest = await this.findAgentJob(agent, jobId)
+      if (
+        latest.status === 'PRINTED' &&
+        latest.claimedByAgentId === agent.id &&
+        latest.leaseTokenHash &&
+        secureHashMatches(latest.leaseTokenHash, leaseTokenHash)
+      ) {
+        return { data: { id: latest.id, status: latest.status, idempotent: true } }
+      }
       throw new ConflictException('Confirmacao rejeitada por lease ou estado divergente.')
     }
 
@@ -508,47 +528,47 @@ export class PrintAgentService {
     const ambiguous = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       UPDATE print_jobs
       SET status = 'PRINT_RESULT_UNKNOWN'::"PrintJobStatus",
-          ambiguous_at = NOW(),
+          ambiguous_at = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
           lease_expires_at = NULL,
           last_error_code = 'LEASE_EXPIRED_DURING_PRINTING',
           last_error_message_sanitized = 'O lease expirou depois que a impressao foi iniciada.',
-          updated_at = NOW()
+          updated_at = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
       WHERE store_id = ${storeId}
         AND status = 'PRINTING'::"PrintJobStatus"
-        AND lease_expires_at <= NOW()
+        AND lease_expires_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
       RETURNING id
     `)
     const exhausted = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       UPDATE print_jobs
       SET status = 'FAILED'::"PrintJobStatus",
-          failed_at = NOW(),
+          failed_at = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
           claimed_by_agent_id = NULL,
           claimed_at = NULL,
           lease_expires_at = NULL,
           lease_token_hash = NULL,
           last_error_code = 'LEASE_ATTEMPTS_EXHAUSTED',
           last_error_message_sanitized = 'O job esgotou as tentativas antes de iniciar a impressao.',
-          updated_at = NOW()
+          updated_at = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
       WHERE store_id = ${storeId}
         AND status = 'CLAIMED'::"PrintJobStatus"
-        AND lease_expires_at <= NOW()
+        AND lease_expires_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
         AND attempt_count >= max_attempts
       RETURNING id
     `)
     const retryable = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       UPDATE print_jobs
       SET status = 'RETRY_WAIT'::"PrintJobStatus",
-          available_at = NOW(),
+          available_at = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '1 millisecond',
           claimed_by_agent_id = NULL,
           claimed_at = NULL,
           lease_expires_at = NULL,
           lease_token_hash = NULL,
           last_error_code = 'LEASE_EXPIRED_BEFORE_PRINTING',
           last_error_message_sanitized = 'O lease expirou antes do inicio da impressao.',
-          updated_at = NOW()
+          updated_at = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
       WHERE store_id = ${storeId}
         AND status = 'CLAIMED'::"PrintJobStatus"
-        AND lease_expires_at <= NOW()
+        AND lease_expires_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
         AND attempt_count < max_attempts
       RETURNING id
     `)

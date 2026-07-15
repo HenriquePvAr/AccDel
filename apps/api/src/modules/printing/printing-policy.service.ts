@@ -1,5 +1,4 @@
 import { ConflictException, Injectable } from '@nestjs/common'
-import { randomUUID } from 'node:crypto'
 import type {
   Prisma,
   PrintJobStatus,
@@ -215,9 +214,16 @@ export class PrintingPolicyService {
       maxAttempts: number
     },
   ) {
-    const id = randomUUID()
     const printer = input.station?.printers[0] ?? null
     const template = templateFor(input.jobType, input.station?.code ?? null)
+    const idempotencyKey = [
+      'print',
+      input.eventId,
+      input.station?.id ?? 'unrouted',
+      input.jobType,
+      `${template.key}:${template.version}`,
+    ].join(':')
+    const id = deterministicJobId(input.storeId, idempotencyKey)
     const persistedTemplate = await tx.printTemplate.findFirst({
       where: {
         storeId: input.storeId,
@@ -242,13 +248,6 @@ export class PrintingPolicyService {
       station: input.station,
     })
     const payloadHash = hashPrintPayload(snapshot)
-    const idempotencyKey = [
-      'print',
-      input.eventId,
-      input.station?.id ?? 'unrouted',
-      input.jobType,
-      `${template.key}:${template.version}`,
-    ].join(':')
     const saved = await tx.printJob.upsert({
       where: {
         storeId_idempotencyKey: {
@@ -288,23 +287,37 @@ export class PrintingPolicyService {
     }
 
     if (saved.id === id) {
-      await tx.printAuditLog.create({
-        data: {
+      const action = status === 'FAILED' ? 'JOB_CREATED_BLOCKED' : 'JOB_CREATED'
+      await tx.printAuditLog.upsert({
+        where: {
+          id: deterministicAuditId(input.storeId, saved.id, action),
+        },
+        create: {
+          id: deterministicAuditId(input.storeId, saved.id, action),
           storeId: input.storeId,
           jobId: saved.id,
           printerId: printer?.id,
-          action: status === 'FAILED' ? 'JOB_CREATED_BLOCKED' : 'JOB_CREATED',
+          action,
           metadata: {
             jobType: input.jobType,
             stationCode: input.station?.code ?? null,
             errorCode,
           },
         },
+        update: {},
       })
     }
 
     return saved.id
   }
+}
+
+export function deterministicJobId(storeId: string, idempotencyKey: string) {
+  return `printjob-${hashPrintPayload({ storeId, idempotencyKey }).slice(0, 32)}`
+}
+
+function deterministicAuditId(storeId: string, jobId: string, action: string) {
+  return `printaudit-${hashPrintPayload({ storeId, jobId, action }).slice(0, 32)}`
 }
 
 function buildSnapshot(input: {

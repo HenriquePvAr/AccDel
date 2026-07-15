@@ -192,6 +192,6 @@ function buildTransaction(input: {
         return args.create
       },
     },
-    printAuditLog: { create: async () => ({}) },
+    printAuditLog: { upsert: async () => ({}) },
   }
 }

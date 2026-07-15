@@ -10,10 +10,19 @@ import {
   sanitizePrintError,
   secureHashMatches,
 } from './printing.utils'
+import { deterministicJobId } from './printing-policy.service'
 
 test('hash de snapshot e deterministico apesar da ordem das chaves', () => {
   assert.equal(canonicalJson({ b: 2, a: { d: 4, c: 3 } }), '{"a":{"c":3,"d":4},"b":2}')
   assert.equal(hashPrintPayload({ a: 1, b: 2 }), hashPrintPayload({ b: 2, a: 1 }))
+})
+
+test('job id e estavel para replay e muda quando a chave idempotente muda', () => {
+  const first = deterministicJobId('store-a', 'print:event-a:kitchen')
+  assert.equal(first, deterministicJobId('store-a', 'print:event-a:kitchen'))
+  assert.notEqual(first, deterministicJobId('store-a', 'print:event-b:kitchen'))
+  assert.notEqual(first, deterministicJobId('store-b', 'print:event-a:kitchen'))
+  assert.match(first, /^printjob-[a-f0-9]{32}$/)
 })
 
 test('credencial do agente tem prefixo identificavel e somente o hash e comparado', () => {
