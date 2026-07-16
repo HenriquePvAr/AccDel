@@ -29,11 +29,11 @@ interface AiAttendantPageTab {
 }
 
 const tabs: AiAttendantPageTab[] = [
+  { value: 'conversations', label: 'Conversas', icon: <MessageSquare className="h-4 w-4" /> },
   { value: 'overview', label: 'Visao geral', icon: <Bot className="h-4 w-4" /> },
   { value: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
   { value: 'whatsapp', label: 'WhatsApp', icon: <Smartphone className="h-4 w-4" /> },
   { value: 'knowledge', label: 'Base', icon: <Brain className="h-4 w-4" /> },
-  { value: 'conversations', label: 'Conversas', icon: <MessageSquare className="h-4 w-4" /> },
   { value: 'settings', label: 'Ajustes', icon: <Settings className="h-4 w-4" /> },
   { value: 'test', label: 'Testar IA', icon: <TestTube className="h-4 w-4" /> },
 ]
@@ -43,17 +43,17 @@ function isAiAttendantTabValue(value: string): value is AiAttendantTabValue {
 }
 
 export function AiAttendantPage() {
-  const [activeTab, setActiveTab] = useState<AiAttendantTabValue>('overview')
+  const [activeTab, setActiveTab] = useState<AiAttendantTabValue>('conversations')
 
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="WhatsApp + IA"
-        title="Atendente IA"
-        description="Configure o atendimento automatizado com contexto real da loja, controle humano e integracoes explicitas."
+        eyebrow="Atendimento"
+        title="Central de conversas"
+        description="Acompanhe clientes, assuma conversas e consulte o contexto do pedido em um unico workspace."
       />
 
-      <Card className="text-slate-100">
+      <Card>
         <CardContent className="p-0">
           <Tabs
             value={activeTab}
@@ -63,7 +63,7 @@ export function AiAttendantPage() {
               }
             }}
           >
-            <div className="border-b border-white/10 p-3">
+            <div className="sticky top-16 z-20 border-b border-border bg-white p-2">
               <TabsList aria-label="Secoes do Atendente IA" className="w-full">
                 {tabs.map((tab) => (
                   <TabsTrigger key={tab.value} value={tab.value} className="flex-1">
@@ -74,7 +74,7 @@ export function AiAttendantPage() {
               </TabsList>
             </div>
 
-            <div className="p-4 sm:p-6">
+            <div className="p-3 sm:p-4">
               <TabsContent value="overview">
                 <AiAttendantOverviewTab onNavigate={setActiveTab} />
               </TabsContent>
