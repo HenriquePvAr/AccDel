@@ -5,14 +5,14 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const alertVariants = cva(
-  'relative overflow-hidden rounded-[22px] border px-4 py-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] before:pointer-events-none before:absolute before:inset-x-5 before:top-0 before:h-px before:bg-white/14 before:content-[""]',
+  'relative rounded-lg border px-4 py-3 text-sm',
   {
     variants: {
       variant: {
-        default: 'border-white/10 bg-white/[0.04] text-slate-200',
-        success: 'border-emerald-300/18 bg-emerald-400/10 text-emerald-100',
-        warning: 'border-amber-300/18 bg-amber-400/10 text-amber-100',
-        danger: 'border-red-300/18 bg-red-400/10 text-red-100',
+        default: 'border-border bg-muted/70 text-foreground',
+        success: 'border-emerald-700/20 bg-emerald-50 text-emerald-900',
+        warning: 'border-amber-700/20 bg-amber-50 text-amber-950',
+        danger: 'border-red-700/20 bg-red-50 text-red-950',
       },
     },
     defaultVariants: {
@@ -38,7 +38,7 @@ export function Alert({ className, variant, ...props }: AlertProps) {
 export function AlertTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn('mb-1 flex items-center gap-2 text-sm font-black tracking-[-0.01em] text-white', className)}
+      className={cn('mb-1 flex items-center gap-2 text-sm font-bold text-current', className)}
       {...props}
     />
   )

@@ -6,7 +6,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "cain-premium-surface group relative overflow-hidden rounded-[26px] before:pointer-events-none before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-white/14 before:content-['']",
+        'rounded-xl border border-border bg-card text-card-foreground shadow-sm',
         className,
       )}
       {...props}

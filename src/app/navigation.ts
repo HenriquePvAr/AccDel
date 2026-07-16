@@ -39,26 +39,26 @@ export const navigationGroups: NavigationGroup[] = [
   {
     label: 'Operacao',
     items: [
+      { label: 'Visao geral', to: '/dashboard', icon: LayoutDashboard, permission: 'dashboard:view' },
       { label: 'Central de pedidos', to: '/orders', icon: Receipt, permission: 'orders:view' },
       { label: 'Novo pedido', to: '/orders/new', icon: ShoppingCart, permission: 'orders:create' },
       { label: 'Cozinha', to: '/kitchen', icon: CookingPot, permission: 'kitchen:view' },
       { label: 'Expedicao', to: '/drivers/location', icon: MapPinned, permission: 'drivers:view' },
       { label: 'Salao e mesas', to: '/dining/tables', icon: UtensilsCrossed, permission: 'dining:view' },
       { label: 'Caixa', to: '/cash-register', icon: CreditCard, permission: 'cash:view' },
+      { label: 'Atendente IA', to: '/ai-attendant', icon: Bot, permission: 'ai_attendant:view' },
+      { label: 'Impressao', to: '/settings/printing', icon: Printer, permission: 'printing:view' },
     ],
   },
   {
-    label: 'Relacionamento',
+    label: 'Gestao',
     items: [
       { label: 'Clientes', to: '/customers', icon: Users, permission: 'orders:create' },
-      { label: 'Atendente IA', to: '/ai-attendant', icon: Bot, permission: 'ai_attendant:view' },
-    ],
-  },
-  {
-    label: 'Equipe e entrega',
-    items: [
       { label: 'Entregadores', to: '/drivers', icon: Truck, permission: 'drivers:view' },
       { label: 'Garcons', to: '/dining/waiters', icon: Users, permission: 'dining:view' },
+      { label: 'Prontidao', to: '/operations/readiness', icon: Activity, permission: 'dashboard:view' },
+      { label: 'Historico', to: '/history/orders', icon: ChartColumn, permission: 'history:view' },
+      { label: 'Relatorios', to: '/reports', icon: ChartNoAxesCombined, permission: 'reports:view' },
     ],
   },
   {
@@ -72,22 +72,12 @@ export const navigationGroups: NavigationGroup[] = [
     ],
   },
   {
-    label: 'Gestao',
-    items: [
-      { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard, permission: 'dashboard:view' },
-      { label: 'Prontidao', to: '/operations/readiness', icon: Activity, permission: 'dashboard:view' },
-      { label: 'Historico', to: '/history/orders', icon: ChartColumn, permission: 'history:view' },
-      { label: 'Relatorios', to: '/reports', icon: ChartNoAxesCombined, permission: 'reports:view' },
-    ],
-  },
-  {
-    label: 'Administracao',
+    label: 'Configuracoes',
     items: [
       { label: 'Loja', to: '/settings/store', icon: Settings2, permission: 'settings:store:view' },
       { label: 'Usuarios', to: '/settings/users', icon: Users, permission: 'users:view' },
       { label: 'Delivery', to: '/settings/delivery', icon: Truck, permission: 'settings:delivery:view' },
       { label: 'Pagamentos', to: '/settings/payments', icon: CreditCard, permission: 'settings:preferences:view' },
-      { label: 'Impressao', to: '/settings/printing', icon: Printer, permission: 'printing:view' },
       { label: 'Preferencias', to: '/settings/preferences', icon: Settings2, permission: 'settings:preferences:view' },
     ],
   },
