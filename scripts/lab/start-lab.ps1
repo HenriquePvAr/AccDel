@@ -195,8 +195,13 @@ try {
   Write-LabProcessDocument -Context $context -Records $records
 
   Wait-LabPort -Port 55439 -State Listening -TimeoutSeconds 90
+  $postgresReadyDeadline = [DateTime]::UtcNow.AddSeconds(30)
+  while (-not (Test-Path -LiteralPath $context.PostgresReadyFile) -and
+      [DateTime]::UtcNow -lt $postgresReadyDeadline) {
+    Start-Sleep -Milliseconds 100
+  }
   if (-not (Test-Path -LiteralPath $context.PostgresReadyFile)) {
-    throw 'PostgreSQL listener appeared without the supervisor readiness marker.'
+    throw 'PostgreSQL supervisor readiness marker did not appear after the listener opened.'
   }
   $postgresListener = New-LabListenerRecord -Name 'postgres-listener' -Port 55439 `
     -CommandFragments @('postgres-data') -StopMode 'postgres-listener'
