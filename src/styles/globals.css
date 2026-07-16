@@ -196,6 +196,39 @@
     box-shadow: var(--ui-shadow-sm);
   }
 
+  .admin-shell .shadow-panel {
+    box-shadow: var(--ui-shadow-sm);
+  }
+
+  .admin-shell .rounded-2xl,
+  .admin-shell .rounded-3xl,
+  .admin-shell [class*='rounded-[18px]'],
+  .admin-shell [class*='rounded-[20px]'],
+  .admin-shell [class*='rounded-[22px]'],
+  .admin-shell [class*='rounded-[24px]'],
+  .admin-shell [class*='rounded-[26px]'],
+  .admin-shell [class*='rounded-[28px]'],
+  .admin-shell [class*='rounded-[32px]'] {
+    border-radius: var(--ui-radius-lg);
+  }
+
+  .admin-shell [class*='bg-gradient'],
+  .admin-shell [class*='bg-[radial-gradient'] {
+    background-image: none;
+  }
+
+  .admin-shell [class*='text-cyan-'] {
+    color: var(--ui-info);
+  }
+
+  .admin-shell [class*='border-cyan-'] {
+    border-color: color-mix(in srgb, var(--ui-info) 32%, var(--ui-border));
+  }
+
+  .admin-shell [class*='bg-cyan-'] {
+    background-color: color-mix(in srgb, var(--ui-info) 10%, var(--ui-surface));
+  }
+
   .admin-shell aside.admin-sidebar,
   .admin-shell aside.admin-sidebar [class*='bg-[#'] {
     background-color: var(--ui-sidebar);

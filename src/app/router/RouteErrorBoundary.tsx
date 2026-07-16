@@ -34,8 +34,9 @@ export function RouteErrorBoundary() {
   const copy = getErrorCopy(error)
 
   return (
-    <PageShell className="flex min-h-[calc(100vh-88px)] items-center justify-center">
-      <div className="panel-surface max-w-xl space-y-5 rounded-[32px] p-8 text-center">
+    <main className="min-h-screen bg-background">
+      <PageShell className="flex min-h-screen items-center justify-center">
+      <div className="panel-surface max-w-xl space-y-5 p-8 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-status-danger/10 text-status-danger">
           <AlertTriangle className="h-7 w-7" />
         </div>
@@ -47,16 +48,20 @@ export function RouteErrorBoundary() {
           <p className="text-sm leading-6 text-muted-foreground">{copy.description}</p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button variant="secondary" onClick={() => navigate(-1)}>
+          <Button variant="outline" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar
           </Button>
-          <Button onClick={() => window.location.reload()}>
+          <Button variant="secondary" onClick={() => window.location.reload()}>
             <RotateCcw className="mr-2 h-4 w-4" />
             Recarregar
           </Button>
+          <Button onClick={() => navigate('/dashboard')}>
+            Voltar ao painel
+          </Button>
         </div>
       </div>
-    </PageShell>
+      </PageShell>
+    </main>
   )
 }

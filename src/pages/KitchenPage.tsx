@@ -249,6 +249,7 @@ export function KitchenPage() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar pedido, cliente, item ou observacao"
+              aria-label="Buscar pedido, cliente, item ou observacao"
               className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10"
             />
           </div>

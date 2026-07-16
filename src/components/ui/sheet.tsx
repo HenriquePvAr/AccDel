@@ -16,16 +16,19 @@ export function SheetContent({
 }: ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-graphite/30 backdrop-blur-sm" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-graphite/30" />
       <DialogPrimitive.Content
         className={cn(
-          'fixed right-0 top-0 z-50 flex h-full w-full max-w-[520px] flex-col gap-4 border-l border-white/10 bg-[#07111f] p-6 text-slate-100 shadow-panel',
+          'fixed right-0 top-0 z-50 flex h-full w-full max-w-[520px] flex-col gap-4 border-l border-border bg-white p-6 text-foreground shadow-lg',
           className,
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full bg-white/[0.06] p-2 text-muted-foreground transition hover:bg-white/[0.1] hover:text-white">
+        <DialogPrimitive.Close
+          aria-label="Fechar painel"
+          className="absolute right-4 top-4 rounded-lg bg-muted p-2 text-muted-foreground transition hover:bg-muted/75 hover:text-foreground"
+        >
           <X className="h-4 w-4" />
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
