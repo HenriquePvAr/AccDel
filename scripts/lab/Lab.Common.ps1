@@ -259,8 +259,12 @@ function New-LabListenerRecord {
     [Parameter(Mandatory)][string]$StopMode
   )
   $listeners = @(Get-LabListeners -Port $Port)
-  if ($listeners.Count -ne 1) { throw "Expected exactly one listener on laboratory port $Port." }
-  $pidValue = [int]$listeners[0].OwningProcess
+  if ($listeners.Count -lt 1) { throw "Expected a listener on laboratory port $Port." }
+  $nonLoopback = @($listeners | Where-Object { $_.LocalAddress -notin @('127.0.0.1', '::1') })
+  if ($nonLoopback.Count -gt 0) { throw "Laboratory port $Port is exposed beyond loopback." }
+  $listenerPids = @($listeners | Select-Object -ExpandProperty OwningProcess -Unique)
+  if ($listenerPids.Count -ne 1) { throw "Expected exactly one owner for laboratory port $Port." }
+  $pidValue = [int]$listenerPids[0]
   if ($pidValue -eq 9444) { throw 'Forbidden PID cannot become a laboratory owner.' }
   $cim = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction Stop
   if (-not $cim.CommandLine) { throw "Cannot validate listener PID $pidValue." }
