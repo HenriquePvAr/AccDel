@@ -309,9 +309,14 @@ function Test-LabProcessRecord {
   }
   $port = [int]$Record.Port
   if ($port -ne 0) {
-    $listeners = @(Get-LabListeners -Port $port | Where-Object { $_.OwningProcess -eq $pidValue })
-    if ($listeners.Count -ne 1) {
+    $listeners = @(Get-LabListeners -Port $port)
+    $listenerPids = @($listeners | Select-Object -ExpandProperty OwningProcess -Unique)
+    if ($listenerPids.Count -ne 1 -or [int]$listenerPids[0] -ne $pidValue) {
       return [pscustomobject]@{ Owned = $false; State = 'mismatch'; Reason = 'Expected listener ownership mismatch.' }
+    }
+    if ([string]$Record.StopMode -eq 'postgres-listener' -and
+        @($listeners | Where-Object { $_.LocalAddress -notin @('127.0.0.1', '::1') }).Count -gt 0) {
+      return [pscustomobject]@{ Owned = $false; State = 'mismatch'; Reason = 'PostgreSQL listener is exposed beyond loopback.' }
     }
   }
   return [pscustomobject]@{ Owned = $true; State = 'running'; Reason = 'Ownership validated.' }
