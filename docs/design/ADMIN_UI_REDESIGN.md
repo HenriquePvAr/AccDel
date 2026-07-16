@@ -86,11 +86,7 @@ Build e testes foram aprovados. O lint tem zero erros e mantém quatro warnings 
 
 ## Evidências visuais
 
-As capturas antes/depois foram mantidas fora do repositório em:
-
-`C:\Users\henri\AppData\Local\Temp\cain-admin-ui-audit\screenshots`
-
-Arquivos principais: `after-dashboard-1440x900.png`, `after-orders-1440x900.png`, `after-ai-attendant-1440x900.png`, `after-login-1440x900.png`, `after-settings-printing-1440x900.png` e a matriz `after-orders-*`.
+As capturas antes/depois foram mantidas fora do repositório, na pasta temporária do sistema. Os arquivos principais são `after-dashboard-1440x900.png`, `after-orders-1440x900.png`, `after-ai-attendant-1440x900.png`, `after-login-1440x900.png`, `after-settings-printing-1440x900.png` e a matriz `after-orders-*`.
 
 ## Limites intencionais
 
