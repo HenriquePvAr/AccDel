@@ -45,6 +45,8 @@ const pg = new EmbeddedPostgres({
 
 let started = false
 let stopRequested = false
+let shutdownReached = false
+let stopFailure = null
 process.on('SIGINT', () => { stopRequested = true })
 process.on('SIGTERM', () => { stopRequested = true })
 
@@ -65,12 +67,23 @@ try {
   )
   process.stdout.write('[lab-postgres] ready on loopback port 55439.\n')
   while (!stopRequested && !existsSync(stopFile)) await sleep(250)
+  shutdownReached = true
   process.stdout.write('[lab-postgres] graceful stop requested.\n')
 } finally {
-  if (started) await pg.stop()
+  if (started) {
+    try {
+      await pg.stop()
+    } catch (error) {
+      stopFailure = error
+      process.stderr.write('[lab-postgres] PostgreSQL stop returned an error after shutdown was requested.\n')
+    }
+  }
   await rm(readyFile, { force: true })
   await rm(stopFile, { force: true })
 }
+
+if (shutdownReached) process.exit(stopFailure ? 1 : 0)
+if (stopFailure) throw stopFailure
 
 function required(name) {
   const value = process.env[name]?.trim()

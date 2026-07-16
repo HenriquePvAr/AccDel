@@ -57,7 +57,19 @@ if ($supervisorState -eq 'running') {
     Start-Sleep -Milliseconds 250
   } while ([DateTime]::UtcNow -lt $deadline)
   if ($supervisorStillExists) {
-    throw 'PostgreSQL supervisor did not complete graceful shutdown; no force was attempted.'
+    $remainingListeners = @(Get-LabListeners -Port 55439)
+    $supervisorRecheck = Test-LabProcessRecord -Record $postgresSupervisor.Record
+    if ($remainingListeners.Count -gt 0 -or -not $supervisorRecheck.Owned) {
+      throw 'PostgreSQL supervisor did not complete graceful shutdown; ownership or listener state blocks targeted cleanup.'
+    }
+    Stop-Process -Id ([int]$postgresSupervisor.Record.Pid) -ErrorAction Stop
+    Wait-Process -Id ([int]$postgresSupervisor.Record.Pid) -Timeout 15 -ErrorAction SilentlyContinue
+    $supervisorStillExists = $null -ne (Get-CimInstance Win32_Process `
+      -Filter "ProcessId = $([int]$postgresSupervisor.Record.Pid)" -ErrorAction SilentlyContinue)
+    if ($supervisorStillExists) {
+      throw 'Validated orphaned PostgreSQL supervisor did not exit after targeted cleanup.'
+    }
+    Write-Output 'Stopped validated orphaned PostgreSQL supervisor after its listener exited.'
   }
   Wait-LabPort -Port 55439 -State Free -TimeoutSeconds 30
   Write-Output 'PostgreSQL laboratory supervisor completed graceful shutdown.'
