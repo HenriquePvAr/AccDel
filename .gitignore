@@ -26,6 +26,8 @@ build/
 .env.*
 !.env.example
 !.env.staging.example
+!.env.lab.example
+!**/.env.lab.example
 
 # Local database / embedded postgres
 .embedded-postgres/
