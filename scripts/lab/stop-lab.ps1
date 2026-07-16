@@ -67,7 +67,24 @@ if ($supervisorState -eq 'running') {
         throw 'PostgreSQL listener remains without a process document record.'
       }
       $listenerRecheck = Test-LabProcessRecord -Record $postgresListener.Record
-      if (-not $listenerRecheck.Owned) {
+      $listenerPids = @($remainingListeners | Select-Object -ExpandProperty OwningProcess -Unique)
+      $loopbackOnly = @($remainingListeners | Where-Object {
+        $_.LocalAddress -notin @('127.0.0.1', '::1')
+      }).Count -eq 0
+      $postmasterPidFile = Join-Path $context.PostgresData 'postmaster.pid'
+      Assert-SafeLabPath -Path $postmasterPidFile -Context $context | Out-Null
+      $postmasterLines = if (Test-Path -LiteralPath $postmasterPidFile -PathType Leaf) {
+        @(Get-Content -LiteralPath $postmasterPidFile -TotalCount 4)
+      } else { @() }
+      $postmasterMatches = $postmasterLines.Count -eq 4 -and
+        [string]$postmasterLines[0] -eq [string]$postgresListener.Record.Pid -and
+        [System.IO.Path]::GetFullPath([string]$postmasterLines[1]) -eq $context.PostgresData -and
+        [string]$postmasterLines[3] -eq '55439'
+      $terminatingListenerMatches = $listenerRecheck.State -eq 'absent' -and
+        $listenerPids.Count -eq 1 -and
+        [int]$listenerPids[0] -eq [int]$postgresListener.Record.Pid -and
+        $loopbackOnly -and $postmasterMatches
+      if (-not $listenerRecheck.Owned -and -not $terminatingListenerMatches) {
         throw 'PostgreSQL listener ownership changed during graceful shutdown.'
       }
       $pgCtl = Join-Path $context.ApiRuntime `
