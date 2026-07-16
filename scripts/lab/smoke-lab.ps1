@@ -64,7 +64,18 @@ $secretValues = @(
 ) | Where-Object { $_ }
 $logFiles = @(Get-ChildItem -LiteralPath $context.LogDirectory -Filter '*.log' -File -ErrorAction SilentlyContinue)
 foreach ($logFile in $logFiles) {
-  $content = [System.IO.File]::ReadAllText($logFile.FullName)
+  $stream = [System.IO.File]::Open(
+    $logFile.FullName,
+    [System.IO.FileMode]::Open,
+    [System.IO.FileAccess]::Read,
+    ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+  )
+  try {
+    $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8, $true, 4096, $true)
+    try { $content = $reader.ReadToEnd() } finally { $reader.Dispose() }
+  } finally {
+    $stream.Dispose()
+  }
   foreach ($secret in $secretValues) {
     if ($content.Contains([string]$secret)) { throw 'A runtime secret appeared in an owned log.' }
   }
