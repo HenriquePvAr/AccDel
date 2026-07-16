@@ -13,12 +13,25 @@ if ($null -eq $document) {
 }
 
 $validated = @()
+$lastBootUtc = (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime.ToUniversalTime()
 foreach ($record in @($document.records)) {
   $test = Test-LabProcessRecord -Record $record
   if ($test.State -eq 'forbidden') {
     throw "Refusing shutdown: ownership mismatch for $($record.Name)."
   }
   if ($test.State -eq 'mismatch') {
+    $recordCreatedUtc = [DateTime]::Parse([string]$record.CreatedAtUtc).ToUniversalTime()
+    $guardPort = if ([int]$record.Port -ne 0) {
+      [int]$record.Port
+    } elseif ([string]$record.StopMode -eq 'postgres-supervisor') {
+      55439
+    } else { 0 }
+    $guardPortIsFree = $guardPort -eq 0 -or @(Get-LabListeners -Port $guardPort).Count -eq 0
+    if ($recordCreatedUtc -lt $lastBootUtc -and $guardPortIsFree) {
+      Write-Output "Skipped pre-boot stale process record for $($record.Name); no process was targeted."
+      $validated += [pscustomobject]@{ Record = $record; Test = $test }
+      continue
+    }
     if ([string]$record.StopMode -ne 'targeted-process') {
       throw "Refusing shutdown: ownership mismatch for $($record.Name)."
     }
