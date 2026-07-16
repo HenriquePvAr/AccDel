@@ -58,6 +58,7 @@ foreach ($item in $targets) {
 }
 
 if ($supervisorState -eq 'running') {
+  $phantomListenerConfirmed = $false
   Assert-SafeLabPath -Path $context.PostgresStopFile -Context $context | Out-Null
   Write-AtomicUtf8File -Path $context.PostgresStopFile -Content "$script:LabMarker`n"
   $deadline = [DateTime]::UtcNow.AddSeconds(45)
@@ -104,11 +105,21 @@ if ($supervisorState -eq 'running') {
       if (-not (Test-Path -LiteralPath $pgCtl -PathType Leaf)) {
         throw 'Owned embedded PostgreSQL control executable is absent.'
       }
-      Invoke-LabExternal -FilePath $pgCtl `
-        -Arguments @('stop', '-D', $context.PostgresData, '-m', 'fast', '-w', '-t', '60') `
-        -WorkingDirectory $context.ApiRuntime
-      Wait-LabPort -Port 55439 -State Free -TimeoutSeconds 30
-      Write-Output 'Embedded PostgreSQL completed a targeted fast shutdown for the owned data directory.'
+      $pgCtlMessages = @(& $pgCtl 'stop' '-D' $context.PostgresData '-m' 'fast' '-w' '-t' '60' 2>&1)
+      $pgCtlExitCode = $LASTEXITCODE
+      if ($pgCtlExitCode -eq 0) {
+        Wait-LabPort -Port 55439 -State Free -TimeoutSeconds 30
+        Write-Output 'Embedded PostgreSQL completed a targeted fast shutdown for the owned data directory.'
+      } else {
+        $listenerCim = Get-CimInstance Win32_Process `
+          -Filter "ProcessId = $([int]$postgresListener.Record.Pid)" -ErrorAction SilentlyContinue
+        $noSuchProcess = (($pgCtlMessages | ForEach-Object { [string]$_ }) -join "`n") -match 'No such process'
+        if ($null -ne $listenerCim -or -not $terminatingListenerMatches -or -not $noSuchProcess) {
+          throw 'Owned embedded PostgreSQL control command failed without proving an absent listener process.'
+        }
+        $phantomListenerConfirmed = $true
+        Write-Output 'Confirmed an absent PostgreSQL process with a stale loopback listener record.'
+      }
       Start-Sleep -Seconds 2
     }
     $supervisorRecheck = Test-LabProcessRecord -Record $postgresSupervisor.Record
@@ -116,7 +127,7 @@ if ($supervisorState -eq 'running') {
       throw 'PostgreSQL supervisor ownership changed before targeted cleanup.'
     }
     if ($supervisorRecheck.State -eq 'running') {
-      if (@(Get-LabListeners -Port 55439).Count -gt 0) {
+      if (@(Get-LabListeners -Port 55439).Count -gt 0 -and -not $phantomListenerConfirmed) {
         throw 'PostgreSQL listener remains; refusing targeted supervisor cleanup.'
       }
       Stop-Process -Id ([int]$postgresSupervisor.Record.Pid) -ErrorAction Stop
