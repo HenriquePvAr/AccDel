@@ -57,13 +57,44 @@ if ($supervisorState -eq 'running') {
     Start-Sleep -Milliseconds 250
   } while ([DateTime]::UtcNow -lt $deadline)
   if ($supervisorStillExists) {
-    $remainingListeners = @(Get-LabListeners -Port 55439)
     $supervisorRecheck = Test-LabProcessRecord -Record $postgresSupervisor.Record
-    if ($remainingListeners.Count -gt 0 -or -not $supervisorRecheck.Owned) {
-      throw 'PostgreSQL supervisor did not complete graceful shutdown; ownership or listener state blocks targeted cleanup.'
+    if (-not $supervisorRecheck.Owned) {
+      throw 'PostgreSQL supervisor ownership changed during graceful shutdown.'
     }
-    Stop-Process -Id ([int]$postgresSupervisor.Record.Pid) -ErrorAction Stop
-    Wait-Process -Id ([int]$postgresSupervisor.Record.Pid) -Timeout 15 -ErrorAction SilentlyContinue
+    $remainingListeners = @(Get-LabListeners -Port 55439)
+    if ($remainingListeners.Count -gt 0) {
+      if ($null -eq $postgresListener) {
+        throw 'PostgreSQL listener remains without a process document record.'
+      }
+      $listenerRecheck = Test-LabProcessRecord -Record $postgresListener.Record
+      if (-not $listenerRecheck.Owned) {
+        throw 'PostgreSQL listener ownership changed during graceful shutdown.'
+      }
+      $pgCtl = Join-Path $context.ApiRuntime `
+        'node_modules\@embedded-postgres\windows-x64\native\bin\pg_ctl.exe'
+      Assert-SafeLabPath -Path $pgCtl -Context $context | Out-Null
+      Assert-SafeLabPath -Path $context.PostgresData -Context $context | Out-Null
+      if (-not (Test-Path -LiteralPath $pgCtl -PathType Leaf)) {
+        throw 'Owned embedded PostgreSQL control executable is absent.'
+      }
+      Invoke-LabExternal -FilePath $pgCtl `
+        -Arguments @('stop', '-D', $context.PostgresData, '-m', 'fast', '-w', '-t', '60') `
+        -WorkingDirectory $context.ApiRuntime
+      Wait-LabPort -Port 55439 -State Free -TimeoutSeconds 30
+      Write-Output 'Embedded PostgreSQL completed a targeted fast shutdown for the owned data directory.'
+      Start-Sleep -Seconds 2
+    }
+    $supervisorRecheck = Test-LabProcessRecord -Record $postgresSupervisor.Record
+    if ($supervisorRecheck.State -in @('mismatch', 'forbidden')) {
+      throw 'PostgreSQL supervisor ownership changed before targeted cleanup.'
+    }
+    if ($supervisorRecheck.State -eq 'running') {
+      if (@(Get-LabListeners -Port 55439).Count -gt 0) {
+        throw 'PostgreSQL listener remains; refusing targeted supervisor cleanup.'
+      }
+      Stop-Process -Id ([int]$postgresSupervisor.Record.Pid) -ErrorAction Stop
+      Wait-Process -Id ([int]$postgresSupervisor.Record.Pid) -Timeout 15 -ErrorAction SilentlyContinue
+    }
     $supervisorStillExists = $null -ne (Get-CimInstance Win32_Process `
       -Filter "ProcessId = $([int]$postgresSupervisor.Record.Pid)" -ErrorAction SilentlyContinue)
     if ($supervisorStillExists) {
