@@ -147,7 +147,7 @@ export function ReportsPage() {
               description="Receita consolidada por origem do pedido no periodo filtrado."
             >
               <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={snapshot.byChannel}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e6e1d7" />
                     <XAxis dataKey="label" />
@@ -164,7 +164,7 @@ export function ReportsPage() {
               description="Composicao financeira do periodo filtrado."
             >
               <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie
                       data={snapshot.byPayment}

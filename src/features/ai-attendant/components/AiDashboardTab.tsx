@@ -104,7 +104,7 @@ export function AiDashboardTab() {
           </CardHeader>
           <CardContent className="h-80">
             {productChartData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={productChartData}>
                   <CartesianGrid stroke="rgba(148,163,184,0.14)" vertical={false} />
                   <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} />
@@ -183,7 +183,7 @@ export function AiDashboardTab() {
           </CardHeader>
           <CardContent className="h-72">
             {districtChartData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={districtChartData} layout="vertical">
                   <CartesianGrid stroke="rgba(148,163,184,0.14)" horizontal={false} />
                   <XAxis type="number" stroke="#94a3b8" tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -299,7 +299,7 @@ function RankedBarCard({
       </CardHeader>
       <CardContent className="h-72">
         {data.length ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart data={data} layout="vertical">
               <CartesianGrid stroke="rgba(148,163,184,0.14)" horizontal={false} />
               <XAxis type="number" stroke="#94a3b8" tick={{ fontSize: 11 }} allowDecimals={false} />
