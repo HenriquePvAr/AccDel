@@ -144,7 +144,7 @@ if ($supervisorState -eq 'running') {
     if ($supervisorStillExists) {
       throw 'Validated orphaned PostgreSQL supervisor did not exit after targeted cleanup.'
     }
-    Write-Output 'Stopped validated orphaned PostgreSQL supervisor after its listener exited.'
+    Write-Output 'Stopped validated orphaned PostgreSQL supervisor after the database process was proven absent.'
   }
   Wait-LabPort -Port 55439 -State Free -TimeoutSeconds 30
   Write-Output 'PostgreSQL laboratory supervisor completed graceful shutdown.'
@@ -152,11 +152,11 @@ if ($supervisorState -eq 'running') {
   throw 'PostgreSQL listener remains without a running supervisor; no process was terminated.'
 }
 
+Assert-LabPortsFree
 foreach ($path in @($context.PostgresReadyFile, $context.PostgresStopFile, $context.ProcessFile)) {
   if (Test-Path -LiteralPath $path) {
     Assert-SafeLabPath -Path $path -Context $context | Out-Null
     Remove-Item -LiteralPath $path -Force
   }
 }
-Assert-LabPortsFree
 Write-Output 'Cain laboratory stopped. Only owned runtime data remains for explicit reset.'
