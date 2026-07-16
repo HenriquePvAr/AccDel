@@ -15,8 +15,18 @@ if ($null -eq $document) {
 $validated = @()
 foreach ($record in @($document.records)) {
   $test = Test-LabProcessRecord -Record $record
-  if ($test.State -in @('mismatch', 'forbidden')) {
+  if ($test.State -eq 'forbidden') {
     throw "Refusing shutdown: ownership mismatch for $($record.Name)."
+  }
+  if ($test.State -eq 'mismatch') {
+    if ([string]$record.StopMode -ne 'targeted-process') {
+      throw "Refusing shutdown: ownership mismatch for $($record.Name)."
+    }
+    $recordPort = [int]$record.Port
+    if ($recordPort -ne 0 -and @(Get-LabListeners -Port $recordPort).Count -gt 0) {
+      throw "Refusing shutdown: stale ownership record but port remains active for $($record.Name)."
+    }
+    Write-Output "Skipped stale process record for $($record.Name); no process was targeted."
   }
   $validated += [pscustomobject]@{ Record = $record; Test = $test }
 }
