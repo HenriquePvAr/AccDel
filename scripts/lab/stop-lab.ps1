@@ -105,8 +105,14 @@ if ($supervisorState -eq 'running') {
       if (-not (Test-Path -LiteralPath $pgCtl -PathType Leaf)) {
         throw 'Owned embedded PostgreSQL control executable is absent.'
       }
-      $pgCtlMessages = @(& $pgCtl 'stop' '-D' $context.PostgresData '-m' 'fast' '-w' '-t' '60' 2>&1)
-      $pgCtlExitCode = $LASTEXITCODE
+      $previousErrorActionPreference = $ErrorActionPreference
+      try {
+        $ErrorActionPreference = 'Continue'
+        $pgCtlMessages = @(& $pgCtl 'stop' '-D' $context.PostgresData '-m' 'fast' '-w' '-t' '60' 2>&1)
+        $pgCtlExitCode = $LASTEXITCODE
+      } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+      }
       if ($pgCtlExitCode -eq 0) {
         Wait-LabPort -Port 55439 -State Free -TimeoutSeconds 30
         Write-Output 'Embedded PostgreSQL completed a targeted fast shutdown for the owned data directory.'
