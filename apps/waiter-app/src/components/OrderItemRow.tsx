@@ -1,6 +1,6 @@
 import { Ban, Check, Clock3 } from 'lucide-react'
 
-import { currency } from '@/lib/format'
+import { currency, itemLaunchMeta } from '@/lib/format'
 import type { SessionItem } from '@/types'
 import { PrintStatusBadge, ProductionStatusBadge } from './StatusBadge'
 
@@ -14,7 +14,13 @@ export function OrderItemRow({ item, onCancel, onDeliver }: { item: SessionItem;
         {optionNames.length > 0 && <small>{optionNames.join(' · ')}</small>}
         {item.notes && <small>Obs.: {item.notes}</small>}
         {item.cancelReason && <small>Motivo: {item.cancelReason}</small>}
-        <div className="item-labels"><ProductionStatusBadge status={item.productionStatus} /><PrintStatusBadge status={item.printStatus} /><span className="item-time"><Clock3 size={14} /> {new Date(item.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+        <div className="item-labels">
+          <ProductionStatusBadge status={item.productionStatus} />
+          <PrintStatusBadge status={item.printStatus} />
+          <span className="item-time" aria-label={`Lançado às ${itemLaunchMeta(item.createdAt, item.createdByName)}`}>
+            <Clock3 size={14} /> {itemLaunchMeta(item.createdAt, item.createdByName)}
+          </span>
+        </div>
       </div>
       <div className="item-actions">
         {onDeliver && <button className="button ready-action" type="button" onClick={onDeliver}><Check size={18} /> Entregar</button>}

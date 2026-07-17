@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableSessionDrawer } from '@/features/dining/components/TableSessionDrawer'
+import { formatItemLaunchMeta } from '@/features/dining/utils/item-launch'
 import {
   useAddTableSessionItemsMutation,
   useCatalogMenuSourceQuery,
@@ -521,10 +522,7 @@ function TableDetailsPanel({
                     {item.notes ? (
                       <p className="truncate text-xs text-muted-foreground">{item.notes}</p>
                     ) : null}
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {item.createdByName ?? session.waiterName ?? 'Equipe'} lançou
-                      {item.createdAt ? ` as ${formatItemTime(item.createdAt)}` : ''}
-                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatItemLaunchMeta(item)}</p>
                   </div>
                   <span className="font-mono text-orange-200">{formatCurrency(item.totalPrice)}</span>
                 </div>
@@ -563,13 +561,6 @@ function TableDetailsPanel({
       </div>
     </aside>
   )
-}
-
-function formatItemTime(value: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }
 
 function DetailMetric({

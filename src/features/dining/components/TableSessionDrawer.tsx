@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/sheet'
 import { formatCurrency, formatDateFull } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { formatItemLaunchMeta } from '@/features/dining/utils/item-launch'
 import type {
   Category,
   DiningTable,
@@ -868,8 +869,7 @@ function CurrentConsumptionCard({
                     {item.quantity}x {item.name}
                   </p>
                   <p className={cn('mt-1 text-xs', selected ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
-                    {item.createdByName ?? session.waiterName ?? 'Equipe'} lançou
-                    {item.createdAt ? ` as ${formatTime(item.createdAt)}` : ''}
+                    {formatItemLaunchMeta(item)}
                   </p>
                   {item.notes ? <p className="mt-1 truncate text-xs text-amber-100">{item.notes}</p> : null}
                   {item.options.length ? (
@@ -1017,11 +1017,4 @@ function mergePendingItem(items: PendingCartItem[], next: PendingCartItem) {
   return items.map((item) =>
     item.id === compatible.id ? { ...item, quantity: Math.min(20, item.quantity + 1) } : item,
   )
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }
