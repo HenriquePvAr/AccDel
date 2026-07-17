@@ -1,6 +1,6 @@
 # Cain Delivery - Contexto Canonico Para IA
 
-Atualizado em: 2026-05-14  
+Atualizado em: 2026-07-15
 Objetivo: este arquivo deve permitir que qualquer IA entenda o sistema, continue o trabalho com seguranca e evite reabrir decisoes ja tomadas.
 
 ## 1. Resumo executivo
@@ -75,6 +75,8 @@ Raiz:
 - `src/` - admin web em React + Vite
 - `apps/api/` - API real em NestJS + Prisma
 - `apps/driver-app/` - app do motoboy em Expo / React Native
+- `apps/print-agent/` - agente local de impressao termica ESC/POS
+- `docs/printing/` - arquitetura, seguranca, testes e runbook de impressao
 - `public/` - assets publicos do admin
 - `PROJECT_HANDOFF_CONTEXT.md` - este arquivo, fonte principal para handoff entre IAs
 
@@ -274,6 +276,7 @@ Rotas principais:
 - `/settings/users`
 - `/settings/delivery`
 - `/settings/preferences`
+- `/settings/printing`
 - `/login`
 
 ## 9. Backend e banco
@@ -1081,4 +1084,148 @@ Use esta frase:
 ```text
 Use PROJECT_HANDOFF_CONTEXT.md como fonte principal de verdade do projeto Cain Delivery. Preserve a arquitetura atual, nao reintroduza mocks silenciosos e continue a partir do estado verificado em 2026-05-14.
 ```
+
+## 27. WhatsApp Cloud API e atendente NVIDIA (14/07/2026)
+
+Branch: `feature/whatsapp-cloud-ai-attendant`, baseada em `f04b335`.
+
+Estado implementado:
+
+- Meta WhatsApp Cloud API oficial como provider principal e Evolution como legado explicito;
+- GET/POST `/webhooks/whatsapp`, raw body e HMAC `X-Hub-Signature-256`;
+- conta de mensageria, identidade de canal, inbound deduplicado, outbox, audit de IA/tools, notificacoes e tracking tokenizado;
+- NVIDIA NIM OpenAI-compatible com timeout, fila, RPM, concorrencia, retry e circuit breaker;
+- allowlist de onze tools, sem Prisma exposto ao modelo e sem catalogo completo no prompt;
+- rascunho controlado, reprecificacao e confirmacao explicita/idempotente antes do pedido `source=whatsapp`;
+- handoff persistente com usuario derivado do JWT;
+- notificacoes deterministicas por transicao, janela de 24 horas e templates;
+- `/tracking/:token` sem PII, com hash, TTL, revogacao e coordenada arredondada;
+- interface Cloud sem QR Code e com status `queued/sent/delivered/read/failed`.
+
+Documentos operacionais estao em `docs/integrations`. O arquivo `.env` permanece local/ignorado; use apenas `apps/api/.env.example` como lista de variaveis.
+
+Validacao atual desta branch: 50 testes unitarios API, 2 testes persistentes de integracao, 5 testes web, builds API/admin, lint API/driver, typecheck driver, Prisma validate e 21 migrations aplicadas do zero em PostgreSQL isolado. Nao houve chamada real a Meta/NVIDIA por ausencia de credenciais locais.
+
+## 28. Revisao de prontidao das integracoes (14/07/2026)
+
+A revisao profunda dos 72 arquivos encontrou e corrigiu problemas concretos de concorrencia, timezone, sandbox, status fora de ordem, atomicidade inbound, handoff, idempotencia de tools, tenant e tracking. A outbox agora usa claim PostgreSQL atomico com `SKIP LOCKED`, preserva a ordem por conversa e recupera locks antigos. O sandbox e aplicado no worker a todas as origens de mensagem.
+
+Foram adicionados testes locais com PostgreSQL para duas instancias do worker, status concorrente, isolamento por loja, chave idempotente divergente, allowlist e disputa entre humanos. As 21 migrations aplicam em banco vazio; as duas migrations da integracao aplicam sobre as 19 anteriores.
+
+O estado externo permanece honesto:
+
+- NVIDIA real: nao executado, credencial local ausente;
+- Meta real: nao executado, credenciais locais ausentes;
+- E2E real: nao executado;
+- templates: cinco nomes propostos, aprovacao ainda nao verificada;
+- staging: bloqueado ate conta de teste, sandbox, templates, observabilidade e rollback;
+- producao: nao pronta.
+
+Relatorios e procedimentos atuais:
+
+- `docs/integrations/REAL_VALIDATION_REPORT.md`
+- `docs/integrations/META_TEST_ACCOUNT_SETUP.md`
+- `docs/integrations/NVIDIA_REAL_TEST.md`
+- `docs/integrations/TEMPLATE_APPROVAL_CHECKLIST.md`
+- `docs/integrations/STAGING_ROLLOUT.md`
+
+## 29. Sistema de impressao termica (15/07/2026)
+
+Branch: `feature/thermal-printing-agent`.
+
+Arquitetura implementada:
+
+- API e PostgreSQL sao a fonte da verdade;
+- eventos reais de pedido/pagamento criam `PrintJob` na mesma transacao do dominio;
+- snapshot e template ficam imutaveis no job;
+- claim usa `FOR UPDATE SKIP LOCKED`, lease, prioridade com aging e tentativas persistidas;
+- agente local autentica por token proprio, recebe somente impressoras vinculadas e mantem ledger atomico;
+- navegador nunca acessa a impressora;
+- reimpressao exige permissao/motivo, cria job novo e imprime marca visivel.
+
+Modelos principais adicionados:
+
+- `PrintingSettings`
+- `PrinterStation`
+- `Printer`
+- `PrinterRoutingRule`
+- `PrintTemplate`
+- `PrintAgent`
+- `PrintAgentHeartbeat`
+- `PrintJob`
+- `PrintJobAttempt`
+- `PrintAuditLog`
+
+Eventos conectados:
+
+- entrada em producao -> `ORDER_INITIAL`;
+- novos itens de comanda -> `ORDER_ADDITION`;
+- pedido pronto -> `DISPATCH_ORDER`;
+- pagamento confirmado -> `CASHIER_RECEIPT`;
+- cancelamento -> `ORDER_CANCELLATION`;
+- reimpressao administrativa -> novo job `REPRINT`.
+
+Validacao concluida sem hardware:
+
+- API build/lint e 59 testes unitarios;
+- integracao PostgreSQL com isolamento, replay, concorrencia de claim/confirmacao, lease e reimpressao;
+- simulacao de 40 pedidos com dois setores, falhas temporarias e uma queda ambigua;
+- carga de 500 jobs;
+- 22 migrations em banco vazio e migration termica incremental sobre as 21 anteriores;
+- agente com typecheck/lint/build e 10 testes;
+- admin web build/lint e 5 testes;
+- dry-run TXT/BIN/JSON e TCP apenas contra loopback simulado.
+
+Limites que devem permanecer explicitos:
+
+- nenhuma impressora fisica foi acessada ou homologada;
+- `WINDOWS_PRINTER`/spooler RAW nao esta implementado;
+- exactly-once fisico nao e possivel; `PRINT_RESULT_UNKNOWN` exige decisao humana;
+- ledger nao tem criptografia de aplicacao e depende de ACL/disco protegido;
+- nao ha metrica/alerta externo nem instalador de servico Windows nesta entrega;
+- status atual: pronto para teste supervisionado em restaurante, nao pronto para producao.
+
+Documentacao canonica: `docs/printing/`. O primeiro teste fisico deve seguir `REAL_PRINTER_VALIDATION.md` e `OPERATIONAL_RUNBOOK.md` sem contornar o driver por scripts locais.
+
+## 30. Cain Garçom (15/07/2026)
+
+Branch: `feature/waiter-pwa`, baseada em `317d6c5`.
+
+Foi adicionado `apps/waiter-app`, PWA React/TypeScript para garçom e gerente. O app tem login operacional, salas/mesas, abertura de sessão, catálogo pesquisável, modificadores obrigatórios, rascunho isolado, envio inicial e adições, acompanhamento de cozinha/impressão, cancelamento auditado, entrega, transferência e solicitação de fechamento. Offline mantém apenas leitura recente e rascunho; todas as mutações são bloqueadas.
+
+A API recebeu módulo `/waiter` de superfície mínima, permissões próprias, guard que revalida usuário/membership/perfil, ownership de sessão, tenant obrigatório, idempotência, rate limit, versões otimistas e SSE por loja. Itens da sessão agora apontam para `Order`/`OrderItem` reais; primeiro envio, adição e remoção produzem eventos de impressão distintos. Preço, disponibilidade e total continuam calculados no servidor.
+
+Validação automatizada inclui API, PWA, fluxos E2E A–G, 12 cenários visuais e cargas sintéticas. Nenhum hardware, rede de restaurante ou impressora física foi usado. Classificação: pronto para piloto supervisionado em staging, não homologado para produção autônoma.
+
+Documentação canônica: `docs/waiter/`. O próximo gate está descrito em `docs/waiter/TESTING.md` e `docs/waiter/LIMITATIONS.md`.
+
+## 31. Hardening de dependências do RC1 (15/07/2026)
+
+Branch local: `security/dependency-hardening-rc1`, baseada em `release/pilot-rc1` (`d9a9b93`).
+
+Os cinco installs npm foram auditados e reproduzidos. O Admin atualizou React Router e Vite dentro dos mesmos majors; a API atualizou a cadeia NestJS/Fastify/fast-uri dentro do Nest 11; o Driver atualizou patches do Expo SDK 54 e removeu as vulnerabilidades crítica/altas de `shell-quote`, `undici` e `ws`. Waiter e Print Agent permaneceram sem alterações e com audit limpo.
+
+Matriz final: Admin 0; API 1 baixa de desenvolvimento em `tsx → esbuild`; Waiter 0; Print Agent 0; Driver 11 moderadas agregadas em duas cadeias do toolchain Expo (`postcss` e `uuid`). Total: 0 críticas e 0 altas. Não houve major, override, `npm audit fix --force`, `expo install --fix`, mudança de schema/migration, push ou merge.
+
+O upgrade Expo SDK 54 → 57 foi separado porque exige migração própria e validação em dispositivo. O estado atual está pronto para continuar desenvolvimento e para laboratório supervisionado, mas não adiciona homologação de restaurante ou produção.
+
+Documentação canônica:
+
+- `docs/security/DEPENDENCY_AUDIT_RC1.md`
+- `docs/security/DEPENDENCY_UPDATE_PLAN.md`
+- `docs/security/DRIVER_APP_DEPENDENCY_RISKS.md`
+
+## 32. GitHub Actions do RC2 (15/07/2026)
+
+Branch: `ci/pilot-rc2-validation`, baseada exatamente em `release/pilot-rc2` (`20ca789120d9374155710c19eab0f40cda02df47`). O RC2 permanece sem novos commits.
+
+Foram definidos workflows independentes para Admin, API, Waiter PWA, Print Agent e Driver App. A API possui jobs separados para validação unitária e PostgreSQL temporário. Os jobs usam Node `24.16.0`, installs npm independentes, lockfiles v3, permissões somente de leitura e actions oficiais fixadas por SHA completo.
+
+O CI não usa secrets reais, Meta, NVIDIA, EAS, impressora física, banco de produção ou deploy. Fluxos completos com seed/API/Print Agent, matriz incremental dependente do Compose e backup/restore permanecem gates de laboratório. CI verde não autoriza restaurante fechado ou produção.
+
+Documentação canônica:
+
+- `docs/ci/GITHUB_ACTIONS.md`
+- `docs/ci/CI_MATRIX.md`
+- `docs/ci/TROUBLESHOOTING.md`
 

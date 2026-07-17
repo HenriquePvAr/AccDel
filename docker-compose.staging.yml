@@ -1,0 +1,119 @@
+name: cain-pilot
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:${STAGING_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - cain_pilot_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.staging
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV}
+      NODE_ENV: ${NODE_ENV}
+      API_PORT: 3333
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      EXPECTED_MIGRATION_COUNT: ${EXPECTED_MIGRATION_COUNT}
+      SOURCE_COMMIT: ${SOURCE_COMMIT:-pilot-local}
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER}
+      AI_PROVIDER: ${AI_PROVIDER}
+      MESSAGING_SANDBOX_MODE: ${MESSAGING_SANDBOX_MODE}
+      MESSAGING_ALLOWED_RECIPIENTS: ${MESSAGING_ALLOWED_RECIPIENTS:-}
+      FEATURE_WHATSAPP_ENABLED: ${FEATURE_WHATSAPP_ENABLED}
+      FEATURE_AI_ATTENDANT_ENABLED: ${FEATURE_AI_ATTENDANT_ENABLED}
+      FEATURE_PRINTING_ENABLED: ${FEATURE_PRINTING_ENABLED}
+      FEATURE_WAITER_PWA_ENABLED: ${FEATURE_WAITER_PWA_ENABLED}
+      FEATURE_PUBLIC_TRACKING_ENABLED: ${FEATURE_PUBLIC_TRACKING_ENABLED}
+      FEATURE_ORDER_NOTIFICATIONS_ENABLED: ${FEATURE_ORDER_NOTIFICATIONS_ENABLED}
+      PUBLIC_TRACKING_TTL_MINUTES: ${PUBLIC_TRACKING_TTL_MINUTES}
+      ALLOW_PILOT_SEED: ${ALLOW_PILOT_SEED}
+      PILOT_USER_PASSWORD: ${PILOT_USER_PASSWORD}
+      CAIN_PRINT_AGENT_TOKEN: ${CAIN_PRINT_AGENT_TOKEN}
+      PILOT_CREDENTIALS_OUTPUT: ${PILOT_CREDENTIALS_OUTPUT}
+    ports:
+      - "127.0.0.1:${STAGING_API_PORT:-3333}:3333"
+    volumes:
+      - ./.pilot:/pilot
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3333/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.staging
+      args:
+        VITE_API_BASE_URL: ${PUBLIC_API_URL}
+        VITE_DATA_SOURCE: api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${STAGING_ADMIN_PORT:-4173}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  waiter:
+    build:
+      context: .
+      dockerfile: apps/waiter-app/Dockerfile.staging
+      args:
+        VITE_API_BASE_URL: ${PUBLIC_API_URL}
+        VITE_STORE_ID: store_main
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${STAGING_WAITER_PORT:-4174}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  print-agent:
+    build:
+      context: ./apps/print-agent
+      dockerfile: Dockerfile.staging
+    restart: unless-stopped
+    environment:
+      CAIN_API_BASE_URL: http://api:3333
+      CAIN_PRINT_AGENT_TOKEN: ${CAIN_PRINT_AGENT_TOKEN}
+      CAIN_PRINT_AGENT_NAME: ${CAIN_PRINT_AGENT_NAME}
+      CAIN_PRINT_AGENT_VERSION: ${CAIN_PRINT_AGENT_VERSION}
+      CAIN_PRINT_POLL_INTERVAL_MS: ${CAIN_PRINT_POLL_INTERVAL_MS}
+      CAIN_PRINT_HEARTBEAT_INTERVAL_MS: ${CAIN_PRINT_HEARTBEAT_INTERVAL_MS}
+      CAIN_PRINT_MAX_CONCURRENT_JOBS: ${CAIN_PRINT_MAX_CONCURRENT_JOBS}
+      CAIN_PRINT_DRY_RUN: "true"
+      CAIN_PRINT_OUTPUT_DIR: ${CAIN_PRINT_OUTPUT_DIR}
+      CAIN_PRINT_DATA_DIR: ${CAIN_PRINT_DATA_DIR}
+      CAIN_PRINT_LOG_LEVEL: ${CAIN_PRINT_LOG_LEVEL}
+    volumes:
+      - ./.pilot/print-agent:/app/var
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  cain_pilot_postgres:

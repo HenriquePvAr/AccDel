@@ -20,6 +20,7 @@ export type AdminPermission =
   | 'kitchen:view'
   | 'kitchen:update'
   | 'drivers:view'
+  | 'drivers:self'
   | 'catalog:categories:view'
   | 'catalog:categories:manage'
   | 'catalog:products:view'
@@ -31,6 +32,7 @@ export type AdminPermission =
   | 'catalog:preview:view'
   | 'cash:view'
   | 'cash:manage'
+  | 'payments:confirm'
   | 'history:view'
   | 'reports:view'
   | 'settings:store:view'
@@ -43,6 +45,18 @@ export type AdminPermission =
   | 'users:manage'
   | 'ai_attendant:view'
   | 'ai_attendant:manage'
+  | 'printing:view'
+  | 'printing:manage'
+  | 'printing:reprint'
+  | 'waiter:tables:view'
+  | 'waiter:sessions:create'
+  | 'waiter:orders:create'
+  | 'waiter:orders:update'
+  | 'waiter:orders:send'
+  | 'waiter:orders:cancel_item'
+  | 'waiter:items:deliver'
+  | 'waiter:sessions:close_request'
+  | 'waiter:tables:transfer'
 
 export type OrderStatus =
   | 'in_analysis'
@@ -69,7 +83,7 @@ export type PaymentMethod =
   | 'payment_link'
 
 export type PaymentProvider = 'manual' | 'pix' | 'picpay'
-export type PaymentStatus = 'paid' | 'pending' | 'refunded'
+export type PaymentStatus = 'paid' | 'pending' | 'failed' | 'cancelled' | 'refunded'
 export type PriorityLevel = 'normal' | 'priority' | 'vip'
 export type TableStatus = 'free' | 'occupied' | 'reserved' | 'closing' | 'closed'
 export type ProductChannel = 'dine_in' | 'delivery' | 'digital_menu' | 'counter'
@@ -211,6 +225,8 @@ export interface OrderItem {
   unitPrice: number
   notes?: string
   options: OrderItemOption[]
+  cancelledAt?: string
+  cancelReason?: string
 }
 
 export interface TimelineEntry {

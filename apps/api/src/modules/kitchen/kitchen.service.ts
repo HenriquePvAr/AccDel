@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import type { OrderStatus, Prisma } from '@prisma/client'
 
 import type {
@@ -9,6 +9,7 @@ import type {
 import { OrdersService } from '@/modules/orders/orders.service'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { getCurrentStoreId } from '@/shared/store-context'
+import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 
 import { mapOrder } from '../orders/orders.mapper'
 
@@ -84,55 +85,24 @@ export class KitchenService {
     }
   }
 
-  async markOrderReady(orderId: string, payload: MarkKitchenOrderReadyPayload) {
-    const current = await this.prisma.order.findFirstOrThrow({
-      where: {
-        id: orderId,
-        storeId: getCurrentStoreId(),
-      },
-    })
-
-    if (!['in_preparation', 'ready'].includes(current.status)) {
-      throw new BadRequestException(
-        'A cozinha so pode marcar como pronto pedidos em producao.',
-      )
-    }
-
-    const order = await this.prisma.order.update({
-      where: {
-        id: current.id,
-      },
-      data: {
-        status: 'ready',
-        history:
-          current.status === 'ready'
-            ? undefined
-            : {
-                create: {
-                  status: 'ready',
-                  label: 'Pedido marcado como pronto pela cozinha',
-                  actor: this.cleanDatabaseText(payload.actor ?? 'Cozinha'),
-                },
-              },
-      },
-      include: {
-        items: true,
-        history: true,
-        driver: true,
-      },
-    })
-
-    return {
-      data: mapOrder(order),
-    }
+  async markOrderReady(
+    orderId: string,
+    payload: MarkKitchenOrderReadyPayload,
+    authUser: AuthenticatedRequestUser,
+  ) {
+    void payload
+    return this.ordersService.updateStatus(orderId, { action: 'ready' }, authUser)
   }
 
-  async moveOrder(orderId: string, payload: MoveKitchenOrderPayload) {
+  async moveOrder(
+    orderId: string,
+    payload: MoveKitchenOrderPayload,
+    authUser: AuthenticatedRequestUser,
+  ) {
     return this.ordersService.updateStatus(orderId, {
       action: payload.action,
-      actor: payload.actor ?? 'Cozinha',
       driverId: payload.driverId,
-    })
+    }, authUser)
   }
 
   private buildWhere(query: KitchenQueueQuery): Prisma.OrderWhereInput {
@@ -240,12 +210,4 @@ export class KitchenService {
     return Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000))
   }
 
-  private cleanDatabaseText(value: string) {
-    const safe = value
-      .replace(/\uFFFD/g, '')
-      .replace(/[^\u0020-\u007E\u00A0-\u00FF]/g, '')
-      .trim()
-
-    return safe || 'Cozinha'
-  }
 }

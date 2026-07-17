@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
 import type { Prisma, TableSessionEventType } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
 
 import type {
   AddTableSessionItemPayload,
@@ -20,6 +22,7 @@ import {
   resolveProductOptionSelection,
   toProductOptionsJson,
 } from '@/modules/catalog/product-options'
+import { PrintingPolicyService } from '@/modules/printing/printing-policy.service'
 import { buildListResponse } from '@/shared/pagination'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { AdminRealtimeService } from '@/shared/realtime/admin-realtime.service'
@@ -34,7 +37,22 @@ const diningTableInclude = {
     include: {
       table: true,
       waiter: true,
-      items: true,
+      items: {
+        include: {
+          productionOrder: {
+            select: {
+              id: true,
+              number: true,
+              status: true,
+              printJobs: {
+                select: {
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      },
       events: true,
     },
   },
@@ -43,15 +61,37 @@ const diningTableInclude = {
 const tableSessionInclude = {
   table: true,
   waiter: true,
-  items: true,
+  items: {
+    include: {
+      productionOrder: {
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          printJobs: {
+            select: {
+              status: true,
+            },
+          },
+        },
+      },
+    },
+  },
   events: true,
 } satisfies Prisma.TableSessionInclude
+
+export interface DiningMutationContext {
+  expectedVersion?: number
+  expectedTableVersion?: number
+  expectedTargetTableVersion?: number
+}
 
 @Injectable()
 export class DiningService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: AdminRealtimeService,
+    private readonly printingPolicy: PrintingPolicyService,
   ) {}
 
   async listAreas() {
@@ -195,7 +235,11 @@ export class DiningService {
     }
   }
 
-  async openSession(tableId: string, payload: OpenTableSessionPayload) {
+  async openSession(
+    tableId: string,
+    payload: OpenTableSessionPayload,
+    context: DiningMutationContext = {},
+  ) {
     const table = await this.ensureTable(tableId)
 
     if (table.currentSessionId) {
@@ -212,6 +256,9 @@ export class DiningService {
     const actor = waiterMembership?.user.name ?? 'Operacao'
 
     const session = await this.prisma.$transaction(async (tx) => {
+      await this.claimTableVersion(tx, table.id, context.expectedTableVersion ?? table.version, {
+        currentSessionId: null,
+      })
       const created = await tx.tableSession.create({
         data: {
           storeId: getCurrentStoreId(),
@@ -281,6 +328,12 @@ export class DiningService {
       })
     })
 
+    this.realtime.emit('dining.session_updated', {
+      sessionId: session.id,
+      tableId: session.tableId,
+      reason: 'opened',
+    })
+
     return {
       data: mapTableSession(session),
     }
@@ -292,7 +345,11 @@ export class DiningService {
     })
   }
 
-  async addItems(sessionId: string, payload: AddTableSessionItemsPayload) {
+  async addItems(
+    sessionId: string,
+    payload: AddTableSessionItemsPayload,
+    context: DiningMutationContext = {},
+  ) {
     const session = await this.ensureSession(sessionId)
 
     if (session.status === 'closed') {
@@ -365,6 +422,8 @@ export class DiningService {
       const totalPrice = unitPrice * item.quantity
 
       return {
+        orderItemId: randomUUID(),
+        sessionItemId: randomUUID(),
         product,
         quantity: item.quantity,
         unitPrice,
@@ -377,6 +436,11 @@ export class DiningService {
     const nextStatus = session.status === 'awaiting_close' ? 'open' : session.status
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await this.claimSessionVersion(
+        tx,
+        session.id,
+        context.expectedVersion ?? session.version,
+      )
       const createdAt = new Date()
       const productionNumber = await this.nextOrderNumber(tx)
       const tableLabel = `Mesa ${session.table.code}`
@@ -415,6 +479,7 @@ export class DiningService {
           notes: productionNotes || null,
           items: {
             create: items.map((item) => ({
+              id: item.orderItemId,
               productId: item.product.id,
               name: item.product.name,
               quantity: item.quantity,
@@ -440,11 +505,23 @@ export class DiningService {
             ],
           },
         },
-        select: {
-          id: true,
-          status: true,
-          driverId: true,
+        include: {
+          items: true,
+          driver: true,
         },
+      })
+
+      await this.printingPolicy.createOrderJobs(tx, {
+        storeId: getCurrentStoreId(),
+        eventId: `table-session:${session.id}:production-order:${productionOrder.id}`,
+        jobType: session.items.some((item) => !item.cancelledAt)
+          ? 'ORDER_ADDITION'
+          : 'ORDER_INITIAL',
+        order: productionOrder,
+        items: productionOrder.items.map((item) => ({
+          ...item,
+          unitPrice: item.unitPrice.toNumber(),
+        })),
       })
 
       await tx.tableSession.update({
@@ -462,7 +539,10 @@ export class DiningService {
           },
           items: {
             create: items.map((item) => ({
+              id: item.sessionItemId,
               productId: item.product.id,
+              productionOrderId: productionOrder.id,
+              productionOrderItemId: item.orderItemId,
               name: item.product.name,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
@@ -513,6 +593,9 @@ export class DiningService {
           id: session.tableId,
         },
         data: {
+          version: {
+            increment: 1,
+          },
           status: 'occupied',
           waiterId: waiterMembership?.userId ?? session.waiterId,
           guests: session.guestCount,
@@ -550,13 +633,22 @@ export class DiningService {
       status: result.productionOrder.status,
       driverId: result.productionOrder.driverId ?? null,
     })
+    this.realtime.emit('dining.session_updated', {
+      sessionId: result.session.id,
+      tableId: result.session.tableId,
+      reason: 'items_sent',
+    })
 
     return {
       data: mapTableSession(result.session),
     }
   }
 
-  async updateSession(sessionId: string, payload: UpdateTableSessionPayload) {
+  async updateSession(
+    sessionId: string,
+    payload: UpdateTableSessionPayload,
+    context: DiningMutationContext = {},
+  ) {
     const session = await this.ensureSession(sessionId)
 
     if (session.status === 'closed') {
@@ -613,6 +705,11 @@ export class DiningService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.claimSessionVersion(
+        tx,
+        session.id,
+        context.expectedVersion ?? session.version,
+      )
       await tx.tableSession.update({
         where: {
           id: session.id,
@@ -636,6 +733,9 @@ export class DiningService {
           id: session.tableId,
         },
         data: {
+          version: {
+            increment: 1,
+          },
           waiterId: payload.waiterId === undefined ? session.waiterId : waiterMembership?.userId ?? null,
           guests: payload.guestCount ?? session.guestCount,
           status: nextStatus === 'awaiting_close' ? 'closing' : 'occupied',
@@ -662,19 +762,31 @@ export class DiningService {
       })
     })
 
+    this.realtime.emit('dining.session_updated', {
+      sessionId: updated.id,
+      tableId: updated.tableId,
+      reason: nextStatus === 'awaiting_close' ? 'close_requested' : 'updated',
+    })
+
     return {
       data: mapTableSession(updated),
     }
   }
 
-  async closeSession(sessionId: string, payload: CloseTableSessionPayload) {
+  async closeSession(
+    sessionId: string,
+    payload: CloseTableSessionPayload,
+    context: DiningMutationContext = {},
+  ) {
     const session = await this.ensureSession(sessionId)
 
     if (session.status === 'closed') {
       throw new BadRequestException('A conta da mesa ja foi fechada.')
     }
 
-    const subtotal = session.items.reduce((sum, item) => sum + item.totalPrice.toNumber(), 0)
+    const subtotal = session.items
+      .filter((item) => !item.cancelledAt)
+      .reduce((sum, item) => sum + item.totalPrice.toNumber(), 0)
     const discount = payload.discount ?? session.discount.toNumber()
     const serviceFee = payload.serviceFee ?? session.serviceFee.toNumber()
     const total = Math.max(0, subtotal - discount + serviceFee)
@@ -682,6 +794,11 @@ export class DiningService {
     const closedAt = new Date()
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.claimSessionVersion(
+        tx,
+        session.id,
+        context.expectedVersion ?? session.version,
+      )
       await tx.tableSession.update({
         where: {
           id: session.id,
@@ -713,6 +830,9 @@ export class DiningService {
           id: session.tableId,
         },
         data: {
+          version: {
+            increment: 1,
+          },
           status: 'closed',
           currentSessionId: null,
           guests: null,
@@ -741,12 +861,22 @@ export class DiningService {
       })
     })
 
+    this.realtime.emit('dining.session_updated', {
+      sessionId: updated.id,
+      tableId: updated.tableId,
+      reason: 'closed',
+    })
+
     return {
       data: mapTableSession(updated),
     }
   }
 
-  async transferSession(sessionId: string, payload: TransferTableSessionPayload) {
+  async transferSession(
+    sessionId: string,
+    payload: TransferTableSessionPayload,
+    context: DiningMutationContext = {},
+  ) {
     const session = await this.ensureSession(sessionId)
 
     if (session.status === 'closed') {
@@ -770,17 +900,37 @@ export class DiningService {
     const actor = payload.actor ?? session.waiter?.name ?? 'Operacao'
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.diningTable.update({
+      await this.claimSessionVersion(
+        tx,
+        session.id,
+        context.expectedVersion ?? session.version,
+      )
+      await this.claimTableVersion(
+        tx,
+        targetTable.id,
+        context.expectedTargetTableVersion ?? targetTable.version,
+        { currentSessionId: null },
+      )
+      const released = await tx.diningTable.updateMany({
         where: {
           id: session.tableId,
+          storeId: getCurrentStoreId(),
+          currentSessionId: session.id,
         },
         data: {
           currentSessionId: null,
           status: 'free',
           guests: null,
           waiterId: null,
+          version: {
+            increment: 1,
+          },
         },
       })
+
+      if (released.count !== 1) {
+        throw this.staleStateConflict()
+      }
 
       await tx.tableSession.update({
         where: {
@@ -820,6 +970,13 @@ export class DiningService {
         },
         include: tableSessionInclude,
       })
+    })
+
+    this.realtime.emit('dining.session_updated', {
+      sessionId: updated.id,
+      tableId: updated.tableId,
+      fromTableId: session.tableId,
+      reason: 'transferred',
     })
 
     return {
@@ -986,6 +1143,64 @@ export class DiningService {
     }
 
     return area
+  }
+
+  private async claimSessionVersion(
+    tx: Prisma.TransactionClient,
+    sessionId: string,
+    expectedVersion: number,
+  ) {
+    const claimed = await tx.tableSession.updateMany({
+      where: {
+        id: sessionId,
+        storeId: getCurrentStoreId(),
+        version: expectedVersion,
+        status: {
+          not: 'closed',
+        },
+      },
+      data: {
+        version: {
+          increment: 1,
+        },
+      },
+    })
+
+    if (claimed.count !== 1) {
+      throw this.staleStateConflict()
+    }
+  }
+
+  private async claimTableVersion(
+    tx: Prisma.TransactionClient,
+    tableId: string,
+    expectedVersion: number,
+    where: { currentSessionId?: string | null } = {},
+  ) {
+    const claimed = await tx.diningTable.updateMany({
+      where: {
+        id: tableId,
+        storeId: getCurrentStoreId(),
+        version: expectedVersion,
+        ...where,
+      },
+      data: {
+        version: {
+          increment: 1,
+        },
+      },
+    })
+
+    if (claimed.count !== 1) {
+      throw this.staleStateConflict()
+    }
+  }
+
+  private staleStateConflict() {
+    return new ConflictException({
+      code: 'STALE_WAITER_STATE',
+      message: 'A mesa foi atualizada em outro dispositivo. Recarregue antes de continuar.',
+    })
   }
 
   private async ensureTable(tableId: string) {

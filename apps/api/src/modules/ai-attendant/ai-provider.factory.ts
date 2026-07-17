@@ -5,10 +5,15 @@ import { AiProviderAdapter } from './ai-provider.adapter'
 import { LovableBackendAiProvider } from './lovable-backend-ai.provider'
 import { OpenAiCompatibleAiProvider } from './openai-compatible-ai.provider'
 import { UnconfiguredAiProvider } from './unconfigured-ai.provider'
+import { NvidiaAiGateway } from './providers/nvidia/nvidia-ai.gateway'
+import { NvidiaAiProvider } from './providers/nvidia/nvidia-ai.provider'
 
 @Injectable()
 export class AiProviderFactory {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly nvidiaGateway: NvidiaAiGateway,
+  ) {}
 
   getProvider(): AiProviderAdapter {
     const provider = this.configService.get<string>('AI_PROVIDER')?.trim()
@@ -21,12 +26,16 @@ export class AiProviderFactory {
       return this.createLovableBackendProvider()
     }
 
+    if (provider === 'nvidia') {
+      return new NvidiaAiProvider(this.nvidiaGateway)
+    }
+
     if (provider === 'openai' || provider === 'groq' || provider === 'openrouter') {
       return this.createOpenAiCompatibleProvider(provider)
     }
 
     return new UnconfiguredAiProvider(
-      `Provider de IA desconhecido: ${provider}. Configure AI_PROVIDER=groq, openai, openrouter ou lovable_backend.`,
+      `Provider de IA desconhecido: ${provider}. Configure AI_PROVIDER=nvidia, groq, openai, openrouter ou lovable_backend.`,
     )
   }
 

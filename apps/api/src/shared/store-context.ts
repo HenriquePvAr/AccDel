@@ -5,7 +5,14 @@ import type { FastifyRequest } from 'fastify'
 export const DEFAULT_STORE_ID = 'store_main'
 export const STORE_ID_HEADER = 'x-cain-store-id'
 
-export type StoreContextSource = 'auth' | 'header' | 'subdomain' | 'default'
+export type StoreContextSource =
+  | 'auth'
+  | 'agent'
+  | 'header'
+  | 'subdomain'
+  | 'webhook'
+  | 'public'
+  | 'default'
 
 export interface StoreContextState {
   storeId: string
@@ -22,6 +29,7 @@ interface RequestAuthUser {
 
 export interface StoreScopedRequest extends FastifyRequest {
   authUser?: RequestAuthUser
+  printAgent?: { storeId?: string }
   storeId?: string
   storeContext?: StoreContextState
 }
@@ -55,9 +63,29 @@ export function resolveStoreContextFromRequest(
   request: StoreScopedRequest,
 ): StoreContextState {
   const authStoreId = request.authUser?.storeId ?? request.authUser?.store?.id
+  const agentStoreId = request.printAgent?.storeId
   const headerStoreId = readHeader(request, STORE_ID_HEADER)
   const host = readHost(request)
   const subdomainStoreId = resolveStoreIdFromSubdomain(host)
+  const webhookStoreId = resolveWebhookStoreId(request)
+  const publicEndpointStoreId = resolvePublicEndpoint(request)
+
+  // Public provider/token routes must never accept tenant selection from caller headers.
+  if (webhookStoreId) {
+    return {
+      storeId: webhookStoreId,
+      source: 'webhook',
+      ...(host ? { host } : {}),
+    }
+  }
+
+  if (publicEndpointStoreId) {
+    return {
+      storeId: publicEndpointStoreId,
+      source: 'public',
+      ...(host ? { host } : {}),
+    }
+  }
 
   if (authStoreId) {
     return {
@@ -83,7 +111,30 @@ export function resolveStoreContextFromRequest(
     }
   }
 
+  if (agentStoreId) {
+    return {
+      storeId: agentStoreId,
+      source: 'agent',
+      ...(host ? { host } : {}),
+    }
+  }
+
   return buildDefaultStoreContext(host ?? undefined)
+}
+
+function resolvePublicEndpoint(request: FastifyRequest) {
+  const path = request.url.split('?')[0]
+  return path.startsWith('/tracking/') ? 'public-tracking-token' : null
+}
+
+function resolveWebhookStoreId(request: FastifyRequest) {
+  const path = request.url.split('?')[0]
+  if (path !== '/webhooks/whatsapp') {
+    return null
+  }
+
+  const storeId = process.env.WHATSAPP_STORE_ID?.trim()
+  return storeId || null
 }
 
 function buildDefaultStoreContext(host?: string): StoreContextState {
@@ -99,7 +150,7 @@ function buildDefaultStoreContext(host?: string): StoreContextState {
 }
 
 function isDefaultStoreFallbackAllowed() {
-  return process.env.NODE_ENV !== 'production'
+  return process.env.APP_ENV !== 'production'
 }
 
 function readHeader(request: FastifyRequest, header: string) {

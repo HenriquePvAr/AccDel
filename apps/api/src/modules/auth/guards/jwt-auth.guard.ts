@@ -8,6 +8,7 @@ import { enterStoreContext } from '@/shared/store-context'
 
 import { IS_PUBLIC_KEY } from '../auth.constants'
 import type { AuthTokenPayload, AuthenticatedRequest } from '../auth.types'
+import { readJwtSecret } from '../auth-secret'
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -34,9 +35,11 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Sessão ausente. Faça login novamente.')
     }
 
+    const secret = readJwtSecret(this.configService)
+
     try {
       const payload = await this.jwtService.verifyAsync<AuthTokenPayload>(token, {
-        secret: this.configService.get<string>('JWT_ACCESS_SECRET') ?? 'cain-admin-local-secret',
+        secret,
       })
 
       request.authUser = payload

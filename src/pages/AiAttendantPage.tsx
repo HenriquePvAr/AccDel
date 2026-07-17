@@ -1,11 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { Bot, Brain, LayoutDashboard, MessageSquare, Settings, Smartphone, TestTube } from 'lucide-react'
+import { BarChart3, Brain, MessageSquare, Settings, Smartphone, TestTube } from 'lucide-react'
 
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AiAttendantOverviewTab } from '@/features/ai-attendant/components/AiAttendantOverviewTab'
 import { AiConversationsTab } from '@/features/ai-attendant/components/AiConversationsTab'
 import { AiDashboardTab } from '@/features/ai-attendant/components/AiDashboardTab'
 import { AiKnowledgeTab } from '@/features/ai-attendant/components/AiKnowledgeTab'
@@ -14,12 +13,12 @@ import { AiTestTab } from '@/features/ai-attendant/components/AiTestTab'
 import { AiWhatsappTab } from '@/features/ai-attendant/components/AiWhatsappTab'
 
 export type AiAttendantTabValue =
-  | 'overview'
   | 'dashboard'
   | 'whatsapp'
   | 'knowledge'
   | 'conversations'
   | 'settings'
+  | 'preferences'
   | 'test'
 
 interface AiAttendantPageTab {
@@ -29,31 +28,33 @@ interface AiAttendantPageTab {
 }
 
 const tabs: AiAttendantPageTab[] = [
-  { value: 'overview', label: 'Visao geral', icon: <Bot className="h-4 w-4" /> },
-  { value: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
-  { value: 'whatsapp', label: 'WhatsApp', icon: <Smartphone className="h-4 w-4" /> },
-  { value: 'knowledge', label: 'Base', icon: <Brain className="h-4 w-4" /> },
   { value: 'conversations', label: 'Conversas', icon: <MessageSquare className="h-4 w-4" /> },
-  { value: 'settings', label: 'Ajustes', icon: <Settings className="h-4 w-4" /> },
-  { value: 'test', label: 'Testar IA', icon: <TestTube className="h-4 w-4" /> },
+  { value: 'dashboard', label: 'Resumo', icon: <BarChart3 className="h-4 w-4" /> },
+  { value: 'whatsapp', label: 'WhatsApp', icon: <Smartphone className="h-4 w-4" /> },
+  { value: 'settings', label: 'Respostas automáticas', icon: <MessageSquare className="h-4 w-4" /> },
+  { value: 'knowledge', label: 'Base de conhecimento', icon: <Brain className="h-4 w-4" /> },
+  { value: 'test', label: 'Testar respostas', icon: <TestTube className="h-4 w-4" /> },
+  { value: 'preferences', label: 'Ajustes', icon: <Settings className="h-4 w-4" /> },
 ]
+
+const dailyTabs = tabs.filter((tab) => ['conversations', 'dashboard'].includes(tab.value))
+const configurationTabs = tabs.filter((tab) => ['whatsapp', 'settings', 'knowledge', 'test', 'preferences'].includes(tab.value))
 
 function isAiAttendantTabValue(value: string): value is AiAttendantTabValue {
   return tabs.some((tab) => tab.value === value)
 }
 
 export function AiAttendantPage() {
-  const [activeTab, setActiveTab] = useState<AiAttendantTabValue>('overview')
+  const [activeTab, setActiveTab] = useState<AiAttendantTabValue>('conversations')
 
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="WhatsApp + IA"
-        title="Atendente IA"
-        description="Configure o atendimento automatizado com contexto real da loja, controle humano e integracoes explicitas."
+        title="Conversas"
+        description="Atenda clientes e acompanhe seus pedidos."
       />
 
-      <Card className="text-slate-100">
+      <Card>
         <CardContent className="p-0">
           <Tabs
             value={activeTab}
@@ -63,21 +64,37 @@ export function AiAttendantPage() {
               }
             }}
           >
-            <div className="border-b border-white/10 p-3">
-              <TabsList aria-label="Secoes do Atendente IA" className="w-full">
-                {tabs.map((tab) => (
-                  <TabsTrigger key={tab.value} value={tab.value} className="flex-1">
+            <div className="sticky top-14 z-20 flex flex-col gap-2 border-b border-border bg-white p-2 sm:top-16 lg:flex-row lg:items-center">
+              <TabsList aria-label="Trabalho diario do atendimento" className="min-w-0 flex-1">
+                {dailyTabs.map((tab) => (
+                  <TabsTrigger key={tab.value} value={tab.value} className="min-h-11 flex-1">
                     {tab.icon}
-                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span>{tab.label}</span>
                   </TabsTrigger>
                 ))}
               </TabsList>
+              <label className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-muted-foreground lg:w-[230px]">
+                <Settings className="h-4 w-4 shrink-0" />
+                <span className="sr-only">Configurar atendimento</span>
+                <select
+                  aria-label="Configurar atendimento"
+                  value={configurationTabs.some((tab) => tab.value === activeTab) ? activeTab : ''}
+                  onChange={(event) => {
+                    if (isAiAttendantTabValue(event.target.value)) {
+                      setActiveTab(event.target.value)
+                    }
+                  }}
+                  className="h-10 min-w-0 flex-1 bg-transparent text-foreground outline-none"
+                >
+                  <option value="">Configurar atendimento</option>
+                  {configurationTabs.map((tab) => (
+                    <option key={tab.value} value={tab.value}>{tab.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
 
-            <div className="p-4 sm:p-6">
-              <TabsContent value="overview">
-                <AiAttendantOverviewTab onNavigate={setActiveTab} />
-              </TabsContent>
+            <div className="p-3 sm:p-4">
               <TabsContent value="dashboard">
                 <AiDashboardTab />
               </TabsContent>
@@ -91,6 +108,9 @@ export function AiAttendantPage() {
                 <AiConversationsTab />
               </TabsContent>
               <TabsContent value="settings">
+                <AiSettingsTab />
+              </TabsContent>
+              <TabsContent value="preferences">
                 <AiSettingsTab />
               </TabsContent>
               <TabsContent value="test">

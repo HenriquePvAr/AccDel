@@ -29,6 +29,8 @@ import { CurrentAuthUser } from '@/modules/auth/decorators/current-auth-user.dec
 import { Permissions } from '@/modules/auth/decorators/permissions.decorator'
 import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 import { ZodValidationPipe } from '@/shared/pipes/zod-validation.pipe'
+import { Idempotent } from '@/shared/security/idempotency.decorator'
+import { RateLimit } from '@/shared/security/rate-limit.decorator'
 
 import { DriversService } from './drivers.service'
 
@@ -55,31 +57,33 @@ export class DriversController {
   }
 
   @Get('me/app-state')
-  @Permissions('drivers:view')
+  @Permissions('drivers:self')
   getMyDriverAppState(@CurrentAuthUser() authUser: AuthenticatedRequestUser) {
     return this.driversService.getDriverAppState(this.ensureDriverAccess(authUser))
   }
 
   @Get('me/tracking-policy')
-  @Permissions('drivers:view')
+  @Permissions('drivers:self')
   getMyTrackingPolicy(@CurrentAuthUser() authUser: AuthenticatedRequestUser) {
     return this.driversService.getDriverTrackingPolicy(this.ensureDriverAccess(authUser))
   }
 
   @Get('me/location')
-  @Permissions('drivers:view')
+  @Permissions('drivers:self')
   getMyLocation(@CurrentAuthUser() authUser: AuthenticatedRequestUser) {
     return this.driversService.getDriverLocation(this.ensureDriverAccess(authUser))
   }
 
   @Get('me/route')
-  @Permissions('drivers:view')
+  @Permissions('drivers:self')
   getMyRoute(@CurrentAuthUser() authUser: AuthenticatedRequestUser) {
     return this.driversService.getDriverRoute(this.ensureDriverAccess(authUser))
   }
 
   @Post('me/location')
-  @Permissions('drivers:view')
+  @Permissions('drivers:self')
+  @RateLimit({ limit: 90, windowMs: 60_000 })
+  @Idempotent({ operation: 'drivers:self:location', ttlMs: 5 * 60_000 })
   saveMyLocation(
     @CurrentAuthUser() authUser: AuthenticatedRequestUser,
     @Body(new ZodValidationPipe(saveDriverLocationSchema)) body: SaveDriverLocationPayload,
@@ -88,7 +92,9 @@ export class DriversController {
   }
 
   @Patch('me/status')
-  @Permissions('drivers:view')
+  @Permissions('drivers:self')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
+  @Idempotent({ operation: 'drivers:self:availability' })
   updateMyStatus(
     @CurrentAuthUser() authUser: AuthenticatedRequestUser,
     @Body(new ZodValidationPipe(updateDriverAvailabilitySchema))
@@ -101,13 +107,17 @@ export class DriversController {
   }
 
   @Post('me/delivery/start')
-  @Permissions('drivers:view')
+  @Permissions('drivers:self')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
+  @Idempotent({ operation: 'drivers:self:delivery:start' })
   startMyDelivery(@CurrentAuthUser() authUser: AuthenticatedRequestUser) {
     return this.driversService.startCurrentDelivery(this.ensureDriverAccess(authUser))
   }
 
   @Post('me/delivery/complete')
-  @Permissions('drivers:view')
+  @Permissions('drivers:self')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
+  @Idempotent({ operation: 'drivers:self:delivery:complete' })
   completeMyDelivery(@CurrentAuthUser() authUser: AuthenticatedRequestUser) {
     return this.driversService.completeCurrentDelivery(this.ensureDriverAccess(authUser))
   }
@@ -159,7 +169,9 @@ export class DriversController {
   }
 
   @Post(':id/location')
-  @Permissions('drivers:view')
+  @Permissions('settings:delivery:manage')
+  @RateLimit({ limit: 60, windowMs: 60_000 })
+  @Idempotent({ operation: 'drivers:admin:location', ttlMs: 5 * 60_000 })
   saveDriverLocation(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(saveDriverLocationSchema)) body: SaveDriverLocationPayload,
@@ -188,6 +200,8 @@ export class DriversController {
 
   @Patch(':id/queue')
   @Permissions('settings:delivery:manage')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
+  @Idempotent({ operation: 'drivers:admin:queue' })
   updateDriverQueue(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateDriverQueueSchema))

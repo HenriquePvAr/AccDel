@@ -1,19 +1,26 @@
 import { Outlet } from 'react-router-dom'
 
 import { AppHeader } from '@/components/layout/AppHeader'
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 
 export function AdminLayout() {
   return (
-    <div className="min-h-screen bg-[#020914] text-slate-100 lg:grid lg:grid-cols-[auto_1fr]">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(249,115,22,0.11),transparent_28%),radial-gradient(circle_at_88%_8%,rgba(14,165,233,0.10),transparent_28%),linear-gradient(180deg,#020914_0%,#07111f_55%,#020914_100%)]" />
+    <div className="admin-shell min-h-screen xl:grid xl:grid-cols-[auto_1fr]">
+      <a
+        href="#admin-content"
+        className="fixed left-4 top-3 z-[90] -translate-y-20 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-white shadow-lg transition-transform focus:translate-y-0"
+      >
+        Pular para o conteudo
+      </a>
       <AppSidebar />
       <div className="relative min-w-0">
         <AppHeader />
-        <main className="min-w-0">
+        <main id="admin-content" className="min-w-0" tabIndex={-1}>
           <Outlet />
         </main>
       </div>
+      <MobileBottomNav />
     </div>
   )
 }

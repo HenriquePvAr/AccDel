@@ -30,7 +30,7 @@ export const useCashStore = create<CashState>((set) => ({
             label,
             method: movementMethod[type],
             createdAt: new Date().toISOString(),
-            userName: 'Operação',
+            userName: 'Equipe',
           },
           ...state.register.movements,
         ],

@@ -17,7 +17,7 @@ export class WhatsappProviderFactory {
 
     if (provider === 'evolution_api') {
       return new EvolutionApiWhatsappProvider(baseUrl, apiKey, {
-        webhookUrl: webhookUrl?.trim() || undefined,
+        webhookUrl: buildWebhookUrl(webhookUrl),
         integration:
           integration === 'WHATSAPP-BUSINESS' || integration === 'WHATSAPP-BAILEYS'
             ? integration
@@ -28,4 +28,18 @@ export class WhatsappProviderFactory {
     // Default to unconfigured provider instead of fake mocks when no variables are set.
     return new UnconfiguredWhatsappProvider()
   }
+}
+
+export function buildWebhookUrl(webhookUrl?: string) {
+  if (!webhookUrl?.trim()) {
+    return undefined
+  }
+
+  const url = new URL(webhookUrl)
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error(
+      'WHATSAPP_PROVIDER_WEBHOOK_URL nao pode conter credenciais, query string ou fragmento.',
+    )
+  }
+  return url.toString()
 }

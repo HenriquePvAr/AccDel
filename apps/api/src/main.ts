@@ -13,33 +13,36 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter({
       logger: false,
+      bodyLimit: 262_144,
     }),
+    { rawBody: true },
   )
   const config = app.get(ConfigService)
   const port = config.get<number>('API_PORT') ?? 3333
-  const webOrigin = config.get<string>('WEB_ORIGIN') ?? 'http://localhost:5173'
-  const allowedOrigins = Array.from(
-    new Set(
-      webOrigin
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean)
-        .concat([
+  const appEnvironment = config.get<string>('APP_ENV') ?? 'development'
+  const configuredOrigins =
+    config.get<string>('CORS_ALLOWED_ORIGINS') ?? config.get<string>('WEB_ORIGIN') ?? ''
+  const developmentOrigins =
+    appEnvironment === 'development' || appEnvironment === 'test'
+      ? [
           'http://localhost:5173',
           'http://127.0.0.1:5173',
           'http://localhost:4173',
           'http://127.0.0.1:4173',
-        ]),
-    ),
+        ]
+      : []
+  const allowedOrigins = Array.from(
+    new Set([
+      ...configuredOrigins.split(',').map((origin) => origin.trim()).filter(Boolean),
+      ...developmentOrigins,
+    ]),
   )
 
   app.enableCors({
     origin: (origin, callback) => {
       if (
         !origin ||
-        allowedOrigins.includes(origin) ||
-        /^https?:\/\/localhost:\d+$/.test(origin) ||
-        /^https?:\/\/127\.0\.0\.1:\d+$/.test(origin)
+        allowedOrigins.includes(origin)
       ) {
         callback(null, true)
         return
@@ -59,7 +62,15 @@ async function bootstrap() {
   )
 
   await app.listen(port, '0.0.0.0')
-  Logger.log(`Cain Delivery API running on http://localhost:${port}`, 'Bootstrap')
+  Logger.log(
+    JSON.stringify({
+      event: 'api_started',
+      service: 'cain-delivery-api',
+      appEnvironment,
+      port,
+    }),
+    'Bootstrap',
+  )
 }
 
 void bootstrap()

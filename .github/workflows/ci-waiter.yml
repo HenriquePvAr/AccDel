@@ -1,0 +1,87 @@
+name: CI / Waiter PWA
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - release/pilot-rc2
+      - ci/pilot-rc2-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-waiter-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: apps/waiter-app
+
+jobs:
+  waiter:
+    name: Waiter build, lint, unit and Playwright tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: "true"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.16.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/waiter-app/package-lock.json
+
+      - name: Install locked repository tooling
+        working-directory: .
+        run: npm ci
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build Waiter PWA
+        run: npm run build
+
+      - name: Type-check Waiter PWA
+        run: npx --no-install tsc --noEmit
+
+      - name: Lint Waiter PWA
+        run: npm run lint
+
+      - name: Run Waiter unit tests
+        run: npm run test
+
+      - name: Install the configured Playwright browser
+        run: npx --no-install playwright install --with-deps chrome
+
+      - name: Run Waiter Playwright tests
+        run: npm run test:e2e
+
+      - name: Restore generated documentation screenshots
+        if: always()
+        run: git -C ../.. restore --source=HEAD --worktree -- docs/waiter/screenshots
+
+      - name: Upload Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: waiter-playwright-failure-${{ github.run_id }}
+          path: |
+            apps/waiter-app/playwright-report/
+            apps/waiter-app/test-results/**/*.png
+            apps/waiter-app/test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Confirm tracked files are unchanged
+        run: git -C ../.. diff --exit-code

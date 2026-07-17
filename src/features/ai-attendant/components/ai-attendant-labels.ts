@@ -62,10 +62,13 @@ export const whatsappStatusLabels: Record<WhatsappSessionStatus, string> = {
 
 export const conversationStatusLabels: Record<AiConversationStatus, string> = {
   open: 'Aberta',
-  waiting_ai: 'Aguardando IA',
-  waiting_human: 'Aguardando humano',
-  human_assigned: 'Humano assumiu',
+  waiting_ai: 'Resposta automatica em andamento',
+  waiting_human: 'Aguardando atendente',
+  human_assigned: 'Atendimento humano',
   closed: 'Fechada',
+  ai_active: 'Resposta automatica ativa',
+  human_active: 'Atendimento humano',
+  paused: 'Pausada',
 }
 
 export const messageSenderLabels: Record<WhatsappMessageSenderType, string> = {
@@ -78,17 +81,20 @@ export const messageSenderLabels: Record<WhatsappMessageSenderType, string> = {
 export const messageStatusLabels: Record<WhatsappMessageStatus, string> = {
   received: 'Recebida',
   queued: 'Na fila',
+  sending: 'Enviando',
   sent: 'Enviada',
+  delivered: 'Entregue',
+  read: 'Lida',
   failed: 'Falhou',
 }
 
 export const integrationLogTypeLabels: Record<WhatsappIntegrationLogType, string> = {
-  provider_status: 'Status do provider',
+  provider_status: 'Estado do servico',
   session_started: 'Sessao iniciada',
   session_disconnected: 'Sessao desconectada',
   session_restarted: 'Sessao reiniciada',
   qr_requested: 'QR Code solicitado',
-  webhook_received: 'Webhook recebido',
+  webhook_received: 'Mensagem recebida pelo servico',
   message_received: 'Mensagem recebida',
   message_sent: 'Mensagem enviada',
   message_failed: 'Falha de envio',
@@ -96,11 +102,17 @@ export const integrationLogTypeLabels: Record<WhatsappIntegrationLogType, string
   ai_reply_failed: 'Falha da IA',
   delay_scheduled: 'Delay agendado',
   delay_cancelled: 'Delay cancelado',
-  human_assigned: 'Humano assumiu',
-  human_released: 'Devolvida para IA',
+  human_assigned: 'Atendimento humano iniciado',
+  human_released: 'Devolvida para resposta automatica',
   conversation_closed: 'Conversa fechada',
   test_chat: 'Teste de IA',
   test_whatsapp_sent: 'Teste WhatsApp',
+  duplicate_ignored: 'Duplicata ignorada',
+  outbox_enqueued: 'Mensagem enfileirada',
+  outbox_retry: 'Nova tentativa de envio',
+  notification_queued: 'Notificacao enfileirada',
+  tracking_created: 'Acompanhamento criado',
+  ai_tool_called: 'Ferramenta de IA executada',
 }
 
 export const integrationLogStatusLabels: Record<IntegrationLogStatus, string> = {

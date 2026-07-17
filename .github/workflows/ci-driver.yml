@@ -1,0 +1,68 @@
+name: CI / Driver App
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - release/pilot-rc2
+      - ci/pilot-rc2-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-driver-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: apps/driver-app
+
+jobs:
+  driver:
+    name: Driver lint, typecheck and offline Android export
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      EXPO_OFFLINE: "1"
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.16.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/driver-app/package-lock.json
+
+      - name: Install locked repository tooling
+        working-directory: .
+        run: npm ci
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Lint Driver App
+        run: npm run lint
+
+      - name: Type-check Driver App
+        run: npm run typecheck
+
+      - name: Export Android bundle without publishing
+        run: npm run build
+
+      - name: Remove generated Android export
+        if: always()
+        run: rm -rf dist
+
+      - name: Confirm tracked files are unchanged
+        run: git -C ../.. diff --exit-code

@@ -17,16 +17,29 @@ dist-ssr/
 build/
 .next/
 .vite/
+*.tsbuildinfo
+**/playwright-report/
+**/test-results/
 
 # Env / secrets
 .env
 .env.*
 !.env.example
+!.env.staging.example
 
 # Local database / embedded postgres
 .embedded-postgres/
 **/.embedded-postgres/
 apps/api/.embedded-postgres/
+
+# Pilot runtime credentials, generated artifacts and local backups
+.pilot/
+backups/
+**/backups/
+
+# Cain Print Agent local ledger and dry-run documents
+apps/print-agent/var/
+apps/print-agent/print-output/
 
 # Temporary browser/debug files
 tmp-*/

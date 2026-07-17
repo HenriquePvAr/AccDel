@@ -1,16 +1,32 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common'
-import type { OrderChannel, OrderStatus, Prisma, ProductChannel } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
+import type {
+  OrderChannel,
+  OrderItem,
+  OrderNotificationType,
+  OrderStatus,
+  Prisma,
+  ProductChannel,
+} from '@prisma/client'
 
 import type {
   CreateOrderPayload,
   CreatePublicOrderPayload,
+  ConfirmOrderPaymentPayload,
   ListOrdersQuery,
+  RepeatOrderPayload,
   UpdateOrderStatusPayload,
 } from '@/contracts/orders.contract'
+import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
+import { PrintingPolicyService } from '@/modules/printing/printing-policy.service'
+import { PublicTrackingService } from '@/modules/tracking/public-tracking.service'
+import { FeatureFlagsService } from '@/shared/operations/feature-flags.service'
 import {
   type ResolvedProductOption,
   type SelectedProductOptionInput,
@@ -25,6 +41,12 @@ import { calculateRouteEta, type GeoCoordinate } from '@/shared/routing/routing.
 import { getCurrentStoreId } from '@/shared/store-context'
 
 import { mapOrder } from './orders.mapper'
+import {
+  OrderTransitionError,
+  resolveOrderTransition,
+} from './order-state-machine'
+import { canTransitionPayment } from './payment-state-machine'
+import { extractRepeatItemSelections } from './repeat-order-policy'
 
 type OrderProductRecord = Prisma.ProductGetPayload<{
   include: {
@@ -89,6 +111,9 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: AdminRealtimeService,
+    private readonly printingPolicy: PrintingPolicyService,
+    private readonly publicTracking: PublicTrackingService,
+    private readonly features?: FeatureFlagsService,
   ) {}
 
   async listOrders(query: ListOrdersQuery) {
@@ -257,7 +282,15 @@ export class OrdersService {
     }
   }
 
-  async createOrder(payload: CreateOrderPayload) {
+  async createOrder(
+    payload: CreateOrderPayload,
+    authUser: AuthenticatedRequestUser,
+    trustedContext?: {
+      source: OrderChannel
+      messagingAccountId?: string
+      conversationId?: string
+    },
+  ) {
     const store = await this.prisma.store.findUniqueOrThrow({
       where: {
         id: getCurrentStoreId(),
@@ -321,6 +354,7 @@ export class OrdersService {
     const estimatedTotalTimeMinutes =
       estimatedPrepTimeMinutes + (estimatedDeliveryTimeMinutes ?? 0)
     const number = await this.nextOrderNumber()
+    const orderId = randomUUID()
     const createdAt = new Date()
     const deliveryCoordinate =
       payload.channel === 'delivery'
@@ -330,18 +364,20 @@ export class OrdersService {
           )
         : null
 
-    const order = await this.prisma.order.create({
+    const order = await this.prisma.$transaction(async (transaction) => {
+      const createdOrder = await transaction.order.create({
       data: {
+        id: orderId,
         storeId: getCurrentStoreId(),
         number,
         customerId: customer?.id,
         customerName: customer?.name ?? 'Cliente sem cadastro',
         customerPhone: customer?.phone ?? '',
-        source: payload.channel,
+        source: trustedContext?.source ?? payload.channel,
         serviceType: payload.channel,
         status,
         paymentMethod: payload.paymentMethod,
-        paymentStatus: payload.paymentMethod === 'cash' ? 'pending' : 'paid',
+        paymentStatus: 'pending',
         subtotal,
         deliveryFee,
         discount,
@@ -389,7 +425,7 @@ export class OrdersService {
             {
               status: 'in_analysis',
               label: 'Pedido criado no admin',
-              actor: 'Operacao',
+              actor: this.cleanDatabaseText(authUser.name),
               createdAt,
             },
             {
@@ -397,7 +433,7 @@ export class OrdersService {
               label: payload.sendToProduction
                 ? 'Enviado direto para producao'
                 : 'Mantido em analise',
-              actor: 'Operacao',
+              actor: this.cleanDatabaseText(authUser.name),
               createdAt,
             },
             ...(discount > 0
@@ -412,30 +448,55 @@ export class OrdersService {
               : []),
           ],
         },
+        ...(trustedContext?.source === 'whatsapp'
+          ? {
+              notifications: {
+                create: {
+                  storeId: getCurrentStoreId(),
+                  accountId: trustedContext.messagingAccountId,
+                  conversationId: trustedContext.conversationId,
+                  type: 'ORDER_CONFIRMED' as const,
+                  idempotencyKey: `order:${orderId}:confirmed`,
+                },
+              },
+            }
+          : {}),
       },
       include: {
         items: true,
         history: true,
         driver: true,
       },
-    })
-
-    if (couponAdjustment.couponId) {
-      await this.prisma.coupon.update({
-        where: {
-          id: couponAdjustment.couponId,
-        },
-        data: {
-          uses: {
-            increment: 1,
-          },
-        },
       })
-    }
 
-    if (payload.paymentMethod !== 'cash') {
-      await this.registerSaleMovement(number, Math.max(0, subtotal - discount) + deliveryFee, payload.paymentMethod)
-    }
+      if (status === 'in_preparation') {
+        await this.printingPolicy.createOrderJobs(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: `order-created:${orderId}`,
+          jobType: 'ORDER_INITIAL',
+          order: createdOrder,
+          items: createdOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      }
+
+      if (couponAdjustment.couponId) {
+        await transaction.coupon.update({
+          where: {
+            id: couponAdjustment.couponId,
+          },
+          data: {
+            uses: {
+              increment: 1,
+            },
+          },
+        })
+      }
+
+      return createdOrder
+    })
 
     this.realtime.emit('order.created', {
       orderId: order.id,
@@ -449,6 +510,34 @@ export class OrdersService {
     return {
       data: mapOrder(order),
     }
+  }
+
+  async createWhatsappOrder(
+    payload: Omit<CreateOrderPayload, 'channel' | 'sendToProduction'> & {
+      serviceType: 'delivery' | 'pickup'
+    },
+    messaging?: { accountId: string; conversationId: string },
+  ) {
+    return this.createOrder(
+      {
+        ...payload,
+        channel: payload.serviceType,
+        sendToProduction: false,
+      },
+      {
+        sub: 'whatsapp-ai-system',
+        email: 'whatsapp-ai@internal.invalid',
+        name: 'Atendente WhatsApp',
+        storeId: getCurrentStoreId(),
+        role: 'owner',
+        permissions: [],
+      },
+      {
+        source: 'whatsapp',
+        messagingAccountId: messaging?.accountId,
+        conversationId: messaging?.conversationId,
+      },
+    )
   }
 
   async createPublicOrder(payload: CreatePublicOrderPayload) {
@@ -486,6 +575,7 @@ export class OrdersService {
     if (!paymentConfig?.method) {
       throw new BadRequestException('Forma de pagamento indisponivel para o cardapio digital.')
     }
+    const paymentMethod = paymentConfig.method
 
     if (paymentConfig.provider === 'picpay' && !paymentConfig.externalEnabled) {
       throw new BadRequestException('PicPay ainda nao esta configurado para checkout real.')
@@ -540,6 +630,7 @@ export class OrdersService {
     const estimatedTotalTimeMinutes =
       estimatedPrepTimeMinutes + (estimatedDeliveryTimeMinutes ?? 0)
     const number = await this.nextOrderNumber()
+    const orderId = randomUUID()
     const createdAt = new Date()
     const deliveryCoordinate =
       serviceType === 'delivery'
@@ -550,8 +641,10 @@ export class OrdersService {
         : null
     const total = Math.max(0, subtotal - discount) + deliveryFee
 
-    const order = await this.prisma.order.create({
-      data: {
+    const result = await this.prisma.$transaction(async (transaction) => {
+      const createdOrder = await transaction.order.create({
+        data: {
+          id: orderId,
         storeId: getCurrentStoreId(),
         number,
         customerId: customer.id,
@@ -560,7 +653,7 @@ export class OrdersService {
         source: 'digital_menu',
         serviceType,
         status,
-        paymentMethod: paymentConfig.method,
+        paymentMethod,
         paymentStatus: 'pending',
         subtotal,
         deliveryFee,
@@ -617,13 +710,37 @@ export class OrdersService {
             },
           ],
         },
-      },
-      include: {
-        items: true,
-        history: true,
-        driver: true,
-      },
+        },
+        include: {
+          items: true,
+          history: true,
+          driver: true,
+        },
+      })
+
+      await this.printingPolicy.createOrderJobs(transaction, {
+        storeId: getCurrentStoreId(),
+        eventId: `order-created:${orderId}`,
+        jobType: 'ORDER_INITIAL',
+        order: createdOrder,
+        items: createdOrder.items.map((item) => ({
+          ...item,
+          unitPrice: item.unitPrice.toNumber(),
+        })),
+      })
+
+      const tracking =
+        !this.features || this.features.isEnabled('publicTracking')
+          ? await this.publicTracking.issueInTransaction(
+              transaction,
+              getCurrentStoreId(),
+              createdOrder.id,
+            )
+          : null
+
+      return { order: createdOrder, tracking }
     })
+    const { order, tracking } = result
 
     this.realtime.emit('order.created', {
       orderId: order.id,
@@ -636,49 +753,172 @@ export class OrdersService {
 
     return {
       data: mapOrder(order),
+      tracking,
     }
   }
 
-  async updateStatus(orderId: string, payload: UpdateOrderStatusPayload) {
+  async updateStatus(
+    orderId: string,
+    payload: UpdateOrderStatusPayload,
+    authUser: AuthenticatedRequestUser,
+  ) {
     const current = await this.prisma.order.findFirstOrThrow({
       where: {
         id: orderId,
         storeId: getCurrentStoreId(),
       },
       include: {
-        driver: true,
-      },
-    })
-    const nextStatus = this.resolveNextStatus(current.status, payload.action)
-    const nextDriverId =
-      payload.action === 'dispatch'
-        ? await this.resolveDriverAssignment(current.source, payload.driverId)
-        : current.driverId
-
-    const order = await this.prisma.order.update({
-      where: {
-        id: current.id,
-      },
-      data: {
-        status: nextStatus,
-        driverId: nextDriverId,
-        tags:
-          payload.action === 'cancel' && !current.tags.includes('Cancelado')
-            ? [...current.tags, 'Cancelado']
-            : current.tags,
-        history: {
-          create: {
-            status: nextStatus,
-            label: this.cleanDatabaseText(this.actionLabel(payload.action)),
-            actor: this.cleanDatabaseText(await this.resolveActor(payload, nextDriverId)),
-          },
-        },
-      },
-      include: {
         items: true,
         history: true,
         driver: true,
       },
+    })
+    let transition: ReturnType<typeof resolveOrderTransition>
+
+    try {
+      transition = resolveOrderTransition({
+        currentStatus: current.status,
+        action: payload.action,
+        source: current.source,
+        serviceType: current.serviceType,
+        paymentMethod: current.paymentMethod,
+        paymentStatus: current.paymentStatus,
+        assignedDriverId: current.driverId,
+        requestedDriverId: payload.driverId,
+        actor: {
+          userId: authUser.sub,
+          role: authUser.role,
+        },
+        dueAt: current.dueAt,
+      })
+    } catch (error) {
+      if (error instanceof OrderTransitionError) {
+        throw new ConflictException({ code: error.code, message: error.message })
+      }
+
+      throw error
+    }
+
+    if (transition.idempotent) {
+      if (['dispatch', 'complete', 'cancel'].includes(payload.action)) {
+        await this.syncDriverAvailability(current.driverId)
+        await this.syncDeliveryAssignment({
+          action: payload.action,
+          orderId: current.id,
+          driverId: current.driverId,
+        })
+      }
+
+      return { data: mapOrder(current) }
+    }
+
+    const nextStatus = transition.nextStatus
+    const nextDriverId =
+      payload.action === 'dispatch'
+        ? await this.resolveDriverAssignment(current.serviceType, payload.driverId)
+        : current.driverId
+    const transitionEventId = randomUUID()
+
+    const order = await this.prisma.$transaction(async (transaction) => {
+      const changed = await transaction.order.updateMany({
+        where: {
+          id: current.id,
+          storeId: getCurrentStoreId(),
+          status: current.status,
+        },
+        data: {
+          status: nextStatus,
+          driverId: nextDriverId,
+          tags:
+            payload.action === 'cancel' && !current.tags.includes('Cancelado')
+              ? [...current.tags, 'Cancelado']
+              : current.tags,
+        },
+      })
+
+      if (changed.count !== 1) {
+        throw new ConflictException('O pedido foi atualizado por outra requisicao.')
+      }
+
+      await transaction.orderStatusHistory.create({
+        data: {
+          id: transitionEventId,
+          orderId: current.id,
+          status: nextStatus,
+          label: this.cleanDatabaseText(this.actionLabel(payload.action)),
+          actor: this.cleanDatabaseText(authUser.name),
+        },
+      })
+
+      const notificationType = notificationTypeForStatus(nextStatus)
+      if (current.source === 'whatsapp' && notificationType) {
+        await transaction.orderNotification.upsert({
+          where: {
+            orderId_type: { orderId: current.id, type: notificationType },
+          },
+          create: {
+            storeId: getCurrentStoreId(),
+            orderId: current.id,
+            type: notificationType,
+            idempotencyKey: `order:${current.id}:${notificationType.toLowerCase()}`,
+          },
+          update: {},
+        })
+      }
+
+      if (nextStatus === 'completed' || nextStatus === 'cancelled') {
+        await transaction.publicTrackingToken.updateMany({
+          where: { orderId: current.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        })
+      }
+
+      const updatedOrder = await transaction.order.findUniqueOrThrow({
+        where: { id: current.id },
+        include: {
+          items: true,
+          history: true,
+          driver: true,
+        },
+      })
+
+      if (nextStatus === 'in_preparation') {
+        await this.printingPolicy.createOrderJobs(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: transitionEventId,
+          jobType: 'ORDER_INITIAL',
+          order: updatedOrder,
+          items: updatedOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      } else if (nextStatus === 'ready') {
+        await this.printingPolicy.createOperationalJob(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: transitionEventId,
+          jobType: 'DISPATCH_ORDER',
+          stationCode: 'EXPEDICAO',
+          order: updatedOrder,
+          items: updatedOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      } else if (nextStatus === 'cancelled') {
+        await this.printingPolicy.createOrderJobs(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: transitionEventId,
+          jobType: 'ORDER_CANCELLATION',
+          order: updatedOrder,
+          items: updatedOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      }
+
+      return updatedOrder
     })
 
     await this.syncDriverAvailability(nextDriverId)
@@ -732,7 +972,11 @@ export class OrdersService {
     }
   }
 
-  async repeatOrder(orderId: string) {
+  async repeatOrder(
+    orderId: string,
+    payload: RepeatOrderPayload,
+    authUser: AuthenticatedRequestUser,
+  ) {
     const current = await this.prisma.order.findFirstOrThrow({
       where: {
         id: orderId,
@@ -740,8 +984,59 @@ export class OrdersService {
       },
       include: {
         items: true,
+        customer: {
+          include: {
+            addresses: true,
+          },
+        },
       },
     })
+    const store = await this.prisma.store.findUniqueOrThrow({
+      where: { id: getCurrentStoreId() },
+    })
+    const paymentMethod = await this.prisma.paymentMethodConfig.findFirst({
+      where: {
+        storeId: getCurrentStoreId(),
+        method: payload.paymentMethod,
+        active: true,
+      },
+    })
+
+    if (!paymentMethod) {
+      throw new BadRequestException('Forma de pagamento indisponivel para o novo pedido.')
+    }
+
+    const catalogChannel = resolveCatalogChannel(current.serviceType)
+    const items = await this.resolveRepeatPricedItems(
+      current.items,
+      catalogChannel,
+      channelLabelMap[current.serviceType],
+    )
+    const subtotal = items.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0,
+    )
+    const promotionAdjustment = await this.resolvePromotionAdjustment(catalogChannel, items)
+    const discount = promotionAdjustment.discount
+    const address =
+      current.customer?.addresses.find((entry) => entry.label === current.addressLabel) ??
+      current.customer?.addresses[0] ??
+      null
+    const deliveryPricing =
+      current.serviceType === 'delivery' && address?.district
+        ? await this.resolveDeliveryPricing(address.district, store)
+        : null
+    const deliveryFee =
+      current.serviceType === 'delivery'
+        ? (deliveryPricing?.fee ?? store.defaultDeliveryFee.toNumber())
+        : 0
+    const estimatedPrepTimeMinutes = this.getEstimatedPrepTime(store, current.serviceType)
+    const estimatedDeliveryTimeMinutes =
+      current.serviceType === 'delivery'
+        ? (deliveryPricing?.estimatedDeliveryTimeMinutes ?? store.estimatedDeliveryTimeMinutes)
+        : null
+    const estimatedTotalTimeMinutes =
+      estimatedPrepTimeMinutes + (estimatedDeliveryTimeMinutes ?? 0)
     const number = await this.nextOrderNumber()
 
     const order = await this.prisma.order.create({
@@ -754,46 +1049,54 @@ export class OrdersService {
         source: current.source,
         serviceType: current.serviceType,
         status: 'in_analysis',
-        paymentMethod: current.paymentMethod,
-        paymentStatus: current.paymentStatus,
-        subtotal: current.subtotal,
-        deliveryFee: current.deliveryFee,
-        discount: current.discount,
-        couponCode: current.couponCode,
-        promotionName: current.promotionName,
-        discountBreakdown: current.discountBreakdown ?? undefined,
-        total: current.total,
-        dueAt: new Date(
-          Date.now() + (current.estimatedTotalTimeMinutes ?? 35) * 60 * 1000,
+        paymentMethod: payload.paymentMethod,
+        paymentStatus: 'pending',
+        subtotal,
+        deliveryFee,
+        discount,
+        couponCode: null,
+        promotionName: promotionAdjustment.promotionName,
+        discountBreakdown: this.buildDiscountBreakdown(
+          subtotal,
+          promotionAdjustment,
+          { discount: 0 },
         ),
-        estimatedPrepTimeMinutes: current.estimatedPrepTimeMinutes,
-        estimatedDeliveryTimeMinutes: current.estimatedDeliveryTimeMinutes,
-        estimatedTotalTimeMinutes: current.estimatedTotalTimeMinutes,
-        priority: current.priority,
+        total: Math.max(0, subtotal - discount) + deliveryFee,
+        dueAt: new Date(Date.now() + estimatedTotalTimeMinutes * 60 * 1000),
+        estimatedPrepTimeMinutes,
+        estimatedDeliveryTimeMinutes,
+        estimatedTotalTimeMinutes,
+        priority: 'normal',
         delayed: false,
-        tags: current.tags,
+        tags: [
+          channelLabelMap[current.serviceType],
+          'Pedido repetido com catalogo atual',
+          ...(promotionAdjustment.promotionName
+            ? [`Promocao: ${promotionAdjustment.promotionName}`]
+            : []),
+        ],
         addressLabel: current.addressLabel,
         addressText: current.addressText,
         deliveryLatitude: current.deliveryLatitude,
         deliveryLongitude: current.deliveryLongitude,
         tableCode: current.tableCode,
-        notes: current.notes,
+        notes: null,
         driverId: null,
         items: {
-          create: current.items.map((item) => ({
-            productId: item.productId,
-            name: item.name,
+          create: items.map((item) => ({
+            productId: item.product.id,
+            name: item.product.name,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
-            notes: item.notes,
-            options: item.options ?? [],
+            notes: null,
+            options: toProductOptionsJson(item.options),
           })),
         },
         history: {
           create: {
             status: 'in_analysis',
             label: 'Pedido recriado a partir do historico',
-            actor: 'Operacao',
+            actor: this.cleanDatabaseText(authUser.name),
           },
         },
       },
@@ -807,6 +1110,109 @@ export class OrdersService {
     return {
       data: mapOrder(order),
     }
+  }
+
+  async confirmPayment(
+    orderId: string,
+    payload: ConfirmOrderPaymentPayload,
+    authUser: AuthenticatedRequestUser,
+  ) {
+    const current = await this.prisma.order.findFirst({
+      where: { id: orderId, storeId: getCurrentStoreId() },
+      include: { items: true, history: true, driver: true },
+    })
+
+    if (!current) {
+      throw new NotFoundException('Pedido nao encontrado.')
+    }
+
+    if (current.paymentStatus === payload.status) {
+      if (payload.status === 'paid') {
+        await this.registerSaleMovement(
+          current.number,
+          current.total.toNumber(),
+          current.paymentMethod,
+        )
+      }
+
+      return { data: mapOrder(current) }
+    }
+
+    if (!canTransitionPayment(current.paymentStatus, payload.status)) {
+      throw new ConflictException({
+        code: 'INVALID_PAYMENT_TRANSITION',
+        message: `Transicao de pagamento ${current.paymentStatus} para ${payload.status} nao permitida.`,
+      })
+    }
+
+    const paymentEventId = randomUUID()
+    const order = await this.prisma.$transaction(async (transaction) => {
+      const changed = await transaction.order.updateMany({
+        where: {
+          id: current.id,
+          storeId: getCurrentStoreId(),
+          paymentStatus: current.paymentStatus,
+        },
+        data: { paymentStatus: payload.status },
+      })
+
+      if (changed.count !== 1) {
+        throw new ConflictException('O pagamento foi atualizado por outra requisicao.')
+      }
+
+      await transaction.paymentAudit.create({
+        data: {
+          id: paymentEventId,
+          storeId: getCurrentStoreId(),
+          orderId: current.id,
+          status: payload.status,
+          amount: current.total,
+          method: current.paymentMethod,
+          source: 'manual',
+          actorId: authUser.sub,
+          actorName: this.cleanDatabaseText(authUser.name),
+          externalReference: payload.externalReference,
+        },
+      })
+
+      await transaction.orderStatusHistory.create({
+        data: {
+          orderId: current.id,
+          status: current.status,
+          label: `Pagamento atualizado para ${payload.status}`,
+          actor: this.cleanDatabaseText(authUser.name),
+        },
+      })
+
+      const updatedOrder = await transaction.order.findUniqueOrThrow({
+        where: { id: current.id },
+        include: { items: true, history: true, driver: true },
+      })
+
+      if (payload.status === 'paid') {
+        await this.printingPolicy.createPaymentJobs(transaction, {
+          storeId: getCurrentStoreId(),
+          eventId: paymentEventId,
+          order: updatedOrder,
+          items: updatedOrder.items.map((item) => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+          })),
+        })
+      }
+
+      return updatedOrder
+    })
+
+    if (payload.status === 'paid') {
+      await this.registerSaleMovement(
+        current.number,
+        current.total.toNumber(),
+        current.paymentMethod,
+      )
+    }
+
+    return { data: mapOrder(order) }
   }
 
   private async resolvePricedItems(
@@ -861,6 +1267,112 @@ export class OrdersService {
         options: selectedOptions.options,
       }
     })
+  }
+
+  private async resolveRepeatPricedItems(
+    historicalItems: OrderItem[],
+    catalogChannel: ProductChannel,
+    channelLabel: string,
+  ) {
+    const extracted = extractRepeatItemSelections(historicalItems)
+    const productIds = historicalItems.flatMap((item) =>
+      item.productId ? [item.productId] : [],
+    )
+    const products = await this.prisma.product.findMany({
+      where: {
+        id: { in: productIds },
+        storeId: getCurrentStoreId(),
+      },
+      include: {
+        availability: true,
+        optionGroups: {
+          include: {
+            group: {
+              include: { options: true },
+            },
+          },
+        },
+      },
+    })
+    const issues: Array<{
+      orderItemId: string
+      productId: string | null
+      itemName: string
+      reason: string
+    }> = [...extracted.issues]
+    const priced: PricedOrderItem[] = []
+
+    for (const item of historicalItems) {
+      const selection = extracted.selections.find(
+        (entry) => entry.orderItemId === item.id,
+      )
+      if (!selection) {
+        continue
+      }
+
+      const product = products.find((entry) => entry.id === item.productId)
+
+      if (!product) {
+        issues.push({
+          orderItemId: item.id,
+          productId: item.productId,
+          itemName: item.name,
+          reason: 'Produto removido do catalogo atual.',
+        })
+        continue
+      }
+
+      const availability = product.availability.find(
+        (entry) => entry.channel === catalogChannel,
+      )
+
+      if (
+        !product.active ||
+        !availability?.visible ||
+        !availability.available ||
+        availability.soldOut
+      ) {
+        issues.push({
+          orderItemId: item.id,
+          productId: item.productId,
+          itemName: item.name,
+          reason: `Produto indisponivel para ${channelLabel}.`,
+        })
+        continue
+      }
+
+      try {
+        const resolvedOptions = resolveProductOptionSelection(product, selection.options)
+        const basePrice = availability.priceOverride?.toNumber() ?? product.price.toNumber()
+
+        priced.push({
+          product,
+          quantity: item.quantity,
+          unitPrice: basePrice + resolvedOptions.optionsTotal,
+          options: resolvedOptions.options,
+        })
+      } catch (error) {
+        issues.push({
+          orderItemId: item.id,
+          productId: item.productId,
+          itemName: item.name,
+          reason:
+            error instanceof Error
+              ? error.message
+              : 'Adicionais precisam ser revisados no catalogo atual.',
+        })
+      }
+    }
+
+    if (issues.length) {
+      throw new UnprocessableEntityException({
+        code: 'ORDER_REPEAT_REVIEW_REQUIRED',
+        message: 'Alguns itens precisam ser revisados antes de repetir o pedido.',
+        items: issues,
+      })
+    }
+
+    return priced
   }
 
   private async upsertPublicCustomer(payload: { name: string; phone: string }) {
@@ -1186,40 +1698,21 @@ export class OrdersService {
     return `#${1001 + count}`
   }
 
-  private resolveNextStatus(current: OrderStatus, action: UpdateOrderStatusPayload['action']) {
-    if (action === 'accept') {
-      return 'in_preparation'
-    }
-
-    if (action === 'start_preparation') {
-      return 'in_preparation'
-    }
-
-    if (action === 'ready') {
-      return 'ready'
-    }
-
-    if (action === 'dispatch') {
-      return 'out_for_delivery'
-    }
-
-    if (action === 'complete') {
-      return 'completed'
-    }
-
-    if (action === 'cancel') {
-      return 'cancelled'
-    }
-
-    return current
-  }
-
   private actionLabel(action: UpdateOrderStatusPayload['action']) {
     if (action === 'accept') {
       return 'Pedido aceito e enviado para producao'
     }
 
-    return statusLabelMap[this.resolveNextStatus('in_analysis', action)]
+    const targetByAction: Record<UpdateOrderStatusPayload['action'], OrderStatus> = {
+      accept: 'in_preparation',
+      start_preparation: 'in_preparation',
+      ready: 'ready',
+      dispatch: 'out_for_delivery',
+      complete: 'completed',
+      cancel: 'cancelled',
+    }
+
+    return statusLabelMap[targetByAction[action]]
   }
 
   private getEstimatedPrepTime(
@@ -1352,37 +1845,7 @@ export class OrdersService {
       )
     }
 
-    await this.prisma.driverProfile.update({
-      where: {
-        storeUserId: driver.id,
-      },
-      data: {
-        availability: 'delivering',
-        lastActivityAt: new Date(),
-      },
-    })
-
     return driver.userId
-  }
-
-  private async resolveActor(payload: UpdateOrderStatusPayload, driverId: string | null) {
-    if (payload.actor) {
-      return payload.actor
-    }
-
-    if (payload.action === 'dispatch' && driverId) {
-      const driver = await this.prisma.user.findUnique({
-        where: {
-          id: driverId,
-        },
-      })
-
-      if (driver) {
-        return driver.name
-      }
-    }
-
-    return 'Operacao'
   }
 
   private cleanDatabaseText(value: string) {
@@ -1521,6 +1984,19 @@ export class OrdersService {
       return
     }
 
+    const label = `Pedido ${orderNumber}`
+    const existingMovement = await this.prisma.cashMovement.findFirst({
+      where: {
+        cashRegisterId: register.id,
+        type: 'sale',
+        label,
+      },
+    })
+
+    if (existingMovement) {
+      return
+    }
+
     await this.prisma.cashRegister.update({
       where: {
         id: register.id,
@@ -1534,7 +2010,7 @@ export class OrdersService {
             type: 'sale',
             method,
             amount,
-            label: `Pedido ${orderNumber}`,
+            label,
             userName: 'Sistema',
           },
         },
@@ -1590,6 +2066,14 @@ function formatAddressText(address: {
   ]
     .filter((entry): entry is string => entry !== null)
     .join(' | ')
+}
+
+function notificationTypeForStatus(status: OrderStatus): OrderNotificationType | null {
+  if (status === 'in_preparation') return 'ORDER_PREPARING'
+  if (status === 'out_for_delivery') return 'ORDER_OUT_FOR_DELIVERY'
+  if (status === 'completed') return 'ORDER_DELIVERED'
+  if (status === 'cancelled') return 'ORDER_CANCELLED'
+  return null
 }
 
 function roundCoordinate(value: number) {

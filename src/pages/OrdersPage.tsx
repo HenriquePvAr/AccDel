@@ -1,15 +1,20 @@
 import {
   AlertTriangle,
+  Bike,
   CheckCircle2,
   ChevronDown,
   CircleDot,
   Clock3,
   ClipboardList,
+  CreditCard,
   Filter,
   MapPin,
   Package,
   RefreshCcw,
-  Wifi,
+  Route,
+  Search,
+  StickyNote,
+  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -31,60 +36,98 @@ import { DispatchOrderDialog } from '@/features/orders/components/DispatchOrderD
 import { OrderDrawer } from '@/features/orders/components/OrderDrawer'
 import type { OrderAction } from '@/features/orders/components/order-actions'
 import {
-  formatElapsedShort,
   getOrderItemCountLabel,
   getPrimaryOrderAction,
 } from '@/features/orders/components/order-ui'
 import {
+  getOperationalStatuses,
+  getOrderTiming,
+  getVisibleOperationalItems,
+  isOrderLate,
+  isStatusInOperationalView,
+  type OperationalStatus,
+  type OperationalView,
+} from '@/features/orders/operations-board'
+import {
   useDriversQuery,
   useOrderByIdQuery,
   useOrdersQuery,
+  usePrintJobsQuery,
   useUpdateOrderStatusMutation,
 } from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { useCan } from '@/hooks/use-permissions'
-import { channelLabelMap } from '@/lib/domain'
+import { channelLabelMap, paymentLabelMap } from '@/lib/domain'
 import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useDriversStore, useOrderFiltersStore } from '@/stores'
 import type { Driver, Order, OrderChannel, OrderStatus } from '@/types'
 
-type KanbanStatus = Extract<OrderStatus, 'in_analysis' | 'in_preparation' | 'ready'>
+type KanbanStatus = OperationalStatus
 type KanbanStatusFilter = KanbanStatus | 'all'
 type SourceFilter = Extract<OrderChannel, 'delivery' | 'counter' | 'pickup'> | 'all'
 type SortOption = 'recent' | 'oldest' | 'delayed'
+type QuickFilter = 'all' | 'late' | 'priority' | 'no_driver' | 'print_failure'
 
 interface KanbanColumnConfig {
   status: KanbanStatus
   title: string
+  mobileTitle: string
   description: string
-  tone: 'cyan' | 'orange' | 'green'
+  tone: 'cyan' | 'orange' | 'green' | 'blue' | 'neutral'
   dotClass: string
 }
 
-const kanbanColumns: KanbanColumnConfig[] = [
-  {
+const kanbanColumnByStatus: Record<KanbanStatus, KanbanColumnConfig> = {
+  in_analysis: {
     status: 'in_analysis',
-    title: 'Em analise',
+    title: 'Novos',
+    mobileTitle: 'Novos',
     description: 'Pedidos aguardando aceite.',
     tone: 'cyan',
-    dotClass: 'bg-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.42)]',
+    dotClass: 'bg-sky-600',
   },
-  {
+  in_preparation: {
     status: 'in_preparation',
-    title: 'Producao',
+    title: 'Em preparo',
+    mobileTitle: 'Em preparo',
     description: 'Pedidos em preparo na cozinha.',
     tone: 'orange',
-    dotClass: 'bg-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.42)]',
+    dotClass: 'bg-orange-600',
   },
-  {
+  ready: {
     status: 'ready',
-    title: 'Pronto',
+    title: 'Prontos',
+    mobileTitle: 'Prontos',
     description: 'Aguardando despacho ou retirada.',
     tone: 'green',
-    dotClass: 'bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.42)]',
+    dotClass: 'bg-emerald-600',
   },
-]
+  out_for_delivery: {
+    status: 'out_for_delivery',
+    title: 'Em rota',
+    mobileTitle: 'Em rota',
+    description: 'Entregas em andamento.',
+    tone: 'blue',
+    dotClass: 'bg-blue-600',
+  },
+  completed: {
+    status: 'completed',
+    title: 'Concluidos recentes',
+    mobileTitle: 'Concluidos',
+    description: 'Ultimos pedidos encerrados.',
+    tone: 'neutral',
+    dotClass: 'bg-slate-500',
+  },
+}
+
+const summaryIconByStatus: Record<KanbanStatus, ReactNode> = {
+  in_analysis: <ClipboardList className="h-4 w-4" />,
+  in_preparation: <Clock3 className="h-4 w-4" />,
+  ready: <CheckCircle2 className="h-4 w-4" />,
+  out_for_delivery: <Bike className="h-4 w-4" />,
+  completed: <CircleDot className="h-4 w-4" />,
+}
 
 const sourceOptions: Array<{ value: SourceFilter; label: string }> = [
   { value: 'all', label: 'Todos' },
@@ -95,9 +138,11 @@ const sourceOptions: Array<{ value: SourceFilter; label: string }> = [
 
 const statusOptions: Array<{ value: KanbanStatusFilter; label: string }> = [
   { value: 'all', label: 'Todos' },
-  { value: 'in_analysis', label: 'Em analise' },
-  { value: 'in_preparation', label: 'Producao' },
-  { value: 'ready', label: 'Pronto' },
+  { value: 'in_analysis', label: 'Novos' },
+  { value: 'in_preparation', label: 'Em preparo' },
+  { value: 'ready', label: 'Prontos' },
+  { value: 'out_for_delivery', label: 'Em rota' },
+  { value: 'completed', label: 'Concluido' },
 ]
 
 const sortOptions: Array<{ value: SortOption; label: string }> = [
@@ -109,9 +154,23 @@ const sortOptions: Array<{ value: SortOption; label: string }> = [
 const emptyOrders: Order[] = []
 const emptyDrivers: Driver[] = []
 const visiblePerColumn = 6
+const paymentStatusLabel: Record<Order['paymentStatus'], string> = {
+  paid: 'Pago',
+  pending: 'Pendente',
+  failed: 'Falhou',
+  cancelled: 'Cancelado',
+  refunded: 'Estornado',
+}
 
 function isKanbanStatus(value: OrderStatus | 'all'): value is KanbanStatusFilter {
-  return value === 'all' || value === 'in_analysis' || value === 'in_preparation' || value === 'ready'
+  return (
+    value === 'all' ||
+    value === 'in_analysis' ||
+    value === 'in_preparation' ||
+    value === 'ready' ||
+    value === 'out_for_delivery' ||
+    value === 'completed'
+  )
 }
 
 function isSourceFilter(value: OrderChannel | 'all'): value is SourceFilter {
@@ -169,30 +228,50 @@ function buildOrderAddress(order: Order) {
 function buildColumnToneClasses(tone: KanbanColumnConfig['tone']) {
   if (tone === 'cyan') {
     return {
-      ring: 'ring-sky-400/20',
-      text: 'text-sky-300',
-      border: 'border-sky-400/20',
-      selected: 'border-sky-400/80 shadow-[0_0_0_1px_rgba(56,189,248,0.55),0_18px_46px_rgba(14,165,233,0.16)]',
-      button: 'border-sky-400/35 bg-sky-500/10 text-sky-200 hover:bg-sky-500/16',
+      ring: 'ring-sky-700/5',
+      text: 'text-sky-700',
+      border: 'border-sky-200',
+      selected: 'border-sky-500 ring-2 ring-sky-100',
+      button: 'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
     }
   }
 
   if (tone === 'orange') {
     return {
-      ring: 'ring-orange-400/20',
-      text: 'text-orange-300',
-      border: 'border-orange-400/20',
-      selected: 'border-orange-400/80 shadow-[0_0_0_1px_rgba(251,146,60,0.48),0_18px_46px_rgba(249,115,22,0.14)]',
-      button: 'border-orange-400/35 bg-orange-500/10 text-orange-200 hover:bg-orange-500/16',
+      ring: 'ring-orange-700/5',
+      text: 'text-orange-700',
+      border: 'border-orange-200',
+      selected: 'border-orange-500 ring-2 ring-orange-100',
+      button: 'border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100',
+    }
+  }
+
+  if (tone === 'blue') {
+    return {
+      ring: 'ring-blue-700/5',
+      text: 'text-blue-700',
+      border: 'border-blue-200',
+      selected: 'border-blue-500 ring-2 ring-blue-100',
+      button: 'border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100',
+    }
+  }
+
+  if (tone === 'neutral') {
+    return {
+      ring: 'ring-slate-700/5',
+      text: 'text-slate-700',
+      border: 'border-slate-200',
+      selected: 'border-slate-500 ring-2 ring-slate-100',
+      button: 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100',
     }
   }
 
   return {
-    ring: 'ring-emerald-400/20',
-    text: 'text-emerald-300',
-    border: 'border-emerald-400/20',
-    selected: 'border-emerald-400/80 shadow-[0_0_0_1px_rgba(52,211,153,0.45),0_18px_46px_rgba(16,185,129,0.14)]',
-    button: 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/16',
+    ring: 'ring-emerald-700/5',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
+    selected: 'border-emerald-500 ring-2 ring-emerald-100',
+    button: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
   }
 }
 
@@ -202,15 +281,22 @@ export function OrdersPage() {
   const search = useOrderFiltersStore((state) => state.search)
   const storedSource = useOrderFiltersStore((state) => state.source)
   const storedStatus = useOrderFiltersStore((state) => state.status)
+  const delayedOnly = useOrderFiltersStore((state) => state.delayedOnly)
   const setSearch = useOrderFiltersStore((state) => state.setSearch)
   const setSource = useOrderFiltersStore((state) => state.setSource)
   const setStatus = useOrderFiltersStore((state) => state.setStatus)
+  const setDelayedOnly = useOrderFiltersStore((state) => state.setDelayedOnly)
   const resetFilters = useOrderFiltersStore((state) => state.reset)
   const setSelectedDriverId = useDriversStore((state) => state.setSelectedDriverId)
   const canUpdateOrders = useCan('orders:update')
+  const canTrackDeliveries = useCan('drivers:view')
   const selectedSource = isSourceFilter(storedSource) ? storedSource : 'all'
   const selectedStatus = isKanbanStatus(storedStatus) ? storedStatus : 'all'
+  const [operationalView, setOperationalView] = useState<OperationalView>('preparation')
+  const [activeMobileStatus, setActiveMobileStatus] = useState<KanbanStatus>('in_analysis')
   const [sortBy, setSortBy] = useState<SortOption>('recent')
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
+  const [searchExpanded, setSearchExpanded] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null)
@@ -219,8 +305,21 @@ export function OrdersPage() {
     in_analysis: false,
     in_preparation: false,
     ready: false,
+    out_for_delivery: false,
+    completed: false,
   })
   const filterRef = useRef<HTMLDivElement | null>(null)
+  const activeColumns = useMemo(
+    () => getOperationalStatuses(operationalView).map((status) => kanbanColumnByStatus[status]),
+    [operationalView],
+  )
+  const availableStatusOptions = useMemo(
+    () =>
+      statusOptions.filter(
+        (option) => option.value === 'all' || isStatusInOperationalView(option.value, operationalView),
+      ),
+    [operationalView],
+  )
 
   const ordersQuery = useOrdersQuery({
     filters: {
@@ -231,9 +330,20 @@ export function OrdersPage() {
   })
   const selectedOrderQuery = useOrderByIdQuery(selectedOrderId)
   const driversQuery = useDriversQuery()
+  const printJobsQuery = usePrintJobsQuery({ page: 1, pageSize: 50, status: 'all' })
   const updateOrderStatus = useUpdateOrderStatusMutation()
 
   const allOrders = ordersQuery.data?.data ?? emptyOrders
+  const printIssueOrderIds = useMemo(
+    () =>
+      new Set(
+        (printJobsQuery.data?.data ?? [])
+          .filter((job) => job.status === 'FAILED' || job.status === 'PRINT_RESULT_UNKNOWN')
+          .map((job) => job.orderId)
+          .filter((orderId): orderId is string => Boolean(orderId)),
+      ),
+    [printJobsQuery.data?.data],
+  )
   const searchedOrders = useMemo(
     () => sortOrders(allOrders.filter((order) => matchesSearch(order, search)), sortBy),
     [allOrders, search, sortBy],
@@ -242,21 +352,47 @@ export function OrdersPage() {
     () =>
       searchedOrders.filter(
         (order) =>
-          kanbanColumns.some((column) => column.status === order.status) &&
-          (selectedStatus === 'all' || order.status === selectedStatus),
+          isStatusInOperationalView(order.status, operationalView) &&
+          (selectedStatus === 'all' || order.status === selectedStatus) &&
+          (!(delayedOnly || quickFilter === 'late') || isOrderLate(order)) &&
+          (quickFilter !== 'priority' || order.priority !== 'normal') &&
+          (quickFilter !== 'no_driver' ||
+            (order.source === 'delivery' &&
+              (order.status === 'ready' || order.status === 'out_for_delivery') &&
+              !order.driverId)) &&
+          (quickFilter !== 'print_failure' || printIssueOrderIds.has(order.id)),
       ),
-    [searchedOrders, selectedStatus],
+    [delayedOnly, operationalView, printIssueOrderIds, quickFilter, searchedOrders, selectedStatus],
+  )
+  const displayedDesktopColumns = useMemo(
+    () =>
+      delayedOnly || quickFilter === 'late'
+        ? activeColumns.filter((column) =>
+            boardOrders.some((order) => order.status === column.status),
+          )
+        : activeColumns,
+    [activeColumns, boardOrders, delayedOnly, quickFilter],
   )
   const counts = useMemo(
     () => ({
       in_analysis: searchedOrders.filter((order) => order.status === 'in_analysis').length,
       in_preparation: searchedOrders.filter((order) => order.status === 'in_preparation').length,
       ready: searchedOrders.filter((order) => order.status === 'ready').length,
+      out_for_delivery: searchedOrders.filter((order) => order.status === 'out_for_delivery').length,
+      completed: searchedOrders.filter((order) => order.status === 'completed').length,
       delayed: searchedOrders.filter(
-        (order) => order.delayed && !['completed', 'cancelled'].includes(order.status),
+        (order) => isStatusInOperationalView(order.status, operationalView) && isOrderLate(order),
       ).length,
+      priority: searchedOrders.filter((order) => order.priority !== 'normal').length,
+      noDriver: searchedOrders.filter(
+        (order) =>
+          order.source === 'delivery' &&
+          (order.status === 'ready' || order.status === 'out_for_delivery') &&
+          !order.driverId,
+      ).length,
+      printFailure: searchedOrders.filter((order) => printIssueOrderIds.has(order.id)).length,
     }),
-    [searchedOrders],
+    [operationalView, printIssueOrderIds, searchedOrders],
   )
   const selectedOrder =
     selectedOrderQuery.data?.data ??
@@ -310,6 +446,22 @@ export function OrdersPage() {
     }
   }
 
+  const handleOperationalViewChange = (view: OperationalView) => {
+    setOperationalView(view)
+    setActiveMobileStatus(getOperationalStatuses(view)[0])
+
+    if (selectedStatus !== 'all' && !isStatusInOperationalView(selectedStatus, view)) {
+      setStatus('all')
+    }
+  }
+
+  const handleStatusSummaryClick = (status: KanbanStatus) => {
+    setDelayedOnly(false)
+    setQuickFilter('all')
+    setStatus(selectedStatus === status ? 'all' : status)
+    setActiveMobileStatus(status)
+  }
+
   const handleAction = (orderId: string, action: OrderAction) => {
     if (!canUpdateOrders) {
       return
@@ -328,7 +480,7 @@ export function OrdersPage() {
     updateOrderStatus.mutate({
       orderId,
       action,
-      actor: action === 'ready' ? 'Cozinha' : 'Operacao',
+      actor: action === 'ready' ? 'Cozinha' : 'Equipe',
     })
   }
 
@@ -362,191 +514,401 @@ export function OrdersPage() {
   const clearFilters = () => {
     resetFilters()
     setSortBy('recent')
+    setQuickFilter('all')
     setFiltersOpen(false)
   }
 
+  const applyQuickFilter = (value: QuickFilter) => {
+    setQuickFilter(value)
+    setDelayedOnly(value === 'late')
+
+    if (value === 'late') {
+      const firstLateStatus = getOperationalStatuses(operationalView).find((status) =>
+        searchedOrders.some((order) => order.status === status && isOrderLate(order)),
+      )
+
+      if (firstLateStatus) {
+        setActiveMobileStatus(firstLateStatus)
+      }
+    }
+  }
+
+  const activeFilterCount = [
+    search.trim(),
+    selectedSource !== 'all',
+    selectedStatus !== 'all',
+    sortBy !== 'recent',
+    quickFilter !== 'all',
+  ].filter(Boolean).length
+
   return (
-    <PageShell className="min-h-[calc(100vh-72px)] space-y-5 overflow-hidden text-slate-100">
-      <header className="grid gap-4 2xl:grid-cols-[minmax(360px,1fr)_auto] 2xl:items-start">
-        <div className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <SearchInput
-              value={search}
-              onChange={setSearch}
-              placeholder="Buscar pedido, cliente, endereco ou telefone..."
-              className="w-full max-w-2xl"
-              inputClassName="h-12 rounded-2xl border-white/10 bg-[#071525]/90 pl-11 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:text-slate-500 focus:border-sky-400/45"
-            />
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <div className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-[#071525]/86 px-4 text-sm font-bold text-slate-100">
-                <span
-                  className={cn(
-                    'h-2.5 w-2.5 rounded-full',
-                    ordersQuery.isFetching ? 'bg-orange-300' : 'bg-emerald-400',
-                  )}
-                />
-                <Wifi className="h-4 w-4 text-slate-400" />
-                {ordersQuery.isFetching ? 'Sincronizando' : 'Ao vivo'}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleRefresh}
-                disabled={ordersQuery.isFetching}
-                className="h-12 rounded-2xl border-white/10 bg-[#071525]/86 px-5 text-slate-100 hover:bg-white/[0.08]"
-              >
-                <RefreshCcw className={cn('h-4 w-4', ordersQuery.isFetching && 'animate-spin')} />
-                Atualizar
-              </Button>
-            </div>
+    <PageShell className="min-h-[calc(100vh-64px)] space-y-4 overflow-visible pt-4 sm:pt-5">
+      <header className="space-y-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-[28px]">Central de pedidos</h1>
           </div>
 
-          <div>
-            <h1 className="text-3xl font-black text-white sm:text-4xl">
-              Central de pedidos
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Acompanhe e gerencie os pedidos em tempo real.
-            </p>
+          <div
+            className="grid h-11 grid-cols-2 rounded-lg bg-muted p-1 lg:w-[320px]"
+            role="tablist"
+            aria-label="Modo da Central de pedidos"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={operationalView === 'preparation'}
+              onClick={() => handleOperationalViewChange('preparation')}
+              className={cn(
+                'inline-flex min-w-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                operationalView === 'preparation'
+                  ? 'bg-white text-primary shadow-sm'
+                  : 'text-muted-foreground hover:bg-white/60 hover:text-foreground',
+              )}
+            >
+              <ClipboardList className="h-4 w-4" />
+              Preparo
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={operationalView === 'dispatch'}
+              onClick={() => handleOperationalViewChange('dispatch')}
+              className={cn(
+                'inline-flex min-w-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                operationalView === 'dispatch'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-muted-foreground hover:bg-white/60 hover:text-foreground',
+              )}
+            >
+              <Bike className="h-4 w-4" />
+              Entrega
+            </button>
           </div>
         </div>
 
-        <div ref={filterRef} className="relative justify-self-start 2xl:justify-self-end">
+        <div className="sticky top-14 z-20 -mx-2 space-y-2 rounded-xl border border-border bg-[#f3f5f7] p-2 shadow-sm sm:top-16">
+          <div className="flex items-center gap-2">
+            {!searchExpanded ? (
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Abrir busca de pedidos"
+                onClick={() => setSearchExpanded(true)}
+                className="h-12 w-12 shrink-0 p-0 sm:hidden"
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            ) : null}
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Buscar pedido, cliente ou endereco..."
+              className={cn('min-w-0 flex-1', !searchExpanded && 'hidden sm:block')}
+              inputClassName="h-12 pl-10 sm:h-11"
+            />
+            {searchExpanded ? (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Fechar busca de pedidos"
+                onClick={() => {
+                  setSearch('')
+                  setSearchExpanded(false)
+                }}
+                className="h-12 w-12 shrink-0 p-0 sm:hidden"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            ) : null}
+          <div className="hidden h-11 shrink-0 items-center gap-2 rounded-lg border border-border bg-white px-3 text-xs font-semibold text-foreground sm:inline-flex">
+            <span
+              className={cn(
+                'h-2.5 w-2.5 rounded-full',
+                ordersQuery.isFetching ? 'bg-orange-300' : 'bg-emerald-400',
+              )}
+            />
+            {ordersQuery.isFetching ? 'Atualizando' : 'Atualizado'}
+          </div>
           <Button
             type="button"
             variant="outline"
-            aria-expanded={filtersOpen}
-            onClick={() => setFiltersOpen((current) => !current)}
-            className="h-12 rounded-2xl border-white/10 bg-[#071525]/86 px-5 text-slate-100 hover:bg-white/[0.08]"
+            aria-label="Atualizar pedidos"
+            onClick={handleRefresh}
+            disabled={ordersQuery.isFetching}
+            className="h-12 w-12 shrink-0 p-0 sm:h-11 sm:w-11"
           >
-            <Filter className="h-4 w-4" />
-            Filtros
-            <ChevronDown className={cn('h-4 w-4 transition', filtersOpen && 'rotate-180')} />
+            <RefreshCcw className={cn('h-4 w-4', ordersQuery.isFetching && 'animate-spin')} />
           </Button>
 
-          {filtersOpen ? (
-            <div className="absolute right-auto top-14 z-30 w-[min(340px,calc(100vw-32px))] rounded-[22px] border border-white/10 bg-[#071525]/95 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.03] backdrop-blur-xl 2xl:right-0">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                    Tipo de pedido
-                  </label>
-                  <Select
-                    value={selectedSource}
-                    onValueChange={(value) => setSource(value as SourceFilter)}
-                  >
-                    <SelectTrigger className="h-11 border-white/10 bg-[#091827] text-slate-100">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent data-orders-filter-select="true">
-                      {sourceOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          <div ref={filterRef} className="relative shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              aria-expanded={filtersOpen}
+              aria-label="Abrir filtros de pedidos"
+              onClick={() => setFiltersOpen((current) => !current)}
+              className="hidden h-12 px-3 sm:inline-flex sm:h-11 sm:px-4"
+            >
+              <Filter className="h-4 w-4" />
+              <span className="hidden sm:inline">Filtros</span>
+              {activeFilterCount ? (
+                <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] text-white">{activeFilterCount}</span>
+              ) : null}
+              <ChevronDown className={cn('h-4 w-4 transition', filtersOpen && 'rotate-180')} />
+            </Button>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                    Status
-                  </label>
-                  <Select
-                    value={selectedStatus}
-                    onValueChange={(value) => setStatus(value as KanbanStatusFilter)}
-                  >
-                    <SelectTrigger className="h-11 border-white/10 bg-[#091827] text-slate-100">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent data-orders-filter-select="true">
-                      {statusOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                    Ordenacao
-                  </label>
-                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
-                    <SelectTrigger className="h-11 border-white/10 bg-[#091827] text-slate-100">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent data-orders-filter-select="true">
-                      {sortOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button
+            {filtersOpen ? (
+              <>
+                <button
                   type="button"
-                  variant="ghost"
-                  onClick={clearFilters}
-                  className="h-10 w-full rounded-xl text-slate-300 hover:bg-white/[0.06]"
-                >
-                  Limpar filtros
-                </Button>
-              </div>
+                  className="fixed inset-0 z-20 bg-slate-950/35 sm:hidden"
+                  aria-label="Fechar filtros"
+                  onClick={() => setFiltersOpen(false)}
+                />
+                <div className="fixed inset-x-0 bottom-[68px] z-30 max-h-[calc(100dvh-84px)] overflow-y-auto overscroll-contain rounded-t-2xl border border-border bg-white p-5 pb-6 shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-12 sm:w-[340px] sm:rounded-xl sm:p-4 sm:shadow-panel scrollbar-thin">
+                  <div className="mb-4 flex items-center justify-between sm:hidden">
+                    <p className="font-bold text-foreground">Filtrar pedidos</p>
+                    <Button type="button" size="icon" variant="ghost" aria-label="Fechar filtros" onClick={() => setFiltersOpen(false)}>
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                <div className="space-y-4">
+                  <div className="space-y-2 sm:hidden">
+                    <p className="text-xs font-semibold text-foreground">Filtros rápidos</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ['all', 'Todos', allOrders.length],
+                        ['late', 'Atrasados', counts.delayed],
+                        ['priority', 'Prioridade', counts.priority],
+                        ['no_driver', 'Sem entregador', counts.noDriver],
+                        ['print_failure', 'Falha de impressão', counts.printFailure],
+                      ] as Array<[QuickFilter, string, number]>).map(([value, label, count]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={quickFilter === value}
+                          onClick={() => {
+                            applyQuickFilter(value)
+                            setFiltersOpen(false)
+                          }}
+                          className={cn(
+                            'flex min-h-11 items-center justify-between gap-2 rounded-lg border px-3 text-left text-xs font-semibold',
+                            quickFilter === value
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-border bg-white text-foreground',
+                          )}
+                        >
+                          <span>{label}</span>
+                          {value !== 'all' ? <span className="font-mono">{count}</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-foreground">
+                      Tipo de pedido
+                    </label>
+                    <Select
+                      value={selectedSource}
+                      onValueChange={(value) => setSource(value as SourceFilter)}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent data-orders-filter-select="true">
+                        {sourceOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-foreground">
+                      Status
+                    </label>
+                    <Select
+                      value={selectedStatus}
+                      onValueChange={(value) => {
+                        const status = value as KanbanStatusFilter
+                        setStatus(status)
+                        setDelayedOnly(false)
+                        if (status !== 'all') {
+                          setActiveMobileStatus(status)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent data-orders-filter-select="true">
+                        {availableStatusOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-foreground">
+                      Ordenacao
+                    </label>
+                    <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent data-orders-filter-select="true">
+                        {sortOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={clearFilters}
+                    className="h-10 w-full"
+                  >
+                    Limpar filtros
+                  </Button>
+                </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 sm:hidden" aria-label="Filtros rápidos">
+            {([
+              ['all', 'Todos', allOrders.length],
+              ['late', 'Atrasados', counts.delayed],
+              ['priority', 'Prioridade', counts.priority],
+            ] as Array<[QuickFilter, string, number]>).map(([value, label, count]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={quickFilter === value}
+                onClick={() => applyQuickFilter(value)}
+                className={cn(
+                  'flex h-10 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold transition-colors',
+                  quickFilter === value
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border bg-white text-muted-foreground',
+                )}
+              >
+                <span className="truncate">{label}</span>
+                {value !== 'all' ? <span className="font-mono">{count}</span> : null}
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen(true)}
+              className={cn(
+                'flex h-10 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold',
+                quickFilter === 'no_driver' || quickFilter === 'print_failure'
+                  ? 'border-primary bg-primary text-white'
+                  : 'border-border bg-white text-muted-foreground',
+              )}
+            >
+              Mais
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <div className="hidden gap-2 overflow-x-auto pb-0.5 sm:flex scrollbar-thin" aria-label="Filtros rápidos">
+            {([
+              ['all', 'Todos', allOrders.length],
+              ['late', 'Atrasados', counts.delayed],
+              ['priority', 'Prioridade', counts.priority],
+              ['no_driver', 'Sem entregador', counts.noDriver],
+              ['print_failure', 'Falha de impressão', counts.printFailure],
+            ] as Array<[QuickFilter, string, number]>).map(([value, label, count]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={quickFilter === value}
+                onClick={() => applyQuickFilter(value)}
+                className={cn(
+                  'flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors',
+                  quickFilter === value
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border bg-white text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {label}
+                {value !== 'all' ? <span className="font-mono">{count}</span> : null}
+              </button>
+            ))}
+          </div>
+
+          {activeFilterCount ? (
+            <div className="flex gap-2 overflow-x-auto scrollbar-hidden" aria-label="Filtros aplicados">
+              {quickFilter !== 'all' ? (
+                <ActiveFilterChip label={quickFilter === 'late' ? 'Atrasados' : quickFilter === 'priority' ? 'Prioridade' : quickFilter === 'no_driver' ? 'Sem entregador' : 'Falha de impressão'} onRemove={() => applyQuickFilter('all')} />
+              ) : null}
+              {selectedSource !== 'all' ? <ActiveFilterChip label={sourceOptions.find((item) => item.value === selectedSource)?.label ?? selectedSource} onRemove={() => setSource('all')} /> : null}
+              {selectedStatus !== 'all' ? <ActiveFilterChip label={statusOptions.find((item) => item.value === selectedStatus)?.label ?? selectedStatus} onRemove={() => setStatus('all')} /> : null}
+              {sortBy !== 'recent' ? <ActiveFilterChip label={sortOptions.find((item) => item.value === sortBy)?.label ?? sortBy} onRemove={() => setSortBy('recent')} /> : null}
+              {search.trim() ? <ActiveFilterChip label={`Busca: ${search.trim()}`} onRemove={() => setSearch('')} /> : null}
             </div>
           ) : null}
         </div>
       </header>
 
-      <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
-        <SummaryChip
-          label="Em analise"
-          value={counts.in_analysis}
-          tone="cyan"
-          icon={<ClipboardList className="h-4 w-4" />}
-        />
-        <SummaryChip
-          label="Producao"
-          value={counts.in_preparation}
-          tone="orange"
-          icon={<Clock3 className="h-4 w-4" />}
-        />
-        <SummaryChip
-          label="Pronto"
-          value={counts.ready}
-          tone="green"
-          icon={<CheckCircle2 className="h-4 w-4" />}
-        />
+      <section className="hidden gap-2 xl:flex" aria-label="Resumo dos pedidos">
+        {activeColumns.map((column) => (
+          <SummaryChip
+            key={column.status}
+            label={column.title}
+            value={counts[column.status]}
+            tone={column.tone}
+            icon={summaryIconByStatus[column.status]}
+            active={!delayedOnly && selectedStatus === column.status}
+            onClick={() => handleStatusSummaryClick(column.status)}
+          />
+        ))}
         <SummaryChip
           label="Atrasados"
           value={counts.delayed}
           tone="red"
           icon={<AlertTriangle className="h-4 w-4" />}
+          active={delayedOnly}
+          onClick={() => {
+            applyQuickFilter(quickFilter === 'late' ? 'all' : 'late')
+            setStatus('all')
+          }}
         />
       </section>
 
       {ordersQuery.isLoading ? (
         <div className="grid gap-4 xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="rounded-[24px] border border-white/10 bg-[#061525]/76 p-4">
-              <Skeleton className="mb-4 h-8 w-44 bg-white/10" />
+            <div key={index} className="rounded-xl border border-border bg-white p-4">
+              <Skeleton className="mb-4 h-8 w-44" />
               <div className="space-y-3">
-                <Skeleton className="h-32 rounded-[18px] bg-white/10" />
-                <Skeleton className="h-32 rounded-[18px] bg-white/10" />
-                <Skeleton className="h-32 rounded-[18px] bg-white/10" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
               </div>
             </div>
           ))}
         </div>
       ) : ordersQuery.isError ? (
-        <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 p-8 text-center">
-          <ClipboardList className="mx-auto h-8 w-8 text-red-300" />
-          <h2 className="mt-4 text-xl font-black text-white">Nao foi possivel carregar pedidos</h2>
-          <p className="mt-2 text-sm text-red-100/80">
-            Verifique a conexao com a API e tente atualizar a operacao.
+        <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center">
+          <ClipboardList className="mx-auto h-8 w-8 text-red-700" />
+          <h2 className="mt-4 text-xl font-bold text-red-950">Nao foi possivel carregar pedidos</h2>
+          <p className="mt-2 text-sm text-red-800">
+            Verifique sua conexão e tente atualizar.
           </p>
           <Button
             type="button"
@@ -557,9 +919,70 @@ export function OrdersPage() {
           </Button>
         </div>
       ) : boardOrders.length ? (
-        <section className="overflow-x-auto pb-2 scrollbar-thin">
-          <div className="grid min-w-[980px] gap-4 xl:min-w-0 xl:grid-cols-3">
-            {kanbanColumns.map((column) => {
+        <section className="pb-2">
+          <div className="xl:hidden">
+            <div
+              className="mb-3 grid grid-cols-3 gap-2"
+              role="tablist"
+              aria-label="Etapas dos pedidos"
+            >
+              {activeColumns.map((column) => (
+                <button
+                  key={column.status}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeMobileStatus === column.status}
+                  onClick={() => {
+                    setActiveMobileStatus(column.status)
+                    if (selectedStatus !== 'all') {
+                      setStatus(column.status)
+                    }
+                  }}
+                  className={cn(
+                    'inline-flex h-12 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-11 sm:text-sm',
+                    activeMobileStatus === column.status
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-white text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  <span className="truncate">{column.mobileTitle}</span>
+                  <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs">
+                    {counts[column.status]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {activeColumns
+              .filter((column) => column.status === activeMobileStatus)
+              .map((column) => {
+                const orders = boardOrders.filter((order) => order.status === column.status)
+
+                return (
+                  <KanbanOrderColumn
+                    key={column.status}
+                    column={column}
+                    orders={orders}
+                    selectedOrderId={selectedOrderId}
+                    expanded={expandedColumns[column.status]}
+                    canUpdate={canUpdateOrders && !updateOrderStatus.isPending}
+                    canTrack={canTrackDeliveries}
+                    onToggleExpanded={() =>
+                      setExpandedColumns((current) => ({
+                        ...current,
+                        [column.status]: !current[column.status],
+                      }))
+                    }
+                    onOpen={setSelectedOrderId}
+                    onAction={handleAction}
+                    onTrack={handleTrackDelivery}
+                  />
+                )
+              })}
+          </div>
+
+          <div className="hidden gap-4 xl:grid xl:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+            {displayedDesktopColumns.map((column) => {
               const orders = boardOrders.filter((order) => order.status === column.status)
 
               return (
@@ -569,7 +992,8 @@ export function OrdersPage() {
                   orders={orders}
                   selectedOrderId={selectedOrderId}
                   expanded={expandedColumns[column.status]}
-                  canUpdate={canUpdateOrders}
+                  canUpdate={canUpdateOrders && !updateOrderStatus.isPending}
+                  canTrack={canTrackDeliveries}
                   onToggleExpanded={() =>
                     setExpandedColumns((current) => ({
                       ...current,
@@ -578,17 +1002,18 @@ export function OrdersPage() {
                   }
                   onOpen={setSelectedOrderId}
                   onAction={handleAction}
+                  onTrack={handleTrackDelivery}
                 />
               )
             })}
           </div>
         </section>
       ) : (
-        <div className="rounded-[28px] border border-white/10 bg-[#071a2d]/80 p-8">
+        <div className="rounded-xl border border-border bg-white p-8">
           <EmptyState
             icon={<ClipboardList className="h-5 w-5" />}
             title="Nenhum pedido encontrado"
-            description="Ajuste busca ou filtros para encontrar pedidos neste fluxo operacional."
+            description="Tente mudar a busca ou remover algum filtro."
           />
         </div>
       )}
@@ -623,7 +1048,7 @@ export function OrdersPage() {
       <ConfirmActionDialog
         open={Boolean(pendingCancelId)}
         title="Recusar ou cancelar pedido"
-        description="Essa acao registra a alteracao no historico e remove o pedido do fluxo operacional ativo."
+        description="Essa ação registra a mudança no histórico e remove o pedido da lista atual."
         confirmLabel="Confirmar"
         onOpenChange={(open) => {
           if (!open) {
@@ -636,7 +1061,7 @@ export function OrdersPage() {
               {
                 orderId: pendingCancelId,
                 action: 'cancel',
-                actor: 'Operacao',
+                actor: 'Equipe',
               },
               {
                 onSuccess: () => {
@@ -656,39 +1081,55 @@ function SummaryChip({
   value,
   tone,
   icon,
+  active,
+  onClick,
 }: {
   label: string
   value: number
-  tone: 'cyan' | 'orange' | 'green' | 'red'
+  tone: KanbanColumnConfig['tone'] | 'red'
   icon: ReactNode
+  active: boolean
+  onClick: () => void
 }) {
   const toneClass = {
-    cyan: 'border-sky-400/15 bg-sky-500/[0.08] text-sky-300',
-    orange: 'border-orange-400/15 bg-orange-500/[0.08] text-orange-300',
-    green: 'border-emerald-400/15 bg-emerald-500/[0.08] text-emerald-300',
-    red: 'border-red-400/15 bg-red-500/[0.08] text-red-300',
+    cyan: 'bg-sky-50 text-sky-700',
+    orange: 'bg-orange-50 text-orange-700',
+    green: 'bg-emerald-50 text-emerald-700',
+    blue: 'bg-blue-50 text-blue-700',
+    neutral: 'bg-slate-100 text-slate-700',
+    red: 'bg-red-50 text-red-700',
   }[tone]
   const valueClass = {
-    cyan: 'text-sky-300',
-    orange: 'text-orange-300',
-    green: 'text-emerald-300',
-    red: 'text-red-300',
+    cyan: 'text-sky-700',
+    orange: 'text-orange-700',
+    green: 'text-emerald-700',
+    blue: 'text-blue-700',
+    neutral: 'text-slate-700',
+    red: 'text-red-700',
   }[tone]
 
   return (
-    <article className="rounded-[18px] border border-white/10 bg-[#071525]/82 px-4 py-3 shadow-[0_18px_52px_rgba(0,0,0,0.14)]">
-      <div className="flex items-center justify-between gap-4">
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'min-w-[148px] flex-1 rounded-lg border border-border bg-white px-3 py-2 text-left transition-colors hover:border-border-strong hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active && 'border-primary bg-primary/[0.06] ring-1 ring-primary/20',
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className={cn('flex h-8 w-8 items-center justify-center rounded-xl border', toneClass)}>
+          <span className={cn('flex h-8 w-8 items-center justify-center rounded-md', toneClass)}>
             {icon}
           </span>
-          <p className="text-sm font-black text-slate-100">{label}</p>
+          <p className="whitespace-nowrap text-xs font-semibold text-foreground">{label}</p>
         </div>
-        <p className={cn('font-mono text-2xl font-black tabular-nums', valueClass)}>
+        <p className={cn('font-mono text-xl font-bold tabular-nums', valueClass)}>
           {value}
         </p>
       </div>
-    </article>
+    </button>
   )
 }
 
@@ -698,26 +1139,31 @@ function KanbanOrderColumn({
   selectedOrderId,
   expanded,
   canUpdate,
+  canTrack,
   onToggleExpanded,
   onOpen,
   onAction,
+  onTrack,
 }: {
   column: KanbanColumnConfig
   orders: Order[]
   selectedOrderId: string | null
   expanded: boolean
   canUpdate: boolean
+  canTrack: boolean
   onToggleExpanded: () => void
   onOpen: (orderId: string) => void
   onAction: (orderId: string, action: OrderAction) => void
+  onTrack: (order: Order) => void
 }) {
   const toneClasses = buildColumnToneClasses(column.tone)
-  const visibleOrders = expanded ? orders : orders.slice(0, visiblePerColumn)
+  const visibleOrders = getVisibleOperationalItems(orders, expanded, visiblePerColumn)
+  const lateOrders = orders.filter((order) => isOrderLate(order)).length
 
   return (
     <section
       className={cn(
-        'flex min-h-[520px] min-w-0 flex-col rounded-[24px] border bg-[#061525]/78 p-3.5 shadow-[0_20px_70px_rgba(0,0,0,0.20)] ring-1 backdrop-blur-xl',
+        'flex min-h-[500px] min-w-0 flex-col rounded-xl border bg-muted/35 p-3 shadow-sm ring-1 xl:max-h-[calc(100vh-260px)]',
         toneClasses.border,
         toneClasses.ring,
       )}
@@ -726,17 +1172,20 @@ function KanbanOrderColumn({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn('h-2.5 w-2.5 rounded-full', column.dotClass)} />
-            <h2 className="truncate text-sm font-black text-white">{column.title}</h2>
-            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 font-mono text-xs font-black text-slate-200">
+            <h2 className="truncate text-sm font-bold text-foreground">{column.title}</h2>
+            <span className="rounded-md bg-white px-2 py-0.5 font-mono text-xs font-semibold text-foreground shadow-sm">
               {orders.length}
             </span>
           </div>
-          <p className="mt-1 text-xs font-medium text-slate-500">{column.description}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {column.description}
+            {lateOrders ? <span className="ml-2 font-semibold text-red-700">{lateOrders} atrasado{lateOrders === 1 ? '' : 's'}</span> : null}
+          </p>
         </div>
         <CircleDot className={cn('h-4 w-4 shrink-0', toneClasses.text)} />
       </header>
 
-      <div className="flex-1 space-y-3">
+      <div className="flex-1 space-y-3 xl:overflow-y-auto xl:pr-1 scrollbar-thin">
         {visibleOrders.map((order) => (
           <KanbanOrderCard
             key={order.id}
@@ -744,14 +1193,16 @@ function KanbanOrderColumn({
             column={column}
             selected={order.id === selectedOrderId}
             canUpdate={canUpdate}
+            canTrack={canTrack}
             onOpen={onOpen}
             onAction={onAction}
+            onTrack={onTrack}
           />
         ))}
 
         {!orders.length ? (
-          <div className="rounded-[18px] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center">
-            <p className="text-sm font-semibold text-slate-500">Nenhum pedido nesta etapa.</p>
+          <div className="rounded-lg border border-dashed border-border bg-white/70 px-4 py-8 text-center">
+            <p className="text-sm font-medium text-muted-foreground">Nenhum pedido aqui agora.</p>
           </div>
         ) : null}
       </div>
@@ -760,7 +1211,7 @@ function KanbanOrderColumn({
         <button
           type="button"
           onClick={onToggleExpanded}
-          className="mt-3 flex h-10 items-center justify-center gap-2 rounded-xl text-xs font-black text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
+          className="mt-3 flex h-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold text-muted-foreground transition-colors hover:bg-white hover:text-foreground"
         >
           {expanded ? 'Mostrar menos' : 'Ver mais pedidos'}
           <ChevronDown className={cn('h-4 w-4 transition', expanded && 'rotate-180')} />
@@ -775,88 +1226,159 @@ function KanbanOrderCard({
   column,
   selected,
   canUpdate,
+  canTrack,
   onOpen,
   onAction,
+  onTrack,
 }: {
   order: Order
   column: KanbanColumnConfig
   selected: boolean
   canUpdate: boolean
+  canTrack: boolean
   onOpen: (orderId: string) => void
   onAction: (orderId: string, action: OrderAction) => void
+  onTrack: (order: Order) => void
 }) {
   const toneClasses = buildColumnToneClasses(column.tone)
   const primaryAction = getPrimaryOrderAction(order)
   const itemCount = getOrderItemCountLabel(order)
   const address = buildOrderAddress(order)
   const canRunAction = Boolean(primaryAction.action) && canUpdate
+  const timing = getOrderTiming(order)
+  const note = order.notes ?? order.items.find((item) => item.notes)?.notes
+  const showTrackAction = order.status === 'out_for_delivery' && canTrack
+  const showPrimaryAction = Boolean(primaryAction.action) || showTrackAction
+  const timingClass = {
+    normal: 'bg-slate-100 text-slate-700 ring-slate-200',
+    warning: 'bg-amber-50 text-amber-800 ring-amber-200',
+    late: 'bg-red-50 text-red-800 ring-red-200',
+    closed: 'bg-slate-100 text-slate-600 ring-slate-200',
+    unknown: 'bg-amber-50 text-amber-800 ring-amber-200',
+  }[timing.state]
 
   return (
     <article
       className={cn(
-        'group rounded-[18px] border border-white/10 bg-[#091827]/86 p-3 text-left shadow-[0_12px_32px_rgba(0,0,0,0.16)] transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-[#0b1f34]',
+        'group rounded-lg border border-border bg-white p-3 text-left shadow-sm transition-colors hover:border-border-strong',
+        timing.state === 'late' && 'border-l-4 border-l-red-600',
+        timing.state === 'warning' && 'border-l-4 border-l-amber-500',
         selected && toneClasses.selected,
       )}
     >
       <button type="button" className="block w-full text-left" onClick={() => onOpen(order.id)}>
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className={cn('font-mono text-sm font-black', toneClasses.text)}>{order.number}</p>
-            <div className="mt-2 flex min-w-0 items-center gap-2">
-              <h3 className="truncate text-sm font-black text-white">{order.customerName}</h3>
-              <span className="shrink-0 rounded-lg bg-white/[0.06] px-2 py-0.5 text-[10px] font-black text-slate-300 ring-1 ring-white/10">
-                {channelLabelMap[order.source]}
-              </span>
-            </div>
-          </div>
-          <span className="shrink-0 font-mono text-xs font-semibold text-slate-400">
-            {formatElapsedShort(order.createdAt)}
-          </span>
-        </div>
-
-        <p className="mt-3 flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
-          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-          <span className="truncate">{address}</span>
-        </p>
-
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3 text-xs text-slate-400">
-            <span className="inline-flex items-center gap-1.5">
-              <Package className="h-3.5 w-3.5 text-slate-500" />
-              {itemCount}
-            </span>
-            {order.delayed ? (
-              <span className="inline-flex items-center gap-1 rounded-lg bg-red-500/12 px-2 py-1 font-black text-red-300 ring-1 ring-red-400/20">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Atrasado
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <p className={cn('font-mono text-base font-bold', toneClasses.text)}>{order.number}</p>
+            {order.priority !== 'normal' ? (
+              <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+                {order.priority === 'vip' ? 'VIP' : 'Prioritario'}
               </span>
             ) : null}
           </div>
-          <span className="font-mono text-sm font-black text-slate-100">
+          <span className={cn('shrink-0 rounded-md px-2 py-1 font-mono text-xs font-semibold ring-1', timingClass)}>
+            {timing.label}
+          </span>
+        </div>
+
+        <div className="mt-2 flex min-w-0 items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <h3 className="line-clamp-2 min-w-0 flex-1 text-sm font-bold leading-5 text-foreground">{order.customerName}</h3>
+            <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+              {channelLabelMap[order.source]}
+            </span>
+          </div>
+          <span className="shrink-0 font-mono text-sm font-bold text-foreground">
             {formatCurrency(order.total)}
           </span>
         </div>
+
+        <p className="mt-2.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <MapPin className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{address}</span>
+        </p>
+
+        <div className="mt-2.5 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <span className="inline-flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5" />
+            {itemCount}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <CreditCard className="h-3.5 w-3.5" />
+            {paymentLabelMap[order.paymentMethod]} ·{' '}
+            <strong className={order.paymentStatus === 'pending' ? 'text-amber-800' : 'text-foreground'}>
+              {paymentStatusLabel[order.paymentStatus]}
+            </strong>
+          </span>
+        </div>
+
+        {order.status === 'ready' || order.status === 'out_for_delivery' ? (
+          <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Route className="h-3.5 w-3.5 shrink-0" />
+            Motoboy:{' '}
+            <span className={cn('truncate font-semibold', order.driver ? 'text-foreground' : 'text-amber-800')}>
+              {order.driver?.name ?? 'Nao atribuido'}
+            </span>
+          </p>
+        ) : null}
+
+        {note ? (
+          <p className="mt-2.5 flex items-start gap-1.5 rounded-md bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-950 ring-1 ring-amber-200">
+            <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" />
+            <span className="line-clamp-2">{note}</span>
+          </p>
+        ) : null}
       </button>
 
-      <div className="mt-3 flex justify-end">
+      <div className={cn('mt-3 grid gap-2', showPrimaryAction && 'grid-cols-2')}>
         <Button
           type="button"
           variant="outline"
-          disabled={Boolean(primaryAction.action) && !canRunAction}
-          onClick={(event) => {
-            event.stopPropagation()
-            if (primaryAction.action) {
-              onAction(order.id, primaryAction.action)
-              return
-            }
-
-            onOpen(order.id)
-          }}
-          className={cn('h-8 rounded-lg px-3 text-xs font-black shadow-none', toneClasses.button)}
+          onClick={() => onOpen(order.id)}
+          className="h-12 border-border bg-white text-xs font-semibold text-foreground hover:bg-muted sm:h-11"
         >
-          {primaryAction.label}
+          Detalhes
         </Button>
+        {showPrimaryAction ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={Boolean(primaryAction.action) && !canRunAction}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (primaryAction.action) {
+                onAction(order.id, primaryAction.action)
+                return
+              }
+
+              onTrack(order)
+            }}
+            className={cn(
+              'h-12 px-3 text-xs font-bold text-white shadow-none sm:h-11',
+              primaryAction.action === 'accept' && 'border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700',
+              primaryAction.action === 'ready' && 'border-primary bg-primary hover:border-[#e94a22] hover:bg-[#e94a22]',
+              (primaryAction.action === 'dispatch' || primaryAction.action === 'complete') && 'border-emerald-600 bg-emerald-600 hover:border-emerald-700 hover:bg-emerald-700',
+              !primaryAction.action && 'border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700',
+            )}
+          >
+            {primaryAction.label}
+          </Button>
+        ) : null}
       </div>
     </article>
+  )
+}
+
+function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 text-xs font-semibold text-primary"
+      aria-label={`Remover filtro ${label}`}
+    >
+      {label}
+      <X className="h-3.5 w-3.5" />
+    </button>
   )
 }

@@ -158,6 +158,8 @@ export type MarkOrderDraftConvertedPayload = z.infer<
 export const whatsappWebhookPayloadSchema = z.object({
   event: z.string(),
   sessionId: z.string().optional(),
+  instance: z.string().optional(),
+  instanceName: z.string().optional(),
   data: z.object({
     from: z.string().optional(),
     to: z.string().optional(),
@@ -167,7 +169,7 @@ export const whatsappWebhookPayloadSchema = z.object({
     pushName: z.string().optional(),
   }).passthrough().optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
-})
+}).passthrough()
 
 export type WhatsappWebhookPayload = z.infer<
   typeof whatsappWebhookPayloadSchema

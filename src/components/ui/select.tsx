@@ -16,7 +16,7 @@ export function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        'flex h-10 w-full items-center justify-between rounded-xl border border-white/10 bg-[#071525] px-3 py-2 text-sm text-slate-100 shadow-sm outline-none transition focus:border-primary/70 focus:ring-2 focus:ring-primary/20',
+        'flex h-[42px] w-full items-center justify-between rounded-lg border border-input bg-white px-3 py-2 text-sm text-foreground shadow-sm outline-none transition-[border-color,box-shadow] duration-150 focus:border-ring focus:ring-2 focus:ring-ring/20',
         className,
       )}
       {...props}
@@ -40,7 +40,7 @@ export function SelectContent({
       <SelectPrimitive.Content
         position={position}
         className={cn(
-          'z-50 min-w-[8rem] overflow-hidden rounded-xl border border-white/10 bg-[#07111f] p-1 text-slate-100 shadow-panel',
+          'z-50 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-panel',
           className,
         )}
         {...props}
@@ -59,7 +59,7 @@ export function SelectItem({
   return (
     <SelectPrimitive.Item
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-8 pr-3 text-sm outline-none focus:bg-white/[0.08]',
+        'relative flex w-full cursor-pointer select-none items-center rounded-md py-2 pl-8 pr-3 text-sm outline-none focus:bg-muted',
         className,
       )}
       {...props}

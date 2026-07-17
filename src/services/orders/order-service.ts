@@ -58,9 +58,7 @@ export const orderService = {
 
   async getOrderTracking(request: GetOrderTrackingRequest): Promise<GetOrderTrackingResponse> {
     if (shouldUseApi) {
-      return apiClient.get<GetOrderTrackingResponse>(`/orders/${request.orderId}/tracking`, {
-        skipAuth: true,
-      })
+      return apiClient.get<GetOrderTrackingResponse>(`/orders/${request.orderId}/tracking`)
     }
 
     const order = getDemoDatabase().orders.find((entry) => entry.id === request.orderId)
@@ -127,7 +125,7 @@ export const orderService = {
             {
               id: crypto.randomUUID(),
               label: `Mesa ${table.code} aberta a partir do lancamento manual`,
-              actor: 'Operacao',
+              actor: 'Equipe',
               at: new Date().toISOString(),
             },
           ],
@@ -169,7 +167,7 @@ export const orderService = {
           session.timeline.push({
             id: crypto.randomUUID(),
             label: `Pedido ${order.number} vinculado a mesa`,
-            actor: 'Operacao',
+            actor: 'Equipe',
             at: new Date().toISOString(),
           })
         }
@@ -233,6 +231,7 @@ export const orderService = {
     if (shouldUseApi) {
       const response = await apiClient.post<RepeatOrderResponse>(
         `/orders/${request.orderId}/repeat`,
+        { paymentMethod: request.paymentMethod },
       )
       mockRealtimeBus.emit('order.created', { orderId: response.data.id })
       return response
@@ -255,7 +254,7 @@ export const orderService = {
           {
             id: crypto.randomUUID(),
             label: 'Pedido recriado a partir do histórico',
-            actor: 'Operação',
+            actor: 'Equipe',
             at: new Date().toISOString(),
           },
         ],

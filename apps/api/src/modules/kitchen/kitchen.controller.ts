@@ -9,6 +9,8 @@ import {
   type MoveKitchenOrderPayload,
 } from '@/contracts/kitchen.contract'
 import { Permissions } from '@/modules/auth/decorators/permissions.decorator'
+import { CurrentAuthUser } from '@/modules/auth/decorators/current-auth-user.decorator'
+import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 import { ZodValidationPipe } from '@/shared/pipes/zod-validation.pipe'
 
 import { KitchenService } from './kitchen.service'
@@ -29,8 +31,9 @@ export class KitchenController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(markKitchenOrderReadySchema))
     body: MarkKitchenOrderReadyPayload,
+    @CurrentAuthUser() authUser: AuthenticatedRequestUser,
   ) {
-    return this.kitchenService.markOrderReady(id, body)
+    return this.kitchenService.markOrderReady(id, body, authUser)
   }
 
   @Patch('orders/:id/status')
@@ -39,7 +42,8 @@ export class KitchenController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(moveKitchenOrderSchema))
     body: MoveKitchenOrderPayload,
+    @CurrentAuthUser() authUser: AuthenticatedRequestUser,
   ) {
-    return this.kitchenService.moveOrder(id, body)
+    return this.kitchenService.moveOrder(id, body, authUser)
   }
 }

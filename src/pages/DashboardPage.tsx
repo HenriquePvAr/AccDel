@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
   Bike,
@@ -7,6 +8,8 @@ import {
   Clock3,
   CreditCard,
   Crown,
+  MessageSquare,
+  Printer,
   RefreshCcw,
   Users,
   WalletCards,
@@ -40,9 +43,10 @@ import {
   useCustomerMetricsSummaryQuery,
   useDriversQuery,
   useKitchenQueueQuery,
+  usePrintingOverviewQuery,
   useReportsQuery,
 } from '@/hooks/queries'
-import { useAiAttendantDashboardQuery } from '@/hooks/queries/ai-attendant'
+import { useAiAttendantDashboardQuery, useConversationsQuery } from '@/hooks/queries/ai-attendant'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { formatCurrency, formatPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -67,7 +71,7 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 }
 
 export function DashboardPage() {
-  usePageTitle('Dashboard operacional')
+  usePageTitle('Visão geral')
   const [period, setPeriod] = useState<DashboardPeriod>('today')
 
   const reportsQuery = useReportsQuery({ period })
@@ -76,12 +80,16 @@ export function DashboardPage() {
   const cashQuery = useCashRegisterQuery()
   const crmSummaryQuery = useCustomerMetricsSummaryQuery()
   const aiDashboardQuery = useAiAttendantDashboardQuery()
+  const printingQuery = usePrintingOverviewQuery()
+  const conversationsQuery = useConversationsQuery()
 
   const snapshot = reportsQuery.data?.data
   const kitchenQueue = kitchenQuery.data?.data
   const cashRegister = cashQuery.data?.data
   const crmSummary = crmSummaryQuery.data?.data
   const aiDashboard = aiDashboardQuery.data
+  const printing = printingQuery.data?.data
+  const conversations = conversationsQuery.data ?? []
   const drivers = driversQuery.data?.data ?? []
 
   const activeDrivers = drivers.filter((driver) => driver.active !== false)
@@ -102,17 +110,59 @@ export function DashboardPage() {
     : []
   const topProducts = snapshot?.topProducts ?? []
   const topNeighborhoods = crmSummary?.topNeighborhoods ?? []
+  const printingFailures =
+    (printing?.jobCounts.FAILED ?? 0) + (printing?.jobCounts.PRINT_RESULT_UNKNOWN ?? 0)
+  const conversationsWaiting = conversations.filter(
+    (conversation) => conversation.status === 'waiting_human',
+  ).length
 
   const isLoadingExecutive = reportsQuery.isLoading && !snapshot
+  const operationalAlerts = [
+    kitchenQueue?.summary.delayed
+      ? {
+          id: 'kitchen-delayed',
+          label: `${kitchenQueue.summary.delayed} ${kitchenQueue.summary.delayed === 1 ? 'pedido atrasado' : 'pedidos atrasados'} no preparo`,
+          to: '/orders',
+          tone: 'danger' as const,
+        }
+      : null,
+    cashQuery.isError
+      ? { id: 'cash-unavailable', label: 'Caixa indisponivel', to: '/cash-register', tone: 'danger' as const }
+      : null,
+    driversQuery.isError
+      ? { id: 'drivers-unavailable', label: 'Entrega indisponível', to: '/drivers/location', tone: 'danger' as const }
+      : null,
+    aiDashboardQuery.isError
+      ? { id: 'ai-unavailable', label: 'Atendimento indisponivel', to: '/ai-attendant', tone: 'warning' as const }
+      : null,
+    printingFailures
+      ? {
+          id: 'printing-failures',
+          label: printingFailures === 1 ? '1 impressao pede revisao' : `${printingFailures} impressoes pedem revisao`,
+          to: '/settings/printing',
+          tone: 'danger' as const,
+        }
+      : null,
+    conversationsWaiting
+      ? {
+          id: 'conversations-waiting',
+          label:
+            conversationsWaiting === 1
+              ? '1 conversa aguarda atendente'
+              : `${conversationsWaiting} conversas aguardam atendente`,
+          to: '/ai-attendant',
+          tone: 'warning' as const,
+        }
+      : null,
+  ].filter((alert): alert is NonNullable<typeof alert> => Boolean(alert))
 
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="Operacao"
-        title="Dashboard operacional"
-        description="Pulso unico de cozinha, entregas, caixa, clientes e IA usando dados reais da loja atual."
+        title="Visão geral"
+        description="Veja o que precisa ser resolvido agora."
         actions={
-          <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.04] p-1">
+          <div className="inline-flex rounded-lg bg-muted p-1">
             {periodOptions.map((option) => (
               <Button
                 key={option.value}
@@ -127,40 +177,115 @@ export function DashboardPage() {
         }
       />
 
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center" aria-label="Alertas">
+        <div className="flex min-w-0 items-center gap-2 sm:w-52">
+          <AlertTriangle className={cn('h-4 w-4 shrink-0', operationalAlerts.length ? 'text-red-700' : 'text-emerald-700')} />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">Precisa de atenção</h2>
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+          {operationalAlerts.length ? (
+            operationalAlerts.map((alert) => (
+              <Link
+                key={alert.id}
+                to={alert.to}
+                className={cn(
+                  'inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  alert.tone === 'danger'
+                    ? 'bg-red-50 text-red-800 hover:bg-red-100'
+                    : 'bg-amber-50 text-amber-900 hover:bg-amber-100',
+                )}
+              >
+                {alert.label}
+              </Link>
+            ))
+          ) : (
+            <p className="text-sm text-emerald-800">Nenhuma excecao critica nos dados disponiveis.</p>
+          )}
+        </div>
+      </section>
+
       {isLoadingExecutive ? (
         <div className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={index} className="h-[124px] rounded-[24px]" />
+              <Skeleton key={index} className="h-[112px]" />
             ))}
           </div>
-          <Skeleton className="h-[420px] rounded-[24px]" />
+          <Skeleton className="h-[360px]" />
         </div>
       ) : (
         <>
-          {snapshot ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {snapshot.metrics.map((metric) => (
-                <StatCard key={metric.id} {...metric} />
-              ))}
+          <section aria-labelledby="dashboard-now-title">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <h2 id="dashboard-now-title" className="text-xl font-bold text-foreground">Pedidos agora</h2>
+              </div>
+              <p className="hidden text-sm text-muted-foreground sm:block">Toque em um indicador para agir</p>
             </div>
-          ) : (
-            <UnavailablePanel
-              title="Relatorios indisponiveis"
-              description="Nao foi possivel carregar o consolidado do periodo. Nenhum numero foi estimado."
-            />
-          )}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+              <PrioritySignalCard
+                label="Atrasados"
+                value={formatNullableNumber(kitchenQueue?.summary.delayed)}
+                caption="resolver primeiro"
+                to="/orders"
+                tone={kitchenQueue?.summary.delayed ? 'danger' : 'success'}
+                icon={<AlertTriangle className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Novos"
+                value={formatNullableNumber(kitchenQueue?.summary.awaiting)}
+                caption="novos pedidos"
+                to="/orders"
+                tone="info"
+                icon={<Clock3 className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Em preparo"
+                value={formatNullableNumber(kitchenQueue?.summary.inProduction)}
+                caption="na cozinha"
+                to="/kitchen"
+                tone="info"
+                icon={<ChefHat className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Prontos"
+                value={formatNullableNumber(kitchenQueue?.summary.ready)}
+                caption="despachar ou retirar"
+                to="/orders"
+                tone="success"
+                icon={<Bike className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Falhas de impressao"
+                value={printingQuery.isError ? 'Indisponivel' : String(printingFailures)}
+                caption="tentar novamente"
+                to="/settings/printing"
+                tone={printingFailures ? 'danger' : 'success'}
+                icon={<Printer className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Conversas esperando"
+                value={conversationsQuery.isError ? 'Indisponivel' : String(conversationsWaiting)}
+                caption="assumir atendimento"
+                to="/ai-attendant"
+                tone={conversationsWaiting ? 'warning' : 'success'}
+                icon={<MessageSquare className="h-5 w-5" />}
+              />
+            </div>
+          </section>
 
           <div className="grid gap-4 xl:grid-cols-2">
             <OperationalSection
               icon={<ChefHat className="h-4 w-4" />}
-              title="KDS"
-              description="Fila de preparo sem dados financeiros."
+              title="Cozinha"
+              description="Pedidos que estão na cozinha."
               status={
                 kitchenQuery.isError
                   ? 'indisponivel'
                   : kitchenQueue
-                    ? 'ao vivo'
+                    ? 'atualizado'
                     : 'carregando'
               }
             >
@@ -173,7 +298,7 @@ export function DashboardPage() {
                 <SignalTile
                   title="Em preparo"
                   value={formatNullableNumber(kitchenQueue?.summary.inProduction)}
-                  caption="em producao agora"
+                  caption="sendo preparados"
                   tone="warning"
                 />
                 <SignalTile
@@ -185,7 +310,7 @@ export function DashboardPage() {
                 <SignalTile
                   title="Atrasados"
                   value={formatNullableNumber(kitchenQueue?.summary.delayed)}
-                  caption="marcados pelo KDS"
+                  caption="fora do prazo"
                   tone={kitchenQueue?.summary.delayed ? 'danger' : 'default'}
                 />
                 <SignalTile
@@ -199,8 +324,8 @@ export function DashboardPage() {
 
             <OperationalSection
               icon={<Bike className="h-4 w-4" />}
-              title="Motoboys"
-              description="Disponibilidade e desempenho no periodo selecionado."
+              title="Entregas"
+              description="Disponibilidade e entregas recentes."
               status={
                 driversQuery.isError
                   ? 'indisponivel'
@@ -235,8 +360,8 @@ export function DashboardPage() {
                 />
               </SignalGrid>
               <SummaryList
-                title="Ranking do periodo"
-                emptyMessage="Sem entregas concluidas no periodo."
+                title="Entregas recentes"
+                emptyMessage="Nenhuma entrega concluída aqui ainda."
                 rows={snapshot?.driverSummaries.slice(0, 4).map((row) => ({
                   id: row.id,
                   label: row.name,
@@ -246,6 +371,24 @@ export function DashboardPage() {
               />
             </OperationalSection>
           </div>
+
+          <section aria-labelledby="dashboard-results-title">
+            <div className="mb-3">
+              <h2 id="dashboard-results-title" className="text-xl font-bold text-foreground">Resultados</h2>
+            </div>
+            {snapshot ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {snapshot.metrics.map((metric) => (
+                  <StatCard key={metric.id} {...metric} />
+                ))}
+              </div>
+            ) : (
+              <UnavailablePanel
+                title="Resultados indisponiveis"
+                description="Nao foi possivel carregar o consolidado do periodo. Nenhum numero foi estimado."
+              />
+            )}
+          </section>
 
           <div className="grid gap-4 xl:grid-cols-2">
             <OperationalSection
@@ -305,8 +448,8 @@ export function DashboardPage() {
 
             <OperationalSection
               icon={<Users className="h-4 w-4" />}
-              title="CRM"
-              description="Segmentos vindos do cadastro e historico real."
+              title="Clientes"
+              description="Recorrencia e relacionamento com a loja."
               status={
                 crmSummaryQuery.isError
                   ? 'indisponivel'
@@ -378,8 +521,8 @@ export function DashboardPage() {
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <OperationalSection
               icon={<Bot className="h-4 w-4" />}
-              title="Atendente IA"
-              description="Conversas, conversoes e transferencias sem estimativa artificial."
+              title="Atendimento automatico"
+              description="Conversas, pedidos sugeridos e transferencias para a equipe."
               status={
                 aiDashboardQuery.isError
                   ? 'indisponivel'
@@ -397,7 +540,7 @@ export function DashboardPage() {
                 <SignalTile
                   title="Sugeridos"
                   value={formatNullableNumber(aiDashboard?.kpis.orderDraftsSuggested)}
-                  caption="orderDrafts criados"
+                  caption="rascunhos de pedido"
                   tone="warning"
                 />
                 <SignalTile
@@ -427,18 +570,23 @@ export function DashboardPage() {
               description="Grafico gerado somente com pedidos reais do recorte selecionado."
             >
               {snapshot && snapshot.revenueSeries.length > 0 ? (
-                <div className="h-[320px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[280px] min-w-0">
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={0}
+                    initialDimension={{ width: 600, height: 280 }}
+                  >
                     <LineChart data={snapshot.revenueSeries}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                      <XAxis dataKey="label" stroke="#94a3b8" tickLine={false} />
-                      <YAxis stroke="#94a3b8" tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="label" stroke="#667078" tickLine={false} />
+                      <YAxis stroke="#667078" tickLine={false} />
                       <Tooltip
                         contentStyle={{
-                          background: '#071525',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          borderRadius: 14,
-                          color: '#f8fafc',
+                          background: '#ffffff',
+                          border: '1px solid #dde2e5',
+                          borderRadius: 8,
+                          color: '#20262b',
                         }}
                       />
                       <Line
@@ -492,6 +640,52 @@ interface OperationalSectionProps {
   children: ReactNode
 }
 
+function PrioritySignalCard({
+  label,
+  value,
+  caption,
+  to,
+  tone,
+  icon,
+}: {
+  label: string
+  value: string
+  caption: string
+  to: string
+  tone: 'info' | 'success' | 'warning' | 'danger'
+  icon: ReactNode
+}) {
+  const toneClasses = {
+    info: 'border-border border-l-blue-500 bg-white text-foreground',
+    success: 'border-border border-l-emerald-500 bg-white text-foreground',
+    warning: 'border-amber-200 bg-amber-50 text-amber-800',
+    danger: 'border-red-200 bg-red-50 text-red-700',
+  }[tone]
+
+  return (
+    <Link
+      to={to}
+      className={cn(
+        'group flex min-h-[112px] items-center justify-between gap-4 rounded-xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        toneClasses,
+      )}
+    >
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-[0.08em] opacity-80">{label}</p>
+        <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-current">{value}</p>
+        <p className="mt-1 text-xs font-semibold opacity-80">{caption}</p>
+      </div>
+      <span className={cn(
+        'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm transition group-hover:scale-105',
+        tone === 'info' && 'text-blue-700',
+        tone === 'success' && 'text-emerald-700',
+      )}>
+        {icon}
+      </span>
+    </Link>
+  )
+}
+
 function OperationalSection({
   icon,
   title,
@@ -503,7 +697,7 @@ function OperationalSection({
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-2xl border border-orange-300/15 bg-orange-400/10 text-orange-200">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
             {icon}
           </div>
           <div>
@@ -521,7 +715,7 @@ function OperationalSection({
 }
 
 function SignalGrid({ children }: { children: ReactNode }) {
-  return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{children}</div>
+  return <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{children}</div>
 }
 
 interface SignalTileProps {
@@ -536,21 +730,21 @@ function SignalTile({ title, value, caption, tone = 'default', icon }: SignalTil
   return (
     <div
       className={cn(
-        'rounded-2xl border bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
-        tone === 'default' && 'border-white/10',
-        tone === 'success' && 'border-emerald-300/20 bg-emerald-400/10',
-        tone === 'warning' && 'border-amber-300/20 bg-amber-400/10',
-        tone === 'danger' && 'border-red-300/20 bg-red-400/10',
+        'rounded-lg border p-3',
+        tone === 'default' && 'border-border bg-white',
+        tone === 'success' && 'border-border border-l-emerald-500 bg-white',
+        tone === 'warning' && 'border-border border-l-amber-500 bg-white',
+        tone === 'danger' && 'border-red-200 bg-red-50',
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           {title}
         </p>
-        {icon ? <span className="text-slate-400">{icon}</span> : null}
+        {icon ? <span className="text-muted-foreground">{icon}</span> : null}
       </div>
-      <div className="mt-2 font-mono text-2xl font-black text-white">{value}</div>
-      <p className="mt-1 text-xs text-slate-400">{caption}</p>
+      <div className="mt-1.5 font-mono text-2xl font-bold text-foreground">{value}</div>
+      <p className="mt-0.5 text-xs text-muted-foreground">{caption}</p>
     </div>
   )
 }
@@ -570,27 +764,27 @@ function SummaryList({ title, rows, emptyMessage }: SummaryListProps) {
   const safeRows = rows ?? []
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+    <div className="rounded-lg bg-muted/45 p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-white">{title}</p>
-        <RefreshCcw className="h-3.5 w-3.5 text-slate-500" />
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <RefreshCcw className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
       {safeRows.length > 0 ? (
         <div className="space-y-2">
           {safeRows.map((row) => (
             <div key={row.id} className="flex items-center justify-between gap-3 text-sm">
               <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-100">{row.label}</p>
-                <p className="text-xs text-slate-500">{row.secondary}</p>
+                <p className="truncate font-semibold text-foreground">{row.label}</p>
+                <p className="text-xs text-muted-foreground">{row.secondary}</p>
               </div>
-              <span className="shrink-0 font-mono text-xs font-bold text-orange-200">
+              <span className="shrink-0 font-mono text-xs font-semibold text-primary">
                 {row.primary}
               </span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-sm text-slate-500">{emptyMessage}</p>
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
       )}
     </div>
   )
@@ -621,25 +815,25 @@ function PaymentList({ title, cashEntries, reportRows }: PaymentListProps) {
       }))
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+    <div className="rounded-lg bg-muted/45 p-3">
       <div className="mb-3 flex items-center gap-2">
-        <CreditCard className="h-4 w-4 text-slate-400" />
-        <p className="text-sm font-semibold text-white">{title}</p>
+        <CreditCard className="h-4 w-4 text-muted-foreground" />
+        <p className="text-sm font-semibold text-foreground">{title}</p>
       </div>
       {rows.length > 0 ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {rows.map((row) => (
-            <div key={row.id} className="rounded-xl border border-white/8 bg-black/10 p-3">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+            <div key={row.id} className="rounded-lg border border-border bg-white p-3">
+              <p className="text-xs font-semibold text-muted-foreground">
                 {row.label}
               </p>
-              <p className="mt-1 font-mono text-lg font-black text-white">{row.value}</p>
-              <p className="text-xs text-slate-500">{row.caption}</p>
+              <p className="mt-1 font-mono text-lg font-bold text-foreground">{row.value}</p>
+              <p className="text-xs text-muted-foreground">{row.caption}</p>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-sm text-slate-500">Sem recebimentos no periodo.</p>
+        <p className="text-sm text-muted-foreground">Sem recebimentos no periodo.</p>
       )}
     </div>
   )
@@ -664,14 +858,14 @@ function RankingCard({ title, description, rows }: RankingCardProps) {
             {rows.map((row) => (
               <div key={row.id} className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate font-semibold text-slate-100">{row.label}</p>
-                  <p className="text-xs text-slate-500">{row.orders} vendas</p>
+                  <p className="truncate font-semibold text-foreground">{row.label}</p>
+                  <p className="text-xs text-muted-foreground">{row.orders} vendas</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono text-sm font-black text-white">
+                  <p className="font-mono text-sm font-bold text-foreground">
                     {formatCurrency(row.revenue)}
                   </p>
-                  <p className="text-xs text-slate-500">{row.share}%</p>
+                  <p className="text-xs text-muted-foreground">{row.share}%</p>
                 </div>
               </div>
             ))}
@@ -696,13 +890,13 @@ interface EmptyMetricProps {
 
 function EmptyMetric({ icon, title, description }: EmptyMetricProps) {
   return (
-    <div className="grid min-h-[180px] place-items-center rounded-2xl border border-dashed border-white/12 bg-white/[0.025] p-6 text-center">
+    <div className="grid min-h-[160px] place-items-center rounded-lg border border-dashed border-border bg-muted/35 p-6 text-center">
       <div>
-        <div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-2xl border border-white/10 text-slate-400">
+        <div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-lg bg-white text-muted-foreground shadow-sm">
           {icon}
         </div>
-        <p className="font-semibold text-slate-100">{title}</p>
-        <p className="mt-1 max-w-sm text-sm text-slate-500">{description}</p>
+        <p className="font-semibold text-foreground">{title}</p>
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>
       </div>
     </div>
   )

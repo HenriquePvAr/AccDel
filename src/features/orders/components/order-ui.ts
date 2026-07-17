@@ -22,51 +22,51 @@ export interface OrderStatusUi {
 
 export const orderStatusUi: Record<OrderStatus, OrderStatusUi> = {
   in_analysis: {
-    label: 'Em analise',
-    shortLabel: 'NOVO',
-    textClass: 'text-sky-300',
-    badgeClass: 'bg-sky-500/15 text-sky-300 ring-sky-400/20',
-    borderClass: 'border-l-sky-400',
+    label: 'Novos',
+    shortLabel: 'NOVOS',
+    textClass: 'text-sky-700',
+    badgeClass: 'bg-sky-50 text-sky-800 ring-sky-200',
+    borderClass: 'border-l-sky-600',
     icon: ClipboardList,
   },
   in_preparation: {
     label: 'Em preparo',
     shortLabel: 'EM PREPARO',
-    textClass: 'text-amber-300',
-    badgeClass: 'bg-amber-400/15 text-amber-300 ring-amber-300/20',
-    borderClass: 'border-l-amber-400',
+    textClass: 'text-amber-800',
+    badgeClass: 'bg-amber-50 text-amber-900 ring-amber-200',
+    borderClass: 'border-l-amber-600',
     icon: Clock3,
   },
   ready: {
-    label: 'Pronto',
-    shortLabel: 'PRONTO',
-    textClass: 'text-emerald-300',
-    badgeClass: 'bg-emerald-400/15 text-emerald-300 ring-emerald-300/20',
-    borderClass: 'border-l-emerald-400',
+    label: 'Prontos',
+    shortLabel: 'PRONTOS',
+    textClass: 'text-emerald-700',
+    badgeClass: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+    borderClass: 'border-l-emerald-600',
     icon: CheckCircle2,
   },
   out_for_delivery: {
     label: 'Em rota',
     shortLabel: 'EM ROTA',
-    textClass: 'text-blue-300',
-    badgeClass: 'bg-blue-500/15 text-blue-300 ring-blue-400/20',
-    borderClass: 'border-l-blue-400',
+    textClass: 'text-blue-700',
+    badgeClass: 'bg-blue-50 text-blue-800 ring-blue-200',
+    borderClass: 'border-l-blue-600',
     icon: Bike,
   },
   completed: {
     label: 'Finalizado',
     shortLabel: 'FINALIZADO',
-    textClass: 'text-slate-300',
-    badgeClass: 'bg-slate-500/15 text-slate-300 ring-slate-400/20',
+    textClass: 'text-slate-700',
+    badgeClass: 'bg-slate-100 text-slate-800 ring-slate-200',
     borderClass: 'border-l-slate-500',
     icon: CircleDot,
   },
   cancelled: {
     label: 'Cancelado',
     shortLabel: 'CANCELADO',
-    textClass: 'text-red-300',
-    badgeClass: 'bg-red-500/15 text-red-300 ring-red-400/20',
-    borderClass: 'border-l-red-400',
+    textClass: 'text-red-700',
+    badgeClass: 'bg-red-50 text-red-800 ring-red-200',
+    borderClass: 'border-l-red-600',
     icon: CircleDot,
   },
 }
@@ -78,9 +78,9 @@ export function getPrimaryOrderAction(order: Order): {
 } {
   switch (order.status) {
     case 'in_analysis':
-      return { action: 'accept', label: 'Aceitar', tone: 'orange' }
+      return { action: 'accept', label: 'Aceitar', tone: 'blue' }
     case 'in_preparation':
-      return { action: 'ready', label: 'Marcar como pronto', tone: 'orange' }
+      return { action: 'ready', label: 'Marcar pronto', tone: 'orange' }
     case 'ready':
       return order.source === 'delivery'
         ? { action: 'dispatch', label: 'Despachar', tone: 'green' }

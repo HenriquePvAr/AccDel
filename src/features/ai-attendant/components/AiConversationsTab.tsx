@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Bot,
@@ -7,6 +7,7 @@ import {
   MessageSquare,
   PauseCircle,
   Reply,
+  Search,
   Send,
   ShoppingCart,
   UserCheck,
@@ -32,7 +33,6 @@ import {
   useSendManualMessageMutation,
   useWhatsappSessionQuery,
 } from '@/hooks/queries/ai-attendant'
-import { useAuthStore } from '@/stores/auth-store'
 import { useNewOrderStore } from '@/stores/new-order-store'
 import { useToastStore } from '@/stores/toast-store'
 import type {
@@ -58,24 +58,48 @@ type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'analysis'
 
 const conversationFilters: Array<{ value: ConversationFilter; label: string }> = [
   { value: 'all', label: 'Todas' },
-  { value: 'waiting_human', label: 'Aguardando humano' },
-  { value: 'waiting_ai', label: 'IA respondendo' },
-  { value: 'human_assigned', label: 'Humano assumiu' },
+  { value: 'waiting_human', label: 'Aguardando atendente' },
+  { value: 'waiting_ai', label: 'Resposta automatica' },
+  { value: 'human_assigned', label: 'Atendimento humano' },
   { value: 'closed', label: 'Fechadas' },
 ]
 
 export function AiConversationsTab() {
-  const { data: conversations = [], isLoading } = useConversationsQuery()
+  const { data: conversations = [], isLoading, refetch } = useConversationsQuery()
   const { data: session } = useWhatsappSessionQuery()
   const [filter, setFilter] = useState<ConversationFilter>('all')
+  const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [loadingDelayed, setLoadingDelayed] = useState(false)
+
+  useEffect(() => {
+    if (!isLoading) return
+
+    const timer = window.setTimeout(() => setLoadingDelayed(true), 4000)
+    return () => window.clearTimeout(timer)
+  }, [isLoading])
   const filteredConversations = useMemo(
     () =>
-      conversations.filter((conversation) =>
-        filter === 'all' ? true : conversation.status === filter,
-      ),
-    [conversations, filter],
+      conversations.filter((conversation) => {
+        const matchesFilter = filter === 'all' ? true : conversation.status === filter
+        const query = search.trim().toLowerCase()
+        const matchesSearch = !query || [
+          conversation.customerName,
+          conversation.customer?.name,
+          conversation.whatsappNumber,
+          conversation.messages.at(-1)?.body,
+        ].filter(Boolean).join(' ').toLowerCase().includes(query)
+
+        return matchesFilter && matchesSearch
+      }),
+    [conversations, filter, search],
   )
+  const counts = useMemo(() => ({
+    all: conversations.length,
+    waitingHuman: conversations.filter((conversation) => conversation.status === 'waiting_human').length,
+    active: conversations.filter((conversation) => conversation.status !== 'closed').length,
+    unread: conversations.reduce((total, conversation) => total + conversation.unreadCount, 0),
+  }), [conversations])
   const activeConversationId =
     selectedId && conversations.some((conversation) => conversation.id === selectedId)
       ? selectedId
@@ -88,10 +112,28 @@ export function AiConversationsTab() {
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)_320px]">
-        <Skeleton className="h-[680px]" />
-        <Skeleton className="h-[680px]" />
-        <Skeleton className="h-[680px]" />
+      <div className="space-y-4">
+        <Alert variant={loadingDelayed ? 'warning' : 'default'}>
+          <AlertTitle>
+            <Clock3 className="h-4 w-4" />
+            {loadingDelayed ? 'A lista de conversas esta demorando' : 'Carregando conversas'}
+          </AlertTitle>
+          <AlertDescription>
+            {loadingDelayed
+              ? 'A conexao ainda nao respondeu. Tente novamente sem recarregar todo o painel.'
+              : 'Carregando clientes, mensagens e pedidos.'}
+          </AlertDescription>
+          {loadingDelayed ? (
+            <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => void refetch()}>
+              Tentar novamente
+            </Button>
+          ) : null}
+        </Alert>
+        <div className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_300px]">
+          <Skeleton className="h-[620px]" />
+          <Skeleton className="h-[620px]" />
+          <Skeleton className="hidden h-[620px] 2xl:block" />
+        </div>
       </div>
     )
   }
@@ -101,13 +143,32 @@ export function AiConversationsTab() {
       <EmptyState
         icon={<MessageSquare className="h-7 w-7" />}
         title="Nenhuma conversa encontrada"
-        description="As conversas aparecem aqui somente depois de mensagens reais recebidas pelo webhook do WhatsApp ou testes reais autorizados."
+        description="As novas conversas do WhatsApp aparecem aqui assim que a primeira mensagem chega."
       />
     )
   }
 
   return (
-    <div className="grid min-h-[700px] gap-5 xl:grid-cols-[320px_minmax(0,1fr)_320px]">
+    <div className="space-y-3">
+      <section className="grid gap-3 rounded-xl border border-border bg-muted/35 p-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(240px,1.4fr)]" aria-label="Resumo das conversas">
+        <ConversationCount label="Conversas" value={counts.all} />
+        <ConversationCount label="Ativas" value={counts.active} />
+        <ConversationCount label="Esperando" value={counts.waitingHuman} urgent={counts.waitingHuman > 0} />
+        <ConversationCount label="Nao lidas" value={counts.unread} urgent={counts.unread > 0} />
+        <label className="relative sm:col-span-2 lg:col-span-1">
+          <span className="sr-only">Buscar conversa</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar cliente ou telefone"
+            className="h-12 w-full rounded-lg border border-input bg-white pl-10 pr-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+          />
+        </label>
+      </section>
+
+      <div className="grid min-h-[640px] gap-3 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_300px]">
       <ConversationList
         conversations={filteredConversations}
         totalConversations={conversations.length}
@@ -138,7 +199,19 @@ export function AiConversationsTab() {
         )}
       </Card>
 
-      <ConversationContextPanel conversation={selectedConversation} />
+      <div className="lg:col-span-2 2xl:col-span-1">
+        <ConversationContextPanel conversation={selectedConversation} />
+      </div>
+      </div>
+    </div>
+  )
+}
+
+function ConversationCount({ label, value, urgent = false }: { label: string; value: number; urgent?: boolean }) {
+  return (
+    <div className={`rounded-lg border bg-white px-3 py-2 ${urgent ? 'border-amber-300' : 'border-border'}`}>
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+      <p className={`mt-1 font-mono text-xl font-bold ${urgent ? 'text-amber-800' : 'text-foreground'}`}>{value}</p>
     </div>
   )
 }
@@ -165,18 +238,20 @@ function ConversationList({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />
-          Inbox WhatsApp
+          Conversas do WhatsApp
         </CardTitle>
-        <CardDescription>{totalConversations} conversa(s) retornada(s) pela API.</CardDescription>
+        <CardDescription>
+          {totalConversations === 1 ? '1 conversa no atendimento.' : `${totalConversations} conversas no atendimento.`}
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2">
+      <CardContent className="space-y-3 px-3 pb-3">
+        <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
           {conversationFilters.map((item) => (
             <button
               key={item.value}
               type="button"
               onClick={() => onFilterChange(item.value)}
-              className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 transition hover:border-white/20 hover:text-white data-[active=true]:border-primary/50 data-[active=true]:bg-primary/15 data-[active=true]:text-primary"
+              className="min-h-10 shrink-0 rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[active=true]:border-primary/30 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
               data-active={filter === item.value}
             >
               {item.label}
@@ -184,7 +259,7 @@ function ConversationList({
           ))}
         </div>
 
-        <div className="max-h-[560px] space-y-2 overflow-y-auto pr-2 scrollbar-thin">
+        <div className="space-y-1.5 lg:max-h-[540px] lg:overflow-y-auto lg:pr-1 scrollbar-thin">
           {conversations.length > 0 ? (
             conversations.map((conversation) => (
               <ConversationListItem
@@ -195,7 +270,7 @@ function ConversationList({
               />
             ))
           ) : (
-            <p className="rounded-[18px] border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-400">
+            <p className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
               Nenhuma conversa neste filtro.
             </p>
           )}
@@ -215,26 +290,13 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
   const releaseConversation = useReleaseConversationMutation()
   const closeConversation = useCloseConversationMutation()
   const sendMessage = useSendManualMessageMutation()
-  const currentUser = useAuthStore((state) => state.user)
   const { pushToast } = useToastStore()
   const [messageBody, setMessageBody] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
   const pendingDelayMessage = getPendingDelayMessage(conversation)
 
   const handleAssign = async () => {
-    if (!currentUser) {
-      pushToast({
-        title: 'Usuario nao identificado',
-        description: 'Entre novamente para assumir a conversa.',
-        variant: 'warning',
-      })
-      return
-    }
-
-    await assignConversation.mutateAsync({
-      id: conversation.id,
-      userId: currentUser.id,
-    })
+    await assignConversation.mutateAsync(conversation.id)
   }
 
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {
@@ -259,8 +321,8 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
   }
 
   return (
-    <div className="flex h-full min-h-[700px] flex-col">
-      <CardHeader className="border-b border-white/10">
+    <div className="flex h-full min-h-[640px] flex-col">
+      <CardHeader className="border-b border-border p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -276,14 +338,14 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
               {conversationStatusLabels[conversation.status]}
             </Badge>
             {conversation.type === 'test' ? <Badge variant="analysis">Teste real</Badge> : null}
-            {conversation.isAiPaused ? <Badge variant="warning">IA pausada</Badge> : null}
+            {conversation.isAiPaused ? <Badge variant="warning">Resposta automatica pausada</Badge> : null}
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 pt-3">
           <Button
             size="sm"
-            variant="outline"
+            variant={conversation.status === 'waiting_human' ? 'default' : 'outline'}
             onClick={handleAssign}
             disabled={assignConversation.isPending || conversation.status === 'human_assigned'}
           >
@@ -297,11 +359,12 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
             disabled={releaseConversation.isPending || conversation.status === 'closed'}
           >
             <Bot className="h-4 w-4" />
-            Devolver para IA
+            Devolver para resposta automatica
           </Button>
           <Button
             size="sm"
-            variant="danger"
+            variant="ghost"
+            className="text-red-700 hover:bg-red-50 hover:text-red-800"
             onClick={() => closeConversation.mutateAsync(conversation.id)}
             disabled={closeConversation.isPending || conversation.status === 'closed'}
           >
@@ -311,7 +374,7 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
         {!whatsappConnected ? (
           <Alert variant="warning">
             <AlertTitle>
@@ -328,10 +391,10 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
           <Alert>
             <AlertTitle>
               <PauseCircle className="h-4 w-4" />
-              IA pausada nesta conversa
+              Resposta automatica pausada
             </AlertTitle>
             <AlertDescription>
-              Enquanto humano assumiu ou a conversa esta fechada, o pipeline nao envia resposta automatica.
+              Durante o atendimento humano ou depois do fechamento, nenhuma resposta automatica e enviada.
             </AlertDescription>
           </Alert>
         ) : pendingDelayMessage ? (
@@ -341,7 +404,7 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
               {pendingDelayMessage}
             </AlertTitle>
             <AlertDescription>
-              O envio sera cancelado se um humano assumir antes do delay terminar.
+              O envio sera cancelado se um atendente assumir antes desse tempo terminar.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -352,17 +415,17 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
             <AlertDescription>{conversation.lastError}</AlertDescription>
           </Alert>
         ) : conversation.lastStatus ? (
-          <p className="rounded-[18px] border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-slate-300">
+          <p className="rounded-lg border border-border bg-muted/45 p-3 text-sm leading-6 text-foreground">
             {conversation.lastStatus}
           </p>
         ) : null}
 
-        <div className="flex-1 space-y-3 overflow-y-auto rounded-[22px] border border-white/10 bg-[#050d18]/70 p-4 scrollbar-thin">
+        <div className="min-h-[280px] flex-1 space-y-3 overflow-y-auto rounded-lg bg-muted/45 p-4 scrollbar-thin">
           {conversation.messages.length === 0 ? (
             <EmptyState
               icon={<MessageSquare className="h-7 w-7" />}
               title="Sem mensagens nesta conversa"
-              description="A conversa existe, mas a API ainda nao possui mensagens vinculadas."
+              description="A conversa existe, mas ainda nao tem mensagens registradas."
             />
           ) : (
             conversation.messages.map((message) => (
@@ -375,22 +438,23 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
           <textarea
             value={messageBody}
             onChange={(event) => setMessageBody(event.target.value)}
+            aria-label="Resposta humana"
             rows={3}
             disabled={!whatsappConnected || conversation.status === 'closed'}
-            className="w-full resize-y rounded-xl border border-white/10 bg-[#071525] px-3 py-2 text-sm leading-6 text-slate-100 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-primary/70 focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full resize-y rounded-lg border border-input bg-white px-3 py-2 text-sm leading-6 text-foreground shadow-sm outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70"
             placeholder="Escreva uma resposta humana para o cliente."
           />
-          {sendError ? <p className="text-sm leading-6 text-red-200">{sendError}</p> : null}
+          {sendError ? <p className="text-sm leading-6 text-red-800">{sendError}</p> : null}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs leading-5 text-slate-500">
-              Envio manual assume a conversa e pausa a IA.
+            <p className="text-xs leading-5 text-muted-foreground">
+              O envio manual inicia o atendimento humano e pausa a resposta automatica.
             </p>
             <Button
               type="submit"
               disabled={!whatsappConnected || sendMessage.isPending || conversation.status === 'closed'}
             >
               <Send className="h-4 w-4" />
-              Enviar mensagem humana
+              Enviar mensagem
             </Button>
           </div>
         </form>
@@ -439,14 +503,14 @@ function ConversationContextPanel({ conversation }: { conversation: AiConversati
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
-          Contexto
+          Detalhes
         </CardTitle>
         <CardDescription>Cliente, historico e rascunho detectado pela IA.</CardDescription>
       </CardHeader>
       <CardContent className="max-h-[620px] space-y-4 overflow-y-auto pr-2 scrollbar-thin">
         {!conversation ? (
-          <p className="rounded-[18px] border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-400">
-            Selecione uma conversa para ver contexto real.
+          <p className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
+            Selecione uma conversa para ver os detalhes.
           </p>
         ) : (
           <>
@@ -459,17 +523,17 @@ function ConversationContextPanel({ conversation }: { conversation: AiConversati
             <ContextBlock title="Enderecos">
               {conversation.customer?.addresses.length ? (
                 conversation.customer.addresses.map((address) => (
-                  <div key={address.id} className="rounded-xl bg-white/[0.04] p-3 text-sm leading-6 text-slate-300">
-                    <p className="font-semibold text-white">{address.label}</p>
+                  <div key={address.id} className="rounded-lg bg-muted/55 p-3 text-sm leading-6 text-foreground">
+                    <p className="font-semibold text-foreground">{address.label}</p>
                     <p>
                       {address.street}, {address.number} - {address.district}
                     </p>
                     <p>{address.city}/{address.state}</p>
-                    {address.reference ? <p className="text-slate-500">{address.reference}</p> : null}
+                    {address.reference ? <p className="text-muted-foreground">{address.reference}</p> : null}
                   </div>
                 ))
               ) : (
-                <p className="text-sm leading-6 text-slate-400">
+                <p className="text-sm leading-6 text-muted-foreground">
                   Nenhum endereco retornado para este cliente.
                 </p>
               )}
@@ -478,21 +542,21 @@ function ConversationContextPanel({ conversation }: { conversation: AiConversati
             <ContextBlock title="Pedidos anteriores">
               {conversation.customer?.orders.length ? (
                 conversation.customer.orders.map((order) => (
-                  <div key={order.id} className="rounded-xl bg-white/[0.04] p-3 text-sm leading-6 text-slate-300">
+                  <div key={order.id} className="rounded-lg bg-muted/55 p-3 text-sm leading-6 text-foreground">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-white">Pedido #{order.number}</p>
-                      <span className="text-xs text-slate-500">{formatCurrency(order.total)}</span>
+                      <p className="font-semibold text-foreground">Pedido #{order.number}</p>
+                      <span className="font-mono text-xs text-muted-foreground">{formatCurrency(order.total)}</span>
                     </div>
-                    <p className="text-xs text-slate-500">{formatDateTime(order.createdAt)}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTime(order.createdAt)}</p>
                     {order.items.length ? (
-                      <p className="mt-2 text-xs text-slate-400">
+                      <p className="mt-2 text-xs text-muted-foreground">
                         {order.items.map((item) => `${item.quantity}x ${item.name}`).join(', ')}
                       </p>
                     ) : null}
                   </div>
                 ))
               ) : (
-                <p className="text-sm leading-6 text-slate-400">
+                <p className="text-sm leading-6 text-muted-foreground">
                   Nenhum pedido anterior retornado para este cliente.
                 </p>
               )}
@@ -503,9 +567,9 @@ function ConversationContextPanel({ conversation }: { conversation: AiConversati
             <ContextBlock title="Pedido sugerido">
               {activeDrafts.length ? (
                 activeDrafts.map((draft) => (
-                  <div key={draft.id} className="space-y-3 rounded-xl bg-white/[0.04] p-3">
+                  <div key={draft.id} className="space-y-3 rounded-lg bg-muted/55 p-3">
                     {draft.parsedItems.length ? (
-                      <ul className="space-y-1 text-sm leading-6 text-slate-300">
+                      <ul className="space-y-1 text-sm leading-6 text-foreground">
                         {draft.parsedItems.map((item, index) => (
                           <li key={`${draft.id}-${item.productName}-${index}`}>
                             {item.quantity}x {item.productName}
@@ -514,7 +578,7 @@ function ConversationContextPanel({ conversation }: { conversation: AiConversati
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-sm leading-6 text-slate-400">
+                      <p className="text-sm leading-6 text-muted-foreground">
                         A IA retornou rascunho sem itens completos.
                       </p>
                     )}
@@ -544,7 +608,7 @@ function ConversationContextPanel({ conversation }: { conversation: AiConversati
                   </div>
                 ))
               ) : (
-                <p className="text-sm leading-6 text-slate-400">
+                <p className="text-sm leading-6 text-muted-foreground">
                   Nenhum rascunho ativo para esta conversa.
                 </p>
               )}
@@ -569,34 +633,34 @@ function ConversationListItem({ conversation, active, onClick }: ConversationLis
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-[20px] border border-white/10 bg-white/[0.04] p-3 text-left transition hover:-translate-y-0.5 hover:border-white/16 hover:bg-white/[0.06] data-[active=true]:border-primary/50 data-[active=true]:bg-primary/10"
+      className="w-full rounded-lg border border-transparent bg-white p-3 text-left transition-colors hover:bg-muted/55 data-[active=true]:border-primary/30 data-[active=true]:bg-primary/[0.07]"
       data-active={active}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-black text-white">
+          <p className="truncate text-sm font-semibold text-foreground">
             {conversation.customerName ?? conversation.customer?.name ?? conversation.whatsappNumber}
           </p>
-          <p className="mt-1 truncate text-xs text-slate-500">{conversation.whatsappNumber}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{conversation.whatsappNumber}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <Badge variant={conversationBadgeVariant(conversation.status)}>
             {conversationStatusLabels[conversation.status]}
           </Badge>
           {conversation.unreadCount > 0 ? (
-            <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-black text-primary-foreground">
+            <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
               {conversation.unreadCount}
             </span>
           ) : null}
         </div>
       </div>
-      <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-400">
+      <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">
         {lastMessage?.body ?? 'Sem mensagens registradas.'}
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>{formatRelativeDate(conversation.lastMessageAt)}</span>
         {conversation.type === 'test' ? <span>Teste</span> : null}
-        {conversation.isAiPaused ? <span>IA pausada</span> : null}
+        {conversation.isAiPaused ? <span>Resposta automatica pausada</span> : null}
       </div>
     </button>
   )
@@ -609,17 +673,17 @@ function MessageBubble({ message }: { message: AiMessage }) {
   return (
     <article className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[82%] rounded-[20px] border px-4 py-3 ${
+        className={`max-w-[82%] rounded-xl border px-4 py-3 ${
           outbound
-            ? 'border-primary/20 bg-primary/15 text-orange-50'
-            : 'border-white/10 bg-white/[0.05] text-slate-100'
-        } ${failed ? 'border-status-danger/40 bg-status-danger/10' : ''}`}
+            ? 'border-primary/20 bg-primary/10 text-foreground'
+            : 'border-border bg-white text-foreground'
+        } ${failed ? 'border-status-danger/40 bg-red-50' : ''}`}
       >
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <Badge variant={messageSenderBadgeVariant(message.senderType)}>
             {messageSenderLabels[message.senderType]}
           </Badge>
-          <span className="text-xs text-slate-500">{messageStatusLabels[message.status]}</span>
+          <span className="text-xs text-muted-foreground">{messageStatusLabels[message.status]}</span>
           {message.scheduledSendAt && message.status === 'queued' ? (
             <span className="text-xs text-status-warning">
               Aguardando delay ate {formatDateTime(message.scheduledSendAt)}
@@ -630,7 +694,7 @@ function MessageBubble({ message }: { message: AiMessage }) {
         {message.errorMessage ? (
           <p className="mt-2 text-xs leading-5 text-status-danger">{message.errorMessage}</p>
         ) : null}
-        <p className="mt-2 text-right text-[11px] text-slate-500">
+        <p className="mt-2 text-right text-xs text-muted-foreground">
           {formatDateTime(message.sentAt ?? message.createdAt)}
         </p>
       </div>
@@ -650,7 +714,7 @@ function AssistedLearningBlock({ conversation }: { conversation: AiConversation 
   if (!seed.content) {
     return (
       <ContextBlock title="Aprendizado assistido">
-        <p className="text-sm leading-6 text-slate-400">
+        <p className="text-sm leading-6 text-muted-foreground">
           Responda manualmente uma pergunta do cliente para gerar uma sugestao de conhecimento.
         </p>
       </ContextBlock>
@@ -683,7 +747,7 @@ function AssistedLearningBlock({ conversation }: { conversation: AiConversation 
     <ContextBlock title="Aprendizado assistido">
       {!isEditing ? (
         <div className="space-y-3">
-          <p className="text-sm leading-6 text-slate-300">{seed.content}</p>
+          <p className="text-sm leading-6 text-foreground">{seed.content}</p>
           <Button size="sm" variant="outline" onClick={handleStart}>
             <FileText className="h-4 w-4" />
             Adicionar a base
@@ -691,30 +755,39 @@ function AssistedLearningBlock({ conversation }: { conversation: AiConversation 
         </div>
       ) : (
         <div className="space-y-3">
-          <select
-            value={type}
-            onChange={(event) => setType(event.target.value as AiKnowledgeEntryType)}
-            className="w-full rounded-xl border border-white/10 bg-[#071525] px-3 py-2 text-sm text-slate-100 outline-none focus:border-primary/70 focus:ring-2 focus:ring-primary/20"
-          >
-            <option value="faq">FAQ</option>
-            <option value="delivery_area">Entrega</option>
-            <option value="payment">Pagamento</option>
-            <option value="store_info">Loja</option>
-            <option value="policy">Politica</option>
-            <option value="promotions">Promocoes</option>
-            <option value="custom">Customizado</option>
-          </select>
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#071525] px-3 py-2 text-sm text-slate-100 outline-none focus:border-primary/70 focus:ring-2 focus:ring-primary/20"
-          />
-          <textarea
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            rows={4}
-            className="w-full resize-y rounded-xl border border-white/10 bg-[#071525] px-3 py-2 text-sm leading-6 text-slate-100 outline-none focus:border-primary/70 focus:ring-2 focus:ring-primary/20"
-          />
+          <label className="block space-y-1.5 text-xs font-semibold text-foreground">
+            Tipo de conhecimento
+            <select
+              value={type}
+              onChange={(event) => setType(event.target.value as AiKnowledgeEntryType)}
+              className="h-[42px] w-full rounded-lg border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            >
+              <option value="faq">FAQ</option>
+              <option value="delivery_area">Entrega</option>
+              <option value="payment">Pagamento</option>
+              <option value="store_info">Loja</option>
+              <option value="policy">Politica</option>
+              <option value="promotions">Promocoes</option>
+              <option value="custom">Customizado</option>
+            </select>
+          </label>
+          <label className="block space-y-1.5 text-xs font-semibold text-foreground">
+            Titulo
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              className="h-[42px] w-full rounded-lg border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            />
+          </label>
+          <label className="block space-y-1.5 text-xs font-semibold text-foreground">
+            Conteudo
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              rows={4}
+              className="w-full resize-y rounded-lg border border-input bg-white px-3 py-2 text-sm font-normal leading-6 text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            />
+          </label>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={handleSave} disabled={createKnowledge.isPending}>
               Salvar conhecimento
@@ -772,8 +845,8 @@ function useHydrateOrderDraft() {
 
 function ContextBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-[18px] border border-white/10 bg-white/[0.04] p-4">
-      <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+    <section className="space-y-3 rounded-lg bg-muted/45 p-3">
+      <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         {title}
       </h3>
       {children}
@@ -784,8 +857,8 @@ function ContextBlock({ title, children }: { title: string; children: ReactNode 
 function ContextLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-3 text-sm leading-6">
-      <span className="text-slate-500">{label}</span>
-      <span className="text-right font-semibold text-slate-100">{value}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-semibold text-foreground">{value}</span>
     </div>
   )
 }

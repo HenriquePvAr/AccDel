@@ -89,6 +89,10 @@ export interface CreatePublicOrderRequest {
 
 export interface CreatePublicOrderResponse {
   data: Order
+  tracking: {
+    path: string
+    url: string
+  } | null
 }
 
 export interface UpdateOrderStatusRequest {
@@ -110,6 +114,7 @@ export interface UpdateOrderStatusResponse {
 
 export interface RepeatOrderRequest {
   orderId: string
+  paymentMethod: Order['paymentMethod']
 }
 
 export interface RepeatOrderResponse {

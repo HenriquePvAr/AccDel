@@ -50,7 +50,7 @@ const methodOptions: Array<{ value: PaymentMethod | 'custom'; label: string }> =
 const providerOptions: Array<{ value: PaymentProvider; label: string; description: string }> = [
   { value: 'manual', label: 'Manual', description: 'Recebimento conferido pela equipe.' },
   { value: 'pix', label: 'Pix', description: 'Base preparada para cobranca Pix.' },
-  { value: 'picpay', label: 'PicPay', description: 'Provider preparado; integracao real pendente.' },
+  { value: 'picpay', label: 'PicPay', description: 'Serviço em preparação; conexão pendente.' },
 ]
 
 function emptyDraft(sortOrder: number): SavePaymentMethodConfigRequest {
@@ -133,7 +133,7 @@ export function PaymentSettingsPage() {
         <EmptyState
           icon={<CreditCard className="h-5 w-5" />}
           title="Falha ao carregar pagamentos"
-          description="A API nao retornou as formas de pagamento da loja."
+          description="Nenhuma forma de pagamento esta disponivel para a loja."
         />
       ) : sortedMethods.length ? (
         <Card>
@@ -215,7 +215,7 @@ export function PaymentSettingsPage() {
         <EmptyState
           icon={<CreditCard className="h-5 w-5" />}
           title="Nenhuma forma de pagamento cadastrada"
-          description="Cadastre as formas reais usadas pela loja para liberar exibicao nos fluxos operacionais."
+          description="Cadastre as formas usadas pela loja para exibi-las nas telas de pagamento."
         />
       )}
 
@@ -306,7 +306,7 @@ function PaymentMethodDrawer({
         <SheetHeader className="pr-10">
           <SheetTitle>{draft.id ? 'Editar pagamento' : 'Nova forma de pagamento'}</SheetTitle>
           <SheetDescription>
-            Configure nome, canais e comportamento sem expor termos tecnicos para a operacao.
+            Configure nome, canais e comportamento com palavras claras para a equipe.
           </SheetDescription>
         </SheetHeader>
 
@@ -426,7 +426,7 @@ function PaymentMethodDrawer({
 
             <Card>
               <CardContent className="space-y-4 p-5">
-                <h3 className="font-semibold text-slate-100">Recebimento e integracao</h3>
+                <h3 className="font-semibold text-slate-100">Recebimento e conexão</h3>
                 <div className="grid gap-3">
                   {providerOptions.map((provider) => (
                     <button
@@ -469,7 +469,7 @@ function PaymentMethodDrawer({
                 </div>
                 {draft.provider === 'picpay' ? (
                   <p className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-                    PicPay esta preparado como provider, mas a cobranca via API/QR Code ainda nao foi ativada.
+                    PicPay esta preparado como servico, mas a cobranca por QR Code ainda nao foi ativada.
                   </p>
                 ) : null}
               </CardContent>

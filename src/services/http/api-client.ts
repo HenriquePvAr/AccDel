@@ -103,6 +103,14 @@ async function request<TResponse>(
   const headers = new Headers(init?.headers)
   const storeId = getApiStoreId()
 
+  if (
+    init?.method &&
+    ['POST', 'PATCH', 'PUT', 'DELETE'].includes(init.method.toUpperCase()) &&
+    !headers.has('Idempotency-Key')
+  ) {
+    headers.set('Idempotency-Key', createIdempotencyKey())
+  }
+
   if (storeId && shouldUseApi) {
     headers.set('x-cain-store-id', storeId)
   }
@@ -143,6 +151,10 @@ async function request<TResponse>(
   }
 
   return payload as TResponse
+}
+
+function createIdempotencyKey() {
+  return `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`
 }
 
 async function safeJson(response: Response) {

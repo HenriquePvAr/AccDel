@@ -149,9 +149,8 @@ export function KitchenPage() {
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="KDS operacional"
         title="Cozinha"
-        description="Fila de producao com SLA, prioridade, canal e pronto para despacho/retirada/servico."
+        description="Veja pedidos em preparo e prontos para sair."
         actions={
           <Button
             variant="outline"
@@ -184,7 +183,7 @@ export function KitchenPage() {
           icon={<BellRing className="h-5 w-5" />}
           label="Urgentes"
           value={queue?.summary.urgent ?? 0}
-          hint="SLA perto ou estourado"
+          hint="Prazo perto ou vencido"
           tone="red"
         />
         <KitchenMetricCard
@@ -249,6 +248,7 @@ export function KitchenPage() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar pedido, cliente, item ou observacao"
+              aria-label="Buscar pedido, cliente, item ou observacao"
               className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10"
             />
           </div>
@@ -265,7 +265,7 @@ export function KitchenPage() {
         <EmptyState
           icon={<AlertTriangle className="h-5 w-5" />}
           title="Falha ao carregar a cozinha"
-          description="Nao foi possivel carregar a fila KDS agora. Tente atualizar ou revise a API."
+          description="Nao foi possivel carregar a fila da cozinha. Tente atualizar."
         />
       ) : hasQueue ? (
         <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-5">
@@ -294,7 +294,7 @@ export function KitchenPage() {
 
           <KitchenColumn
             icon={<ChefHat className="h-5 w-5" />}
-            title="Em producao"
+            title="Em preparo"
             description="Pedidos aceitos e em preparo na cozinha."
             count={production.length}
             accent="amber"
@@ -311,14 +311,14 @@ export function KitchenPage() {
                 />
               ))
             ) : (
-              <ColumnEmptyState label="Nenhum pedido em producao." />
+              <ColumnEmptyState label="Nenhum pedido em preparo." />
             )}
           </KitchenColumn>
 
           <KitchenColumn
             icon={<CheckCircle2 className="h-5 w-5" />}
             title="Prontos"
-            description="Pronto para despacho, retirada ou servir."
+            description="Aguardando entrega, retirada ou serviço."
             count={ready.length}
             accent="green"
           >
@@ -334,7 +334,7 @@ export function KitchenPage() {
                 />
               ))
             ) : (
-              <ColumnEmptyState label="Nada pronto aguardando saida." />
+              <ColumnEmptyState label="Nenhum pedido pronto aqui agora." />
             )}
           </KitchenColumn>
 
@@ -389,7 +389,7 @@ export function KitchenPage() {
         <EmptyState
           icon={<ChefHat className="h-5 w-5" />}
           title="Cozinha sem fila ativa"
-          description="Ao aceitar um pedido ou criar pedido direto para producao, ele aparece aqui com SLA, itens e canal."
+          description="Ao aceitar um pedido ou enviá-lo para preparo, ele aparece aqui com prazo, itens e canal."
         />
       )}
 
@@ -581,7 +581,7 @@ function KitchenOrderCard({
       <div className="mt-4 rounded-2xl bg-white/[0.035] px-3 py-2 ring-1 ring-white/10">
         <div className="flex items-center justify-between gap-3 text-xs">
           <span className="font-black uppercase tracking-[0.14em] text-slate-500">
-            SLA preparo
+            Prazo de preparo
           </span>
           <span className={cn('font-mono font-black', risk === 'late' ? 'text-red-300' : 'text-slate-300')}>
             {remainingMinutes > 0 ? `${remainingMinutes} min restantes` : 'limite estourado'}
@@ -711,7 +711,7 @@ function KitchenOrderDrawer({
             {order.number} · {operation.title}
           </SheetTitle>
           <SheetDescription>
-            Criado em {formatDateTime(order.createdAt)} · {elapsedMinutes} min em produção
+            Criado em {formatDateTime(order.createdAt)} · {elapsedMinutes} min em preparo
           </SheetDescription>
         </SheetHeader>
 
@@ -724,7 +724,7 @@ function KitchenOrderDrawer({
                 value={`${prepTarget} min`}
               />
               <DrawerMetric
-                label="SLA agora"
+                label="Prazo agora"
                 value={elapsedMinutes >= prepTarget ? 'Atrasado' : `${prepTarget - elapsedMinutes} min restantes`}
               />
               <DrawerMetric label="Destino" value={getReadyDestination(order)} />
@@ -733,7 +733,7 @@ function KitchenOrderDrawer({
 
           <Card>
             <CardContent className="space-y-3 p-4">
-              <h3 className="font-black text-white">Contexto operacional</h3>
+              <h3 className="font-black text-white">Detalhes do pedido</h3>
               <div className="rounded-2xl bg-white/[0.04] px-4 py-3 text-sm text-slate-300 ring-1 ring-white/10">
                 <p className="font-bold text-white">{operation.title}</p>
                 <p className="mt-1">{operation.detail}</p>
@@ -750,7 +750,7 @@ function KitchenOrderDrawer({
 
           <Card>
             <CardContent className="space-y-3 p-4">
-              <h3 className="font-black text-white">Itens para producao</h3>
+              <h3 className="font-black text-white">Itens do pedido</h3>
               {order.items.map((item) => (
                 <div key={item.id} className="rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/10">
                   <div className="flex items-start justify-between gap-3">

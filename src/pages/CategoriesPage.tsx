@@ -1443,7 +1443,7 @@ function CategoryForm({ category, busy, onCancel, onSave }: CategoryFormProps) {
             setDraft((current) => ({ ...current, description: event.target.value }))
           }
           className="min-h-24 w-full rounded-xl border border-white/10 bg-[#071525] px-3 py-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-primary/70 focus:ring-2 focus:ring-primary/20"
-          placeholder="Como essa categoria aparece para a operacao"
+          placeholder="Como essa categoria aparece para a equipe"
         />
       </label>
 

@@ -243,8 +243,7 @@ export function useAssignConversationMutation() {
   const { pushToast } = useToastStore()
 
   return useMutation({
-    mutationFn: ({ id, userId }: { id: string; userId: string }) =>
-      aiAttendantService.assignConversation(id, userId),
+    mutationFn: (id: string) => aiAttendantService.assignConversation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.conversations })
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAttendant.overview })

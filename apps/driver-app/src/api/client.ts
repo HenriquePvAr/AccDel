@@ -64,6 +64,17 @@ async function request<TResponse>(
 ): Promise<TResponse> {
   const headers = new Headers(init?.headers)
 
+  if (
+    init?.method &&
+    ['POST', 'PATCH', 'PUT', 'DELETE'].includes(init.method.toUpperCase()) &&
+    !headers.has('Idempotency-Key')
+  ) {
+    headers.set(
+      'Idempotency-Key',
+      `driver-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`,
+    )
+  }
+
   if (!init?.skipAuth) {
     const token = getApiAccessToken()
     if (token) {

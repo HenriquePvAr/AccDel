@@ -120,11 +120,21 @@ export const createPublicOrderSchema = z
 
 export const updateOrderStatusSchema = z.object({
   action: z.enum(['accept', 'start_preparation', 'ready', 'dispatch', 'complete', 'cancel']),
-  actor: z.string().optional(),
   driverId: z.string().optional(),
+})
+
+export const repeatOrderSchema = z.object({
+  paymentMethod: paymentMethodSchema,
+})
+
+export const confirmOrderPaymentSchema = z.object({
+  status: z.enum(['paid', 'failed', 'cancelled', 'refunded']),
+  externalReference: z.string().trim().min(3).max(160).optional(),
 })
 
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>
 export type CreateOrderPayload = z.infer<typeof createOrderSchema>
 export type CreatePublicOrderPayload = z.infer<typeof createPublicOrderSchema>
 export type UpdateOrderStatusPayload = z.infer<typeof updateOrderStatusSchema>
+export type RepeatOrderPayload = z.infer<typeof repeatOrderSchema>
+export type ConfirmOrderPaymentPayload = z.infer<typeof confirmOrderPaymentSchema>

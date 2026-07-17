@@ -34,8 +34,6 @@ const demoAccounts: Array<{ email: string; role: UserRole }> = [
   { email: 'driver@cain.local', role: 'driver' },
 ]
 
-const loginBrandPanelSrc = '/auth/login-brand-panel.png'
-
 export function LoginPage() {
   usePageTitle('Login')
   const navigate = useNavigate()
@@ -94,28 +92,51 @@ export function LoginPage() {
   }
 
   return (
-    <main className="min-h-[100svh] w-full overflow-x-hidden bg-[#f8f3ed] text-graphite lg:grid lg:min-h-screen lg:grid-cols-2 lg:overflow-hidden">
-      <section className="relative h-[430px] overflow-hidden bg-[#07111f] lg:h-screen lg:min-h-screen">
-        <img
-          src={loginBrandPanelSrc}
-          alt="Painel visual Cain Delivery"
-          className="h-full w-full object-cover object-[46%_center] lg:object-[47%_center]"
-        />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#f8f3ed] via-[#f8f3ed]/40 to-transparent lg:hidden" />
-      </section>
-
-      <section className="relative z-20 -mt-24 flex min-h-[calc(100svh-334px)] w-full min-w-0 items-end bg-[#f8f3ed] px-0 pb-0 sm:px-4 sm:pb-5 lg:mt-0 lg:min-h-screen lg:items-center lg:justify-center lg:px-12 lg:py-8">
-        <div className="relative mx-auto w-full max-w-none rounded-t-[34px] bg-[#fffdf9] px-6 pb-5 pt-16 shadow-[0_28px_90px_rgba(30,28,24,0.16)] ring-1 ring-black/5 backdrop-blur-xl sm:max-w-[430px] sm:rounded-[34px] sm:px-8 lg:max-w-[540px] lg:rounded-[32px] lg:px-12 lg:py-10">
-          <div className="absolute left-1/2 top-[-52px] flex h-[104px] w-[104px] -translate-x-1/2 items-center justify-center rounded-full border-[8px] border-white bg-[#fbefe6] text-[#d56b3c] shadow-[0_18px_38px_rgba(191,101,55,0.22)] lg:static lg:mb-7 lg:h-12 lg:w-12 lg:translate-x-0 lg:border-0 lg:bg-[#fbefe6] lg:shadow-none">
-            <UserRound className="h-11 w-11 lg:h-5 lg:w-5" />
+    <main className="min-h-[100svh] w-full overflow-x-hidden bg-[#f4f6f8] text-graphite lg:grid lg:min-h-screen lg:grid-cols-2 lg:overflow-hidden">
+      <section className="flex h-[180px] bg-[#171d24] px-6 py-7 text-white lg:h-screen lg:min-h-screen lg:items-center lg:px-16 lg:py-12">
+        <div className="w-full max-w-xl">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
+              C
+            </span>
+            <span>
+              <strong className="block text-lg">Cain Delivery</strong>
+              <span className="block text-xs text-[#aab3be]">Gestão da loja</span>
+            </span>
           </div>
 
-          <div className="mb-5 text-center lg:mb-7 lg:text-left">
-            <p className="hidden text-base text-muted-foreground lg:block">Bem-vindo de volta!</p>
-            <h2 className="mt-1 text-[30px] font-black leading-tight tracking-tight sm:text-[34px] lg:text-[42px]">
-              <span className="lg:hidden">Bem-vindo de volta</span>
-              <span className="hidden lg:inline">Acesse sua operacao</span>
+          <div className="mt-12 hidden lg:block">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              Gestão da loja
+            </p>
+            <h2 className="mt-4 max-w-lg text-4xl font-bold leading-tight">
+              Sua loja clara e fácil de acompanhar.
             </h2>
+            <p className="mt-5 max-w-md text-base leading-7 text-[#aab3be]">
+              Pedidos, cozinha, entregas e caixa organizados para a equipe agir sem perder
+              informações.
+            </p>
+            <div className="mt-10 grid max-w-md gap-3 text-sm text-[#aab3be]">
+              <p className="border-l-2 border-primary pl-4">Prioridades e excecoes em primeiro plano</p>
+              <p className="border-l-2 border-[#3b4551] pl-4">Acesso conforme o perfil de cada pessoa</p>
+              <p className="border-l-2 border-[#3b4551] pl-4">Leitura rapida em desktop, tablet e celular</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="relative z-20 -mt-4 flex min-h-[calc(100svh-164px)] w-full min-w-0 items-start bg-[#f4f6f8] px-4 pb-6 lg:mt-0 lg:min-h-screen lg:items-center lg:justify-center lg:px-12 lg:py-8">
+        <div className="relative mx-auto w-full max-w-[540px] rounded-2xl border border-border bg-white px-6 py-7 shadow-sm sm:px-8 lg:px-12 lg:py-10">
+          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <UserRound className="h-5 w-5" />
+          </div>
+
+          <div className="mb-6 text-left lg:mb-7">
+            <p className="hidden text-base text-muted-foreground lg:block">Bem-vindo de volta!</p>
+            <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-tight sm:text-[34px] lg:text-[38px]">
+              <span className="lg:hidden">Bem-vindo de volta</span>
+              <span className="hidden lg:inline">Acesse sua loja</span>
+            </h1>
             <button
               type="button"
               className="mt-3 text-lg text-muted-foreground transition hover:text-primary lg:hidden"
@@ -124,7 +145,7 @@ export function LoginPage() {
               {email}
             </button>
             <p className="mt-3 hidden text-base leading-7 text-muted-foreground lg:block">
-              Use seu email e senha para entrar no painel administrativo.
+              Use seu email e senha para entrar na gestão da loja.
             </p>
           </div>
 
@@ -141,7 +162,7 @@ export function LoginPage() {
                   autoComplete="email"
                   value={email}
                   placeholder="seu@email.com"
-                  className="h-[54px] rounded-2xl border-[#ded8d1] bg-white pl-12 text-base shadow-none"
+                  className="h-[52px] rounded-lg border-border bg-white pl-12 text-base shadow-none"
                   onChange={(event) => setEmail(event.target.value)}
                 />
               </span>
@@ -155,7 +176,7 @@ export function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={password}
-                  className="h-[54px] rounded-2xl border-[#ded8d1] bg-white px-12 text-base shadow-none"
+                  className="h-[52px] rounded-lg border-border bg-white px-12 text-base shadow-none"
                   onChange={(event) => setPassword(event.target.value)}
                 />
                 <button
@@ -173,6 +194,11 @@ export function LoginPage() {
               <label className="flex min-w-0 items-center gap-3 text-muted-foreground sm:flex-1">
                 <button
                   type="button"
+                  aria-label={
+                    rememberDevice
+                      ? 'Deixar de confiar neste dispositivo'
+                      : 'Confiar neste dispositivo'
+                  }
                   aria-pressed={rememberDevice}
                   className={cn(
                     'flex h-6 w-6 items-center justify-center rounded-md border transition',
@@ -201,14 +227,14 @@ export function LoginPage() {
             {errorMessage ? (
               <div
                 role="alert"
-                className="rounded-2xl bg-status-danger/10 px-4 py-3 text-sm font-medium text-status-danger"
+                className="rounded-lg bg-status-danger/10 px-4 py-3 text-sm font-medium text-status-danger"
               >
                 {errorMessage}
               </div>
             ) : null}
 
             <Button
-              className="h-[58px] w-full rounded-2xl bg-[#cc562d] text-base shadow-[0_14px_34px_rgba(204,86,45,0.32)] hover:bg-[#b94825]"
+              className="h-[54px] w-full rounded-lg text-base shadow-none"
               disabled={loginMutation.isPending}
             >
               {loginMutation.isPending ? 'Entrando...' : 'Entrar'}
@@ -224,7 +250,7 @@ export function LoginPage() {
 
           <button
             type="button"
-            className="mx-auto flex h-[54px] w-[280px] max-w-[calc(100%-48px)] items-center justify-center gap-3 rounded-2xl border border-[#ded8d1] bg-white text-sm font-semibold transition hover:border-primary/40 hover:bg-secondary/35 sm:w-full sm:max-w-full"
+            className="mx-auto flex h-[52px] w-[280px] max-w-[calc(100%-48px)] items-center justify-center gap-3 rounded-lg border border-border bg-white text-sm font-semibold transition hover:border-primary/40 hover:bg-secondary/35 sm:w-full sm:max-w-full"
             onClick={() => setErrorMessage('Autenticacao rapida ainda nao esta habilitada neste ambiente.')}
           >
             <span className="lg:hidden">
@@ -248,12 +274,12 @@ export function LoginPage() {
           </div>
 
           {showAccountPicker ? (
-            <div className="mt-5 grid gap-2 rounded-2xl bg-[#f4eee7] p-3 sm:grid-cols-2">
+            <div className="mt-5 grid gap-2 rounded-xl bg-secondary/55 p-3 sm:grid-cols-2">
               {demoAccounts.map((account) => (
                 <button
                   key={account.email}
                   type="button"
-                  className="rounded-xl bg-white/80 px-3 py-2 text-left text-xs font-semibold transition hover:bg-white"
+                  className="rounded-lg border border-border bg-white px-3 py-2 text-left text-xs font-semibold transition hover:border-primary/30"
                   onClick={() => selectAccount(account.email)}
                 >
                   <span className="block">{roleLabelMap[account.role]}</span>
@@ -267,7 +293,7 @@ export function LoginPage() {
 
           <p className="mt-6 hidden items-center justify-center gap-2 text-sm text-muted-foreground lg:flex">
             <Lock className="h-4 w-4" />
-            Conexao segura e protegida com criptografia de ponta.
+            Acesso restrito a usuarios autorizados.
           </p>
         </div>
       </section>

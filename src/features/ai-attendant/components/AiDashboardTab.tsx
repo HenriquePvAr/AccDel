@@ -24,7 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAiAttendantDashboardQuery } from '@/hooks/queries/ai-attendant'
 
-import { formatRelativeDate, whatsappStatusLabels } from './ai-attendant-labels'
+import { formatRelativeDate, integrationLogTypeLabels, whatsappStatusLabels } from './ai-attendant-labels'
 
 export function AiDashboardTab() {
   const { data: dashboard, isLoading } = useAiAttendantDashboardQuery()
@@ -36,8 +36,8 @@ export function AiDashboardTab() {
   if (!dashboard) {
     return (
       <Alert variant="danger">
-        <AlertTitle>Dashboard indisponivel</AlertTitle>
-        <AlertDescription>A API nao retornou metricas do Atendente IA.</AlertDescription>
+        <AlertTitle>Resumo indisponível</AlertTitle>
+        <AlertDescription>Os indicadores do atendimento nao ficaram disponiveis.</AlertDescription>
       </Alert>
     )
   }
@@ -73,7 +73,7 @@ export function AiDashboardTab() {
         />
         <MetricCard
           icon={<Bot className="h-5 w-5" />}
-          label="Mensagens IA"
+          label="Respostas automáticas"
           value={dashboard.kpis.messagesSentToday}
           description={`${dashboard.kpis.messagesReceivedToday} recebidas hoje`}
         />
@@ -96,7 +96,7 @@ export function AiDashboardTab() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
-              Produtos pedidos via IA
+              Produtos mais pedidos
             </CardTitle>
             <CardDescription>
               Agregado a partir de orderDrafts reais da ultima semana.
@@ -104,7 +104,7 @@ export function AiDashboardTab() {
           </CardHeader>
           <CardContent className="h-80">
             {productChartData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={productChartData}>
                   <CartesianGrid stroke="rgba(148,163,184,0.14)" vertical={false} />
                   <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} />
@@ -123,7 +123,7 @@ export function AiDashboardTab() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyDashboardCopy text="Ainda nao ha orderDrafts reais suficientes para produtos mais pedidos." />
+              <EmptyDashboardCopy text="Ainda não há pedidos suficientes para mostrar os produtos mais pedidos." />
             )}
           </CardContent>
         </Card>
@@ -132,13 +132,13 @@ export function AiDashboardTab() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock3 className="h-5 w-5 text-primary" />
-              Tempo operacional
+              Tempo de resposta
             </CardTitle>
             <CardDescription>Calculado a partir de mensagens e assuncoes reais.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <OperationalLine
-              label="Resposta media da IA"
+              label="Resposta automática"
               value={formatDuration(dashboard.kpis.averageResponseMs)}
             />
             <OperationalLine
@@ -159,14 +159,14 @@ export function AiDashboardTab() {
       <div className="grid gap-5 xl:grid-cols-2">
         <RankedBarCard
           title="Sabores e opcoes mais pedidos"
-          description="Lido dos orderDrafts reais gerados pela IA."
+          description="Opções presentes nos pedidos sugeridos."
           data={optionChartData}
           emptyText="Ainda nao ha sabores ou opcoes suficientes nos orderDrafts."
           primaryColor="#06b6d4"
           secondaryColor="#22c55e"
         />
         <RankedBarCard
-          title="Categorias mais vendidas pela IA"
+          title="Categorias mais pedidas"
           description="Resolvido contra produtos/categorias reais do catalogo."
           data={categoryChartData}
           emptyText="Ainda nao ha categorias resolvidas nos orderDrafts."
@@ -183,7 +183,7 @@ export function AiDashboardTab() {
           </CardHeader>
           <CardContent className="h-72">
             {districtChartData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={districtChartData} layout="vertical">
                   <CartesianGrid stroke="rgba(148,163,184,0.14)" horizontal={false} />
                   <XAxis type="number" stroke="#94a3b8" tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -216,7 +216,7 @@ export function AiDashboardTab() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
-              Provider e ultimos eventos
+              Servico e ultimos eventos
             </CardTitle>
             <CardDescription>Status seguro, sem tokens ou segredos.</CardDescription>
           </CardHeader>
@@ -226,7 +226,11 @@ export function AiDashboardTab() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-white">
-                      {dashboard.provider.whatsapp.provider}
+                      {dashboard.provider.whatsapp.provider === 'whatsapp_cloud'
+                        ? 'WhatsApp oficial'
+                        : dashboard.provider.whatsapp.provider === 'unconfigured'
+                          ? 'Nao configurado'
+                          : 'Servico conectado'}
                     </p>
                     <p className="text-xs text-slate-500">
                       {dashboard.provider.whatsapp.displayName ??
@@ -253,7 +257,7 @@ export function AiDashboardTab() {
                 dashboard.provider.lastLogs.slice(0, 6).map((log) => (
                   <div key={log.id} className="rounded-xl bg-white/[0.04] p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <Badge variant={log.status === 'error' ? 'danger' : 'default'}>{log.type}</Badge>
+                      <Badge variant={log.status === 'error' ? 'danger' : 'default'}>{integrationLogTypeLabels[log.type]}</Badge>
                       <span className="text-[11px] text-slate-500">
                         {formatRelativeDate(log.createdAt)}
                       </span>
@@ -262,7 +266,7 @@ export function AiDashboardTab() {
                   </div>
                 ))
               ) : (
-                <EmptyDashboardCopy text="Nenhum log de integracao registrado hoje." />
+                <EmptyDashboardCopy text="Nenhuma atualização registrada hoje." />
               )}
             </div>
           </CardContent>
@@ -299,7 +303,7 @@ function RankedBarCard({
       </CardHeader>
       <CardContent className="h-72">
         {data.length ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart data={data} layout="vertical">
               <CartesianGrid stroke="rgba(148,163,184,0.14)" horizontal={false} />
               <XAxis type="number" stroke="#94a3b8" tick={{ fontSize: 11 }} allowDecimals={false} />

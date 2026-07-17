@@ -28,10 +28,10 @@ export const useOrdersStore = create<OrdersState>((set) => ({
   acceptOrder: (id) =>
     set((state) => ({
       orders: state.orders.map((order) =>
-        order.id === id ? appendTimeline(order, 'Pedido aceito', 'Operação') : order,
+        order.id === id ? appendTimeline(order, 'Pedido aceito', 'Equipe') : order,
       ),
     })),
-  updateStatus: (id, status, actor = 'Operação') =>
+  updateStatus: (id, status, actor = 'Equipe') =>
     set((state) => ({
       orders: state.orders.map((order) =>
         order.id === id
@@ -46,7 +46,7 @@ export const useOrdersStore = create<OrdersState>((set) => ({
           ? appendTimeline(
               { ...order, status: 'cancelled', tags: [...order.tags, 'Cancelado'] },
               'Pedido cancelado',
-              'Operação',
+              'Equipe',
             )
           : order,
       ),
@@ -75,7 +75,7 @@ export const useOrdersStore = create<OrdersState>((set) => ({
               {
                 id: crypto.randomUUID(),
                 label: 'Pedido recriado a partir do histórico',
-                actor: 'Operação',
+                actor: 'Equipe',
                 at: new Date().toISOString(),
               },
             ],

@@ -10,12 +10,12 @@ interface MetricChartCardProps {
 
 export function MetricChartCard({ title, description, children }: MetricChartCardProps) {
   return (
-    <Card className="p-5">
-      <div className="mb-5">
+    <Card className="min-w-0 p-5">
+      <div className="mb-5 min-w-0">
         <h3 className="text-base font-semibold">{title}</h3>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
-      {children}
+      <div className="min-h-0 min-w-0">{children}</div>
     </Card>
   )
 }

@@ -1,4 +1,6 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { createHash, randomUUID } from 'node:crypto'
 import { PrismaService } from '../../shared/prisma/prisma.service'
 import { WhatsappProviderFactory } from './whatsapp-provider.factory'
 import { AiProviderFactory } from './ai-provider.factory'
@@ -24,6 +26,9 @@ import {
   WhatsappIntegrationLogType,
   IntegrationLogStatus,
 } from '@prisma/client'
+import { isMessageWebhookEvent } from './webhook-security.service'
+import { WebhookReceiptService } from './webhook-receipt.service'
+import { MessagingOutboxService } from '@/modules/messaging/application/messaging-outbox.service'
 
 interface AiOrderDraftParsedOption {
   groupId?: string
@@ -78,6 +83,9 @@ export class AiAttendantService {
     private readonly promptBuilder: AiPromptBuilderService,
     private readonly orderStatusService: AiOrderStatusService,
     private readonly lovableSupabaseIntegration: LovableSupabaseIntegrationService,
+    private readonly webhookReceiptService: WebhookReceiptService,
+    private readonly configService: ConfigService,
+    private readonly messagingOutbox: MessagingOutboxService,
   ) {}
 
   // ── Overview & Statistics ──────────────────────────────────────────
@@ -95,15 +103,20 @@ export class AiAttendantService {
       knowledgeCount,
     ] = await Promise.all([
       this.getOrCreateSettings(storeId),
-      this.prisma.whatsappSession.findFirst({ where: { storeId } }),
+      this.getSession(storeId),
       this.prisma.aiConversation.count({
         where: { storeId, createdAt: { gte: today } },
       }),
-      this.prisma.whatsappMessage.count({
-        where: { storeId, createdAt: { gte: today }, direction: 'outbound', senderType: 'ai' },
+      this.prisma.aiMessage.count({
+        where: {
+          conversation: { storeId },
+          createdAt: { gte: today },
+          direction: 'outbound',
+          senderType: 'ai',
+        },
       }),
       this.prisma.aiConversation.count({
-        where: { storeId, status: 'waiting_human' },
+        where: { storeId, operationalStatus: 'WAITING_HUMAN' },
       }),
       this.prisma.aiKnowledgeEntry.count({
         where: { storeId, isActive: true },
@@ -838,6 +851,30 @@ export class AiAttendantService {
   // ── WhatsApp Session Lifecycle ──────────────────────────────────────
 
   async getSession(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      const account = await this.prisma.messagingAccount.findFirst({
+        where: { storeId, provider: 'whatsapp_cloud', enabled: true },
+      })
+      const now = new Date()
+      return {
+        id: account?.id ?? 'whatsapp-cloud-configured',
+        storeId,
+        provider: 'whatsapp_cloud',
+        sessionName: 'WhatsApp Cloud API',
+        phoneNumber: account?.displayPhoneNumber ?? null,
+        displayName: 'Meta WhatsApp Cloud API',
+        status: account ? 'connected' : 'connecting',
+        qrCode: null,
+        qrCodeExpiresAt: null,
+        lastConnectedAt: account?.updatedAt ?? null,
+        lastDisconnectedAt: null,
+        isEnabled: true,
+        lastError: account ? null : 'Configuracao carregada; aguardando o primeiro webhook valido da Meta.',
+        createdAt: account?.createdAt ?? now,
+        updatedAt: account?.updatedAt ?? now,
+      }
+    }
+
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -877,6 +914,12 @@ export class AiAttendantService {
   }
 
   async startSession(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      throw new HttpException(
+        'WhatsApp Cloud API nao usa sessao ou QR Code. Configure o webhook no Meta Business.',
+        HttpStatus.CONFLICT,
+      )
+    }
     const provider = this.whatsappFactory.getProvider()
     const sessionName = `session_${storeId}`
 
@@ -950,6 +993,12 @@ export class AiAttendantService {
   }
 
   async getQrCode(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      throw new HttpException(
+        'WhatsApp Cloud API nao usa QR Code.',
+        HttpStatus.CONFLICT,
+      )
+    }
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -989,6 +1038,17 @@ export class AiAttendantService {
   }
 
   async getSessionStatus(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      const account = await this.prisma.messagingAccount.findFirst({
+        where: { storeId, provider: 'whatsapp_cloud', enabled: true },
+      })
+      return {
+        status: account ? 'connected' : 'connecting',
+        displayName: 'Meta WhatsApp Cloud API',
+        phoneNumber: account?.displayPhoneNumber ?? undefined,
+        lastError: account ? undefined : 'Aguardando o primeiro webhook valido da Meta.',
+      }
+    }
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -1027,6 +1087,12 @@ export class AiAttendantService {
   }
 
   async disconnectSession(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      throw new HttpException(
+        'Desative a integracao Cloud por configuracao e no Meta Business, nao por sessao local.',
+        HttpStatus.CONFLICT,
+      )
+    }
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -1060,6 +1126,12 @@ export class AiAttendantService {
   }
 
   async restartSession(storeId: string) {
+    if (this.isCloudWhatsappProvider()) {
+      throw new HttpException(
+        'WhatsApp Cloud API nao possui sessao local para reiniciar.',
+        HttpStatus.CONFLICT,
+      )
+    }
     const session = await this.prisma.whatsappSession.findFirst({
       where: { storeId },
     })
@@ -1097,18 +1169,59 @@ export class AiAttendantService {
     const provider = this.whatsappFactory.getProvider()
     const norm = await provider.handleWebhook(payload)
 
-    if (!norm.sessionId) return { success: false, reason: 'No session specified' }
+    if (!isMessageWebhookEvent(norm.event)) {
+      return { success: true, ignored: true, reason: 'unsupported_event' }
+    }
+
+    if (!norm.sessionId) {
+      throw new HttpException('Evento sem sessao identificavel.', HttpStatus.BAD_REQUEST)
+    }
+
+    if (!norm.messageId) {
+      throw new HttpException(
+        'Evento de mensagem sem identificador externo.',
+        HttpStatus.BAD_REQUEST,
+      )
+    }
 
     // Locate session inside store
     const session = await this.prisma.whatsappSession.findFirst({
       where: { sessionName: norm.sessionId },
     })
 
-    if (!session) return { success: false, reason: 'Session not found locally' }
-    if (!norm.from || !norm.body) return { success: false, reason: 'Empty from or body' }
+    if (!session) {
+      throw new HttpException('Sessao do webhook nao encontrada.', HttpStatus.NOT_FOUND)
+    }
+    if (!norm.from || !norm.body) {
+      throw new HttpException('Evento sem remetente ou mensagem.', HttpStatus.BAD_REQUEST)
+    }
 
     const storeId = session.storeId
     const cleanNumber = norm.from.replace(/\D/g, '')
+    const requestHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          event: norm.event,
+          sessionId: norm.sessionId,
+          messageId: norm.messageId,
+          from: cleanNumber,
+          body: norm.body,
+          timestamp: norm.timestamp,
+        }),
+      )
+      .digest('hex')
+
+    const receipt = await this.webhookReceiptService.claim({
+      storeId,
+      sessionId: session.id,
+      provider: provider.providerName,
+      eventId: norm.messageId,
+      requestHash,
+    })
+
+    if (receipt.duplicate) {
+      return { success: true, duplicate: true }
+    }
 
     await this.writeIntegrationLog({
       storeId,
@@ -1772,27 +1885,13 @@ export class AiAttendantService {
   }
 
   async assignConversation(storeId: string, id: string, userId: string) {
-    const conversation = await this.prisma.aiConversation.findFirst({
-      where: { id, storeId },
-    })
-
-    if (!conversation) {
-      throw new HttpException('Conversation not found.', HttpStatus.NOT_FOUND)
-    }
-
-    const updated = await this.prisma.aiConversation.update({
-      where: { id },
-      data: {
-        status: 'human_assigned',
-        assignedUserId: userId,
-        assignedAt: new Date(),
-        unreadCount: 0,
-        isAiPaused: true,
-        lastStatus: 'Humano assumiu a conversa; IA pausada.',
-        lastError: null,
-      },
-      include: this.getConversationInclude(),
-    })
+    await this.assertActiveMembership(storeId, userId)
+    const updated = await this.activateHumanConversation(
+      storeId,
+      id,
+      userId,
+      'Humano assumiu a conversa; IA pausada.',
+    )
 
     await this.writeIntegrationLog({
       storeId,
@@ -1818,6 +1917,7 @@ export class AiAttendantService {
       where: { id },
       data: {
         status: 'open',
+        operationalStatus: 'AI_ACTIVE',
         assignedUserId: null,
         assignedAt: null,
         isAiPaused: false,
@@ -1838,48 +1938,65 @@ export class AiAttendantService {
     return AiAttendantMapper.toConversationDto(updated)
   }
 
-  async sendManualMessage(storeId: string, id: string, body: string, userId: string) {
+  async sendManualMessage(
+    storeId: string,
+    id: string,
+    body: string,
+    userId: string,
+    idempotencyKey?: string,
+  ) {
+    await this.assertActiveMembership(storeId, userId)
+    const requestKey = idempotencyKey?.trim()
+    if (requestKey && !/^[A-Za-z0-9._:-]{8,120}$/.test(requestKey)) {
+      throw new HttpException('Idempotency-Key invalida.', HttpStatus.BAD_REQUEST)
+    }
     const conversation = await this.prisma.aiConversation.findFirst({
       where: { id, storeId },
+      include: { messagingAccount: true },
     })
 
     if (!conversation) {
       throw new HttpException('Conversation not found.', HttpStatus.NOT_FOUND)
     }
 
-    const session = await this.prisma.whatsappSession.findFirst({
-      where: { storeId },
-    })
+    await this.activateHumanConversation(
+      storeId,
+      id,
+      userId,
+      'Humano enviou mensagem; IA pausada nesta conversa.',
+    )
 
-    if (!session || session.status !== 'connected') {
-      throw new HttpException(
-        'Cannot send message: WhatsApp is not connected.',
-        HttpStatus.BAD_REQUEST,
+    const provider = this.configService.get<string>('WHATSAPP_PROVIDER')?.trim()
+    if (provider === 'cloud' || provider === 'whatsapp_cloud') {
+      if (!conversation.messagingAccount) {
+        throw new HttpException('Conta WhatsApp Cloud nao vinculada.', HttpStatus.BAD_REQUEST)
+      }
+      await this.messagingOutbox.enqueueText({
+        storeId,
+        accountId: conversation.messagingAccount.id,
+        conversationId: id,
+        recipient: conversation.whatsappNumber,
+        body,
+        idempotencyKey: `human:${id}:${requestKey || randomUUID()}`,
+        senderType: 'human',
+      })
+    } else {
+      const session = await this.prisma.whatsappSession.findFirst({ where: { storeId } })
+      if (!session || session.status !== 'connected') {
+        throw new HttpException(
+          'Cannot send message: WhatsApp is not connected.',
+          HttpStatus.BAD_REQUEST,
+        )
+      }
+      await this.sendDirectReply(
+        storeId,
+        session.sessionName,
+        id,
+        conversation.whatsappNumber,
+        body,
+        'human',
       )
     }
-
-    // Force human assign if they send manual message
-    await this.prisma.aiConversation.update({
-      where: { id },
-      data: {
-        status: 'human_assigned',
-        assignedUserId: userId,
-        assignedAt: new Date(),
-        unreadCount: 0,
-        isAiPaused: true,
-        lastStatus: 'Humano enviou mensagem; IA pausada nesta conversa.',
-        lastError: null,
-      },
-    })
-
-    await this.sendDirectReply(
-      storeId,
-      session.sessionName,
-      id,
-      conversation.whatsappNumber,
-      body,
-      'human',
-    )
 
     const reloaded = await this.getConversationDetail(storeId, id)
     return reloaded
@@ -1898,6 +2015,7 @@ export class AiAttendantService {
       where: { id },
       data: {
         status: 'closed',
+        operationalStatus: 'CLOSED',
         assignedUserId: null,
         assignedAt: null,
         isAiPaused: true,
@@ -1916,6 +2034,102 @@ export class AiAttendantService {
     })
 
     return AiAttendantMapper.toConversationDto(updated)
+  }
+
+  private async activateHumanConversation(
+    storeId: string,
+    id: string,
+    userId: string,
+    lastStatus: string,
+  ) {
+    return this.prisma.$transaction(async (transaction) => {
+      const changed = await transaction.aiConversation.updateMany({
+        where: {
+          id,
+          storeId,
+          OR: [
+            { operationalStatus: 'HUMAN_ACTIVE', assignedUserId: userId },
+            {
+              operationalStatus: { in: ['AI_ACTIVE', 'WAITING_HUMAN', 'PAUSED'] },
+              assignedUserId: null,
+            },
+          ],
+        },
+        data: {
+          status: 'human_assigned',
+          operationalStatus: 'HUMAN_ACTIVE',
+          assignedUserId: userId,
+          assignedAt: new Date(),
+          unreadCount: 0,
+          isAiPaused: true,
+          lastStatus,
+          lastError: null,
+        },
+      })
+
+      if (changed.count !== 1) {
+        const current = await transaction.aiConversation.findFirst({
+          where: { id, storeId },
+          select: { id: true },
+        })
+        if (!current) throw new HttpException('Conversation not found.', HttpStatus.NOT_FOUND)
+        throw new HttpException('A conversa ja foi assumida por outro atendente.', HttpStatus.CONFLICT)
+      }
+
+      const queuedAiMessages = await transaction.aiMessage.findMany({
+        where: { conversationId: id, senderType: 'ai', status: 'queued' },
+        select: { id: true, metadata: true },
+      })
+      const cancelledAt = new Date()
+      for (const message of queuedAiMessages) {
+        const outboundMessageId = readOutboundMessageId(message.metadata)
+        if (!outboundMessageId) continue
+        const cancelled = await transaction.outboundMessage.updateMany({
+          where: { id: outboundMessageId, status: 'PENDING' },
+          data: {
+            status: 'FAILED',
+            failedAt: cancelledAt,
+            lastErrorCode: 'conversation_handoff',
+            lastErrorMessage: 'Resposta da IA cancelada por handoff humano.',
+          },
+        })
+        if (cancelled.count === 1) {
+          await transaction.aiMessage.update({
+            where: { id: message.id },
+            data: {
+              status: 'failed',
+              failedAt: cancelledAt,
+              errorMessage: 'Resposta da IA cancelada por handoff humano.',
+            },
+          })
+        }
+      }
+
+      return transaction.aiConversation.findUniqueOrThrow({
+        where: { id },
+        include: this.getConversationInclude(),
+      })
+    })
+  }
+
+  private async assertActiveMembership(storeId: string, userId: string) {
+    const membership = await this.prisma.storeUser.findFirst({
+      where: {
+        storeId,
+        userId,
+        active: true,
+        user: { status: 'active' },
+      },
+      select: { id: true },
+    })
+    if (!membership) {
+      throw new HttpException('Usuario sem vinculo ativo com a loja.', HttpStatus.FORBIDDEN)
+    }
+  }
+
+  private isCloudWhatsappProvider() {
+    const provider = this.configService.get<string>('WHATSAPP_PROVIDER')?.trim()
+    return provider === 'cloud' || provider === 'whatsapp_cloud'
   }
 
   // ── Order Drafts CRUD ───────────────────────────────────────────────
@@ -2352,6 +2566,13 @@ export class AiAttendantService {
 
     return normalized
   }
+}
+
+function readOutboundMessageId(value: Prisma.JsonValue) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) &&
+    typeof value.outboundMessageId === 'string'
+    ? value.outboundMessageId
+    : null
 }
 
 function parseOrderDraftItems(value: Prisma.JsonValue): AiOrderDraftParsedItem[] {

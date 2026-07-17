@@ -1,0 +1,16 @@
+*** REIMPRESSAO
+***
+REIMPRESSAO
+PEDIDO #0042
+--------------------------------
+15/07/2026, 11:30:00
+Delivery
+--------------------------------
+2x Hamburguer da casa
+  + 1x Queijo adicional
+  OBS: Sem cebola
+1x Batata pequena
+OBS GERAL: DADOS FICTICIOS PARA
+VALIDACAO
+--------------------------------
+JOB EXAMPLEREPRI

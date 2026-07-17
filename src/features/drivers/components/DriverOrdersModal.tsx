@@ -154,7 +154,7 @@ export function DriverOrdersModal({
                 <MetricTile
                   label="ETA total"
                   value={route ? formatEtaMinutes(route.etaMinutes) : '--'}
-                  hint="duracao operacional"
+                  hint="duração"
                 />
                 <MetricTile
                   label="Distancia"
@@ -260,7 +260,7 @@ export function DriverOrdersModal({
                           <Sparkles className="h-4 w-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-black text-white">Melhor sugestao operacional</p>
+                          <p className="text-sm font-black text-white">Melhor sugestão</p>
                           <p className="mt-1 text-sm text-slate-300">
                             {candidates[0].orderNumber} | {candidates[0].customerName}
                           </p>
@@ -360,13 +360,13 @@ export function DriverOrdersModal({
               <EmptyState
                 icon={<Package2 className="h-5 w-5" />}
                 title="Nenhum pedido pronto disponivel"
-                description="Todos os pedidos prontos ja foram despachados ou ainda estao em producao."
+                description="Todos os pedidos prontos já saíram para entrega ou ainda estão em preparo."
               />
             )}
 
             {dispatchDisabled ? (
               <div className="mt-4 rounded-[20px] border border-amber-400/18 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-                Este motoboy esta pausado ou inativo. Reative o status operacional antes de atribuir novos pedidos.
+                Este entregador está pausado ou inativo. Reative o status antes de atribuir novos pedidos.
               </div>
             ) : null}
           </section>
@@ -408,7 +408,7 @@ function PreviewImpactCard({
             ) : (
               <Sparkles className="h-4 w-4 text-white" />
             )}
-            Preview de rota operacional
+            Prévia da rota
           </div>
           <p className="text-sm text-slate-200">{preview.recommendation}</p>
           <p className="text-xs uppercase tracking-[0.14em] text-slate-300/90">{orderSequence}</p>
@@ -424,7 +424,7 @@ function PreviewImpactCard({
           <MetricTile
             label="Score logistico"
             value={`${preview.routeCompatibilityScore}/100`}
-            hint="encaixe operacional"
+            hint="melhor encaixe"
           />
           <MetricTile
             label="Nova ordem"

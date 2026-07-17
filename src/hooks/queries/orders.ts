@@ -13,6 +13,7 @@ import type {
 import { customerService, orderService } from '@/services'
 import { queryKeys } from '@/hooks/queries/query-keys'
 import { useToastStore } from '@/stores/toast-store'
+import type { Order } from '@/types/domain'
 
 export function useOrdersQuery(request?: ListOrdersRequest) {
   return useQuery({
@@ -108,7 +109,7 @@ export function useCreateOrderMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
       useToastStore.getState().pushToast({
         title: 'Pedido criado',
-        description: 'O pedido ja entrou no fluxo operacional.',
+        description: 'O pedido já está nesta etapa.',
         variant: 'success',
       })
     },
@@ -160,13 +161,14 @@ export function useRepeatOrderMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (orderId: string) => orderService.repeatOrder({ orderId }),
+    mutationFn: (request: { orderId: string; paymentMethod: Order['paymentMethod'] }) =>
+      orderService.repeatOrder(request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
       useToastStore.getState().pushToast({
         title: 'Pedido repetido',
-        description: 'Uma nova cópia entrou em análise.',
+        description: 'Uma nova cópia ficou disponível.',
         variant: 'success',
       })
     },

@@ -9,9 +9,9 @@ import type {
 } from '@/types'
 
 export const orderStatusMeta: Record<OrderStatus, { label: string; color: string }> = {
-  in_analysis: { label: 'Em análise', color: 'analysis' },
+  in_analysis: { label: 'Novos', color: 'analysis' },
   in_preparation: { label: 'Em preparo', color: 'preparation' },
-  ready: { label: 'Pronto', color: 'ready' },
+  ready: { label: 'Prontos', color: 'ready' },
   out_for_delivery: { label: 'Em rota', color: 'route' },
   completed: { label: 'Finalizado', color: 'finished' },
   cancelled: { label: 'Cancelado', color: 'danger' },

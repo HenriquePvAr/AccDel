@@ -52,7 +52,7 @@ export function TableCard({ table, session, onOpen }: TableCardProps) {
               </div>
             ) : (
               <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-muted-foreground ring-1 ring-white/10">
-                Mesa pronta para operacao
+                Mesa pronta
               </div>
             )}
           </div>

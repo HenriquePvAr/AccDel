@@ -68,7 +68,7 @@ export function WaiterDetailDrawer({
             <CardContent className="space-y-3 p-5">
               <div className="flex items-center gap-2">
                 <Receipt className="h-4 w-4 text-primary" />
-                <h4 className="font-semibold">Historico operacional</h4>
+                <h4 className="font-semibold">Histórico</h4>
               </div>
               {waiter.history.length ? (
                 waiter.history.map((entry) => (
@@ -86,7 +86,7 @@ export function WaiterDetailDrawer({
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">Sem historico operacional ainda.</p>
+                <p className="text-sm text-muted-foreground">Sem histórico ainda.</p>
               )}
             </CardContent>
           </Card>

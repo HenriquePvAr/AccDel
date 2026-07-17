@@ -92,17 +92,59 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
     return <Skeleton className="h-96" />
   }
 
+  if (session?.provider === 'whatsapp_cloud') {
+    const active = session.status === 'connected'
+    return (
+      <div className="space-y-4">
+        <Alert variant={active ? 'success' : 'warning'}>
+          <AlertTitle>
+            {active ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+            WhatsApp oficial
+          </AlertTitle>
+          <AlertDescription>
+            {active
+              ? 'Conta oficial vinculada e eventos assinados da Meta ja foram recebidos.'
+              : 'Configuracao carregada. A conexao sera ativada assim que a primeira mensagem oficial for confirmada.'}
+          </AlertDescription>
+        </Alert>
+        <Card>
+          <CardHeader>
+            <CardTitle>Conexao oficial sem QR Code</CardTitle>
+            <CardDescription>
+              As credenciais ficam protegidas. O vinculo da conta e administrado no Meta Business.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-3">
+            <Badge variant={active ? 'success' : 'warning'}>
+              {active ? 'Conexao ativa' : 'Aguardando confirmacao'}
+            </Badge>
+            <Badge variant="default">Conta oficial</Badge>
+            <Button onClick={onOpenConversations} disabled={!active}>
+              <MessageCircle className="h-4 w-4" />
+              Abrir conversas
+            </Button>
+          </CardContent>
+        </Card>
+        <IntegrationLogsPanel />
+      </div>
+    )
+  }
+
   if (providerUnconfigured) {
     return (
       <div className="space-y-4">
         <Alert variant="danger">
           <AlertTitle>
             <AlertCircle className="h-4 w-4" />
-            Provider de WhatsApp nao configurado
+            Servico de WhatsApp nao configurado
           </AlertTitle>
           <AlertDescription>
-            O backend registrou esta sessao como unconfigured. Configure WHATSAPP_PROVIDER,
-            WHATSAPP_PROVIDER_BASE_URL e WHATSAPP_PROVIDER_API_KEY para receber um QR Code real.
+            Complete as credenciais do servico escolhido. A conexao oficial nao usa QR Code;
+            outros servicos podem exibir um codigo para leitura pelo celular.
           </AlertDescription>
         </Alert>
         <SessionSummary />
@@ -128,7 +170,7 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
         <EmptyState
           icon={<Smartphone className="h-7 w-7" />}
           title="Nenhum WhatsApp conectado"
-          description="A conexao depende do provider real configurado no backend. O QR Code so aparece quando a API retornar um codigo valido."
+          description="A conexao depende do servico configurado. O QR Code aparece quando houver um codigo valido."
         />
         <div className="flex flex-wrap justify-center gap-2">
           <Button onClick={handleStartSession} disabled={startSessionMutation.isPending}>
@@ -172,14 +214,14 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
               <div className="rounded-[22px] border border-white/10 bg-white p-4 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
                 <img
                   src={qrCode}
-                  alt="QR Code real retornado pelo provider de WhatsApp"
+                  alt="QR Code retornado pelo servico de WhatsApp"
                   className="h-64 w-64 rounded-xl"
                 />
               </div>
               <p className="text-center text-sm leading-6 text-slate-400">
                 {qrExpiresAt && qrSecondsLeft !== null
                   ? `Expira em ${qrSecondsLeft}s (${formatDateTime(qrExpiresAt)}).`
-                  : 'A API nao informou tempo de expiracao para este QR.'}
+                  : 'O servico nao informou o tempo de expiracao deste QR.'}
               </p>
             </div>
           ) : (
@@ -189,7 +231,7 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
                 QR Code indisponivel
               </AlertTitle>
               <AlertDescription>
-                {qrMessage ?? 'A API nao retornou QR Code. Gere um novo codigo ou verifique o provider.'}
+                {qrMessage ?? 'O QR Code nao ficou disponivel. Gere um novo codigo ou verifique o servico.'}
               </AlertDescription>
             </Alert>
           )}
@@ -199,7 +241,7 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
             <ol className="mt-2 list-inside list-decimal space-y-1 text-slate-400">
               <li>Abra o WhatsApp no celular da loja.</li>
               <li>Entre em Aparelhos conectados.</li>
-              <li>Escaneie o codigo retornado pelo provider.</li>
+              <li>Escaneie o codigo exibido pelo servico.</li>
             </ol>
           </div>
 
@@ -225,7 +267,7 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
           <div>
             <p className="text-lg font-black text-white">Conectando WhatsApp</p>
             <p className="mt-1 text-sm text-slate-400">
-              Aguardando retorno do provider configurado no backend.
+              Aguardando retorno do servico configurado.
             </p>
           </div>
           <Button variant="outline" onClick={handleRestart} disabled={restartMutation.isPending}>
@@ -280,7 +322,7 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
             {session.status === 'expired' ? 'Sessao expirada' : 'Erro na conexao'}
           </AlertTitle>
           <AlertDescription>
-            {session.lastError ?? 'O provider informou falha, mas nao enviou detalhes.'}
+            {session.lastError ?? 'O servico informou uma falha, mas nao enviou detalhes.'}
           </AlertDescription>
         </Alert>
         <SessionSummary />
@@ -320,10 +362,10 @@ function IntegrationLogsPanel() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <History className="h-5 w-5 text-primary" />
-          Logs de integracao
+          Historico da conexao
         </CardTitle>
         <CardDescription>
-          Eventos recentes de webhook, envio, erro, delay e sessao sem tokens ou secrets.
+          Eventos recentes de recebimento, envio, erro, espera e conexao sem exibir credenciais.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -363,8 +405,8 @@ function IntegrationLogsPanel() {
           ))
         ) : (
           <p className="rounded-[18px] border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-400">
-            Nenhum log registrado ainda. Eventos reais aparecem quando a sessao, webhook,
-            envio manual, teste ou pipeline de IA executarem.
+            Nenhum evento registrado ainda. As atividades aparecem quando houver conexao,
+            envio, teste ou resposta automatica.
           </p>
         )}
       </CardContent>
@@ -426,7 +468,10 @@ function SessionSummary() {
       <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryItem label="Numero" value={session.phoneNumber ?? 'Nao informado'} />
         <SummaryItem label="Perfil" value={session.displayName ?? 'Nao informado'} />
-        <SummaryItem label="Provider" value={session.provider} />
+        <SummaryItem
+          label="Servico"
+          value={session.provider === 'whatsapp_cloud' ? 'WhatsApp oficial' : session.provider === 'unconfigured' ? 'Nao configurado' : 'Servico conectado'}
+        />
         <SummaryItem label="Ultima conexao" value={formatDateTime(session.lastConnectedAt)} />
       </CardContent>
     </Card>

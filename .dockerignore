@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+.pilot
+backups
+**/node_modules
+**/dist
+**/build
+**/.embedded-postgres
+**/playwright-report
+**/test-results
+**/*.log

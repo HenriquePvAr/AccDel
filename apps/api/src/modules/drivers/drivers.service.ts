@@ -441,7 +441,7 @@ export class DriversService {
       this.prisma.order.findMany({
         where: {
           storeId: getCurrentStoreId(),
-          source: 'delivery',
+          serviceType: 'delivery',
           status: 'ready',
         },
         orderBy: [
@@ -776,6 +776,17 @@ export class DriversService {
       throw new BadRequestException('Nao existe entrega ativa para finalizar.')
     }
 
+    await this.ordersService.updateStatus(currentAssignment.orderId, {
+      action: 'complete',
+    }, {
+      sub: membership.userId,
+      email: membership.user.email,
+      name: membership.user.name,
+      storeId: getCurrentStoreId(),
+      role: 'driver',
+      permissions: ['drivers:self'],
+    })
+
     await this.prisma.deliveryAssignment.update({
       where: {
         id: currentAssignment.id,
@@ -784,11 +795,6 @@ export class DriversService {
         actualSequence:
           currentAssignment.actualSequence ?? currentAssignment.finalSequence,
       },
-    })
-
-    await this.ordersService.updateStatus(currentAssignment.orderId, {
-      action: 'complete',
-      actor: membership.user.name,
     })
 
     this.realtime.emit('driver.queue_updated', {
@@ -832,7 +838,7 @@ export class DriversService {
       where: {
         storeId: getCurrentStoreId(),
         driverId,
-        source: 'delivery',
+        serviceType: 'delivery',
         status: 'out_for_delivery',
       },
       orderBy: {
@@ -1163,7 +1169,7 @@ export class DriversService {
       where: {
         id: payload.previewOrderId,
         storeId: getCurrentStoreId(),
-        source: 'delivery',
+        serviceType: 'delivery',
         status: 'ready',
       },
     })

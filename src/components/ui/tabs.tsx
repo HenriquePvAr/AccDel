@@ -67,7 +67,7 @@ export function TabsList({ className, ...props }: HTMLAttributes<HTMLDivElement>
     <div
       role="tablist"
       className={cn(
-        'flex gap-1 overflow-x-auto rounded-[22px] border border-white/10 bg-[#07111f]/82 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] scrollbar-thin',
+        'flex gap-1 overflow-x-auto rounded-lg bg-muted p-1 scrollbar-thin',
         className,
       )}
       {...props}
@@ -98,7 +98,7 @@ export function TabsTrigger({
       aria-controls={`${context.baseId}-content-${value}`}
       data-state={active ? 'active' : 'inactive'}
       className={cn(
-        'inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-[18px] px-3.5 py-2 text-sm font-black tracking-[-0.01em] text-slate-400 transition-[background-color,color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#040b15] data-[state=active]:bg-[linear-gradient(180deg,rgba(234,109,44,0.98),rgba(189,73,19,0.98))] data-[state=active]:text-white data-[state=active]:shadow-[0_12px_28px_rgba(198,93,46,0.24),inset_0_1px_0_rgba(255,255,255,0.18)]',
+        'inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-[background-color,color,box-shadow] duration-150 hover:bg-white/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm',
         className,
       )}
       onClick={(event) => {

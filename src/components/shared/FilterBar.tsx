@@ -10,7 +10,7 @@ interface FilterBarProps {
 
 export function FilterBar({ className, children }: FilterBarProps) {
   return (
-    <Card className={cn('grid gap-3 rounded-[22px] border-white/10 bg-[#07111f]/88 p-4', className)}>
+    <Card className={cn('grid gap-3 p-4 shadow-none', className)}>
       {children}
     </Card>
   )
