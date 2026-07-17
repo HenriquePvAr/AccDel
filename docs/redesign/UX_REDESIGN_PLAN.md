@@ -184,4 +184,3 @@ Não registrar nome, telefone, endereço, observação livre ou token.
 - controles falsos são removidos do header;
 - navegação por teclado e nomes acessíveis verificados;
 - screenshots desktop/tablet/mobile registradas.
-

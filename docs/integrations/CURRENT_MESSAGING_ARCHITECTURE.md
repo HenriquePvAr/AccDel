@@ -76,4 +76,3 @@ Evolution webhook
 ## Regra de migracao
 
 `WHATSAPP_PROVIDER=cloud` sera o caminho principal. `evolution_api` continuara disponivel somente quando selecionado explicitamente; nao havera fallback automatico nem dois providers processando a mesma conta. A rota legada nao deve ficar exposta quando o provider ativo for Cloud.
-

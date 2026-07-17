@@ -181,4 +181,3 @@ Evitar “Sucesso!”, “Ops!”, abreviações ambíguas e afirmações de seg
 | Use uma ação primária clara | Exibir cinco CTAs equivalentes no card |
 | Minimize PII na lista | Mostrar telefone/endereço completo em todas as filas |
 | Preserve confirmação destrutiva | Reduzir cliques removendo segurança |
-
