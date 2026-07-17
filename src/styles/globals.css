@@ -132,12 +132,12 @@
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: rgba(102, 112, 133, 0.32) transparent;
+    scrollbar-color: transparent transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
@@ -145,12 +145,26 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(102, 112, 133, 0.32);
+    background: transparent;
     border-radius: 999px;
   }
 
+  .scrollbar-thin:hover {
+    scrollbar-color: rgba(102, 112, 133, 0.38) transparent;
+  }
+
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb,
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: rgba(102, 112, 133, 0.5);
+    background: rgba(102, 112, 133, 0.38);
+  }
+
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
   }
 
   .admin-shell {
@@ -262,7 +276,7 @@
 
   @media (max-width: 1279px) {
     .admin-shell main {
-      padding-bottom: calc(76px + env(safe-area-inset-bottom));
+      padding-bottom: calc(96px + env(safe-area-inset-bottom));
     }
   }
 

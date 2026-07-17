@@ -14,7 +14,6 @@ import {
   Route,
   Search,
   StickyNote,
-  Wifi,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -82,24 +81,24 @@ interface KanbanColumnConfig {
 const kanbanColumnByStatus: Record<KanbanStatus, KanbanColumnConfig> = {
   in_analysis: {
     status: 'in_analysis',
-    title: 'Em analise',
-    mobileTitle: 'Analise',
+    title: 'Novos',
+    mobileTitle: 'Novos',
     description: 'Pedidos aguardando aceite.',
     tone: 'cyan',
     dotClass: 'bg-sky-600',
   },
   in_preparation: {
     status: 'in_preparation',
-    title: 'Producao',
-    mobileTitle: 'Producao',
+    title: 'Em preparo',
+    mobileTitle: 'Em preparo',
     description: 'Pedidos em preparo na cozinha.',
     tone: 'orange',
     dotClass: 'bg-orange-600',
   },
   ready: {
     status: 'ready',
-    title: 'Pronto',
-    mobileTitle: 'Pronto',
+    title: 'Prontos',
+    mobileTitle: 'Prontos',
     description: 'Aguardando despacho ou retirada.',
     tone: 'green',
     dotClass: 'bg-emerald-600',
@@ -139,9 +138,9 @@ const sourceOptions: Array<{ value: SourceFilter; label: string }> = [
 
 const statusOptions: Array<{ value: KanbanStatusFilter; label: string }> = [
   { value: 'all', label: 'Todos' },
-  { value: 'in_analysis', label: 'Em analise' },
-  { value: 'in_preparation', label: 'Producao' },
-  { value: 'ready', label: 'Pronto' },
+  { value: 'in_analysis', label: 'Novos' },
+  { value: 'in_preparation', label: 'Em preparo' },
+  { value: 'ready', label: 'Prontos' },
   { value: 'out_for_delivery', label: 'Em rota' },
   { value: 'completed', label: 'Concluido' },
 ]
@@ -365,6 +364,15 @@ export function OrdersPage() {
       ),
     [delayedOnly, operationalView, printIssueOrderIds, quickFilter, searchedOrders, selectedStatus],
   )
+  const displayedDesktopColumns = useMemo(
+    () =>
+      delayedOnly || quickFilter === 'late'
+        ? activeColumns.filter((column) =>
+            boardOrders.some((order) => order.status === column.status),
+          )
+        : activeColumns,
+    [activeColumns, boardOrders, delayedOnly, quickFilter],
+  )
   const counts = useMemo(
     () => ({
       in_analysis: searchedOrders.filter((order) => order.status === 'in_analysis').length,
@@ -472,7 +480,7 @@ export function OrdersPage() {
     updateOrderStatus.mutate({
       orderId,
       action,
-      actor: action === 'ready' ? 'Cozinha' : 'Operacao',
+      actor: action === 'ready' ? 'Cozinha' : 'Equipe',
     })
   }
 
@@ -513,6 +521,16 @@ export function OrdersPage() {
   const applyQuickFilter = (value: QuickFilter) => {
     setQuickFilter(value)
     setDelayedOnly(value === 'late')
+
+    if (value === 'late') {
+      const firstLateStatus = getOperationalStatuses(operationalView).find((status) =>
+        searchedOrders.some((order) => order.status === status && isOrderLate(order)),
+      )
+
+      if (firstLateStatus) {
+        setActiveMobileStatus(firstLateStatus)
+      }
+    }
   }
 
   const activeFilterCount = [
@@ -528,10 +546,7 @@ export function OrdersPage() {
       <header className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
-              Operacao ao vivo
-            </p>
-            <h1 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-[28px]">Central de pedidos</h1>
+            <h1 className="text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-[28px]">Central de pedidos</h1>
           </div>
 
           <div
@@ -567,7 +582,7 @@ export function OrdersPage() {
               )}
             >
               <Bike className="h-4 w-4" />
-              Expedicao
+              Entrega
             </button>
           </div>
         </div>
@@ -613,8 +628,7 @@ export function OrdersPage() {
                 ordersQuery.isFetching ? 'bg-orange-300' : 'bg-emerald-400',
               )}
             />
-            <Wifi className="h-4 w-4 text-muted-foreground" />
-            {ordersQuery.isFetching ? 'Sincronizando' : 'Ao vivo'}
+            {ordersQuery.isFetching ? 'Atualizando' : 'Atualizado'}
           </div>
           <Button
             type="button"
@@ -634,7 +648,7 @@ export function OrdersPage() {
               aria-expanded={filtersOpen}
               aria-label="Abrir filtros de pedidos"
               onClick={() => setFiltersOpen((current) => !current)}
-              className="h-12 px-3 sm:h-11 sm:px-4"
+              className="hidden h-12 px-3 sm:inline-flex sm:h-11 sm:px-4"
             >
               <Filter className="h-4 w-4" />
               <span className="hidden sm:inline">Filtros</span>
@@ -660,6 +674,37 @@ export function OrdersPage() {
                     </Button>
                   </div>
                 <div className="space-y-4">
+                  <div className="space-y-2 sm:hidden">
+                    <p className="text-xs font-semibold text-foreground">Filtros rápidos</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ['all', 'Todos', allOrders.length],
+                        ['late', 'Atrasados', counts.delayed],
+                        ['priority', 'Prioridade', counts.priority],
+                        ['no_driver', 'Sem entregador', counts.noDriver],
+                        ['print_failure', 'Falha de impressão', counts.printFailure],
+                      ] as Array<[QuickFilter, string, number]>).map(([value, label, count]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={quickFilter === value}
+                          onClick={() => {
+                            applyQuickFilter(value)
+                            setFiltersOpen(false)
+                          }}
+                          className={cn(
+                            'flex min-h-11 items-center justify-between gap-2 rounded-lg border px-3 text-left text-xs font-semibold',
+                            quickFilter === value
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-border bg-white text-foreground',
+                          )}
+                        >
+                          <span>{label}</span>
+                          {value !== 'all' ? <span className="font-mono">{count}</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-foreground">
                       Tipo de pedido
@@ -742,13 +787,51 @@ export function OrdersPage() {
           </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-thin" aria-label="Filtros rapidos">
+          <div className="grid grid-cols-4 gap-2 sm:hidden" aria-label="Filtros rápidos">
             {([
               ['all', 'Todos', allOrders.length],
               ['late', 'Atrasados', counts.delayed],
               ['priority', 'Prioridade', counts.priority],
-              ['no_driver', 'Sem motoboy', counts.noDriver],
-              ['print_failure', 'Falha de impressao', counts.printFailure],
+            ] as Array<[QuickFilter, string, number]>).map(([value, label, count]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={quickFilter === value}
+                onClick={() => applyQuickFilter(value)}
+                className={cn(
+                  'flex h-10 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold transition-colors',
+                  quickFilter === value
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border bg-white text-muted-foreground',
+                )}
+              >
+                <span className="truncate">{label}</span>
+                {value !== 'all' ? <span className="font-mono">{count}</span> : null}
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen(true)}
+              className={cn(
+                'flex h-10 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold',
+                quickFilter === 'no_driver' || quickFilter === 'print_failure'
+                  ? 'border-primary bg-primary text-white'
+                  : 'border-border bg-white text-muted-foreground',
+              )}
+            >
+              Mais
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <div className="hidden gap-2 overflow-x-auto pb-0.5 sm:flex scrollbar-thin" aria-label="Filtros rápidos">
+            {([
+              ['all', 'Todos', allOrders.length],
+              ['late', 'Atrasados', counts.delayed],
+              ['priority', 'Prioridade', counts.priority],
+              ['no_driver', 'Sem entregador', counts.noDriver],
+              ['print_failure', 'Falha de impressão', counts.printFailure],
             ] as Array<[QuickFilter, string, number]>).map(([value, label, count]) => (
               <button
                 key={value}
@@ -769,9 +852,9 @@ export function OrdersPage() {
           </div>
 
           {activeFilterCount ? (
-            <div className="flex gap-2 overflow-x-auto scrollbar-thin" aria-label="Filtros aplicados">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hidden" aria-label="Filtros aplicados">
               {quickFilter !== 'all' ? (
-                <ActiveFilterChip label={quickFilter === 'late' ? 'Atrasados' : quickFilter === 'priority' ? 'Prioridade' : quickFilter === 'no_driver' ? 'Sem motoboy' : 'Falha de impressao'} onRemove={() => applyQuickFilter('all')} />
+                <ActiveFilterChip label={quickFilter === 'late' ? 'Atrasados' : quickFilter === 'priority' ? 'Prioridade' : quickFilter === 'no_driver' ? 'Sem entregador' : 'Falha de impressão'} onRemove={() => applyQuickFilter('all')} />
               ) : null}
               {selectedSource !== 'all' ? <ActiveFilterChip label={sourceOptions.find((item) => item.value === selectedSource)?.label ?? selectedSource} onRemove={() => setSource('all')} /> : null}
               {selectedStatus !== 'all' ? <ActiveFilterChip label={statusOptions.find((item) => item.value === selectedStatus)?.label ?? selectedStatus} onRemove={() => setStatus('all')} /> : null}
@@ -782,7 +865,7 @@ export function OrdersPage() {
         </div>
       </header>
 
-      <section className="hidden gap-2 xl:flex" aria-label="Resumo da operacao">
+      <section className="hidden gap-2 xl:flex" aria-label="Resumo dos pedidos">
         {activeColumns.map((column) => (
           <SummaryChip
             key={column.status}
@@ -825,7 +908,7 @@ export function OrdersPage() {
           <ClipboardList className="mx-auto h-8 w-8 text-red-700" />
           <h2 className="mt-4 text-xl font-bold text-red-950">Nao foi possivel carregar pedidos</h2>
           <p className="mt-2 text-sm text-red-800">
-            Verifique sua conexao e tente atualizar a operacao.
+            Verifique sua conexão e tente atualizar.
           </p>
           <Button
             type="button"
@@ -841,7 +924,7 @@ export function OrdersPage() {
             <div
               className="mb-3 grid grid-cols-3 gap-2"
               role="tablist"
-              aria-label="Etapas da operacao"
+              aria-label="Etapas dos pedidos"
             >
               {activeColumns.map((column) => (
                 <button
@@ -898,8 +981,8 @@ export function OrdersPage() {
               })}
           </div>
 
-          <div className="hidden gap-4 xl:grid xl:grid-cols-3">
-            {activeColumns.map((column) => {
+          <div className="hidden gap-4 xl:grid xl:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+            {displayedDesktopColumns.map((column) => {
               const orders = boardOrders.filter((order) => order.status === column.status)
 
               return (
@@ -930,7 +1013,7 @@ export function OrdersPage() {
           <EmptyState
             icon={<ClipboardList className="h-5 w-5" />}
             title="Nenhum pedido encontrado"
-            description="Ajuste busca ou filtros para encontrar pedidos neste fluxo operacional."
+            description="Tente mudar a busca ou remover algum filtro."
           />
         </div>
       )}
@@ -965,7 +1048,7 @@ export function OrdersPage() {
       <ConfirmActionDialog
         open={Boolean(pendingCancelId)}
         title="Recusar ou cancelar pedido"
-        description="Essa acao registra a alteracao no historico e remove o pedido do fluxo operacional ativo."
+        description="Essa ação registra a mudança no histórico e remove o pedido da lista atual."
         confirmLabel="Confirmar"
         onOpenChange={(open) => {
           if (!open) {
@@ -978,7 +1061,7 @@ export function OrdersPage() {
               {
                 orderId: pendingCancelId,
                 action: 'cancel',
-                actor: 'Operacao',
+                actor: 'Equipe',
               },
               {
                 onSuccess: () => {
@@ -1119,7 +1202,7 @@ function KanbanOrderColumn({
 
         {!orders.length ? (
           <div className="rounded-lg border border-dashed border-border bg-white/70 px-4 py-8 text-center">
-            <p className="text-sm font-medium text-muted-foreground">Nenhum pedido nesta etapa.</p>
+            <p className="text-sm font-medium text-muted-foreground">Nenhum pedido aqui agora.</p>
           </div>
         ) : null}
       </div>
