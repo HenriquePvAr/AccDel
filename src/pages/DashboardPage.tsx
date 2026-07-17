@@ -478,7 +478,12 @@ export function DashboardPage() {
             >
               {snapshot && snapshot.revenueSeries.length > 0 ? (
                 <div className="h-[280px] min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={0}
+                    initialDimension={{ width: 600, height: 280 }}
+                  >
                     <LineChart data={snapshot.revenueSeries}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="label" stroke="#667078" tickLine={false} />
