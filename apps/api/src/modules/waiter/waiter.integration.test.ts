@@ -181,7 +181,7 @@ test(
         where: { id: waiterA },
         data: { name: 'Garcom A Renomeado' },
       })
-      await inStoreA(() => waiter.sendItems(sessionId, sendPayload(2, productId), asWaiterA))
+      await inStoreA(() => waiter.sendItems(sessionId, sendPayload(2, productId, 2), asWaiterA))
       const secondItem = await prisma.tableSessionItem.findFirstOrThrow({
         where: { sessionId, id: { not: firstItem.id } },
         include: { productionOrder: true },
@@ -241,9 +241,9 @@ function authUser(id: string, storeId: string, name: string): AuthenticatedReque
   }
 }
 
-function sendPayload(expectedVersion: number, productId: string) {
+function sendPayload(expectedVersion: number, productId: string, quantity = 1) {
   return {
     expectedVersion,
-    items: [{ productId, quantity: 1, notes: 'Teste integrado', options: [] }],
+    items: [{ productId, quantity, notes: 'Teste integrado', options: [] }],
   }
 }
