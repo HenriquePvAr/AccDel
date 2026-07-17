@@ -36,7 +36,7 @@ export function AiDashboardTab() {
   if (!dashboard) {
     return (
       <Alert variant="danger">
-        <AlertTitle>Dashboard indisponivel</AlertTitle>
+        <AlertTitle>Resumo indisponível</AlertTitle>
         <AlertDescription>Os indicadores do atendimento nao ficaram disponiveis.</AlertDescription>
       </Alert>
     )
@@ -73,7 +73,7 @@ export function AiDashboardTab() {
         />
         <MetricCard
           icon={<Bot className="h-5 w-5" />}
-          label="Mensagens IA"
+          label="Respostas automáticas"
           value={dashboard.kpis.messagesSentToday}
           description={`${dashboard.kpis.messagesReceivedToday} recebidas hoje`}
         />
@@ -96,7 +96,7 @@ export function AiDashboardTab() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
-              Produtos pedidos via IA
+              Produtos mais pedidos
             </CardTitle>
             <CardDescription>
               Agregado a partir de orderDrafts reais da ultima semana.
@@ -123,7 +123,7 @@ export function AiDashboardTab() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyDashboardCopy text="Ainda nao ha orderDrafts reais suficientes para produtos mais pedidos." />
+              <EmptyDashboardCopy text="Ainda não há pedidos suficientes para mostrar os produtos mais pedidos." />
             )}
           </CardContent>
         </Card>
@@ -132,13 +132,13 @@ export function AiDashboardTab() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock3 className="h-5 w-5 text-primary" />
-              Tempo operacional
+              Tempo de resposta
             </CardTitle>
             <CardDescription>Calculado a partir de mensagens e assuncoes reais.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <OperationalLine
-              label="Resposta media da IA"
+              label="Resposta automática"
               value={formatDuration(dashboard.kpis.averageResponseMs)}
             />
             <OperationalLine
@@ -159,14 +159,14 @@ export function AiDashboardTab() {
       <div className="grid gap-5 xl:grid-cols-2">
         <RankedBarCard
           title="Sabores e opcoes mais pedidos"
-          description="Lido dos orderDrafts reais gerados pela IA."
+          description="Opções presentes nos pedidos sugeridos."
           data={optionChartData}
           emptyText="Ainda nao ha sabores ou opcoes suficientes nos orderDrafts."
           primaryColor="#06b6d4"
           secondaryColor="#22c55e"
         />
         <RankedBarCard
-          title="Categorias mais vendidas pela IA"
+          title="Categorias mais pedidas"
           description="Resolvido contra produtos/categorias reais do catalogo."
           data={categoryChartData}
           emptyText="Ainda nao ha categorias resolvidas nos orderDrafts."
@@ -266,7 +266,7 @@ export function AiDashboardTab() {
                   </div>
                 ))
               ) : (
-                <EmptyDashboardCopy text="Nenhum evento de integracao registrado hoje." />
+                <EmptyDashboardCopy text="Nenhuma atualização registrada hoje." />
               )}
             </div>
           </CardContent>

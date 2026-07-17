@@ -79,7 +79,7 @@ const statuses: Array<{ value: PrintJobStatus | 'all'; label: string }> = [
 ]
 
 export function PrintingSettingsPage() {
-  usePageTitle('Impressao termica')
+  usePageTitle('Impressão')
   const canManage = useCan('printing:manage')
   const canReprint = useCan('printing:reprint')
   const [jobStatus, setJobStatus] = useState<PrintJobStatus | 'all'>('all')
@@ -100,9 +100,8 @@ export function PrintingSettingsPage() {
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="Operacao local"
-        title="Impressao termica"
-        description="Acompanhe a fila, recupere falhas e confira as impressoras da loja."
+        title="Impressão"
+        description="Acompanhe e recupere impressões da loja."
         actions={
           <Button
             type="button"
@@ -147,8 +146,8 @@ export function PrintingSettingsPage() {
               <TabsTrigger value="queue"><Clock3 className="h-4 w-4" /> Fila</TabsTrigger>
               <TabsTrigger value="printers"><PrinterIcon className="h-4 w-4" /> Impressoras</TabsTrigger>
               <TabsTrigger value="agents"><Server className="h-4 w-4" /> Computadores</TabsTrigger>
-              <TabsTrigger value="routing"><Route className="h-4 w-4" /> Destinos</TabsTrigger>
-              <TabsTrigger value="policies"><Settings2 className="h-4 w-4" /> Regras</TabsTrigger>
+              <TabsTrigger value="routing"><Route className="h-4 w-4" /> Onde imprimir</TabsTrigger>
+              <TabsTrigger value="policies"><Settings2 className="h-4 w-4" /> Quando imprimir</TabsTrigger>
             </TabsList>
 
             <TabsContent value="policies">
@@ -205,10 +204,10 @@ function Metrics({ overview }: { overview: PrintingOverviewResponse['data'] }) {
     (overview.jobCounts.PRINTING ?? 0) +
     (overview.jobCounts.RETRY_WAIT ?? 0)
   const values = [
-    { label: 'Sistema', value: overview.settings.enabled ? 'Ativo' : 'Desativado', tone: overview.settings.enabled ? 'success' : 'warning' },
-    { label: 'Computadores conectados', value: String(overview.agents.filter((agent) => agent.online).length), tone: 'success' },
-    { label: 'Impressoes na fila', value: String(pending), tone: pending > 0 ? 'warning' : 'default' },
-    { label: 'Precisam de revisao', value: String(overview.jobCounts.PRINT_RESULT_UNKNOWN ?? 0), tone: (overview.jobCounts.PRINT_RESULT_UNKNOWN ?? 0) > 0 ? 'danger' : 'default' },
+    { label: 'Funcionamento', value: overview.settings.enabled ? 'Ativo' : 'Desativado', tone: overview.settings.enabled ? 'success' : 'warning' },
+    { label: 'Pontos conectados', value: String(overview.agents.filter((agent) => agent.online).length), tone: 'success' },
+    { label: 'Na fila', value: String(pending), tone: pending > 0 ? 'warning' : 'default' },
+    { label: 'Com problema', value: String(overview.jobCounts.PRINT_RESULT_UNKNOWN ?? 0), tone: (overview.jobCounts.PRINT_RESULT_UNKNOWN ?? 0) > 0 ? 'danger' : 'default' },
   ] as const
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -263,12 +262,12 @@ function PolicyPanel({
     <form onSubmit={(event) => void save(event)} className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Eventos e documentos</CardTitle>
-          <CardDescription>Escolha quais momentos da operacao devem gerar uma impressao.</CardDescription>
+          <CardTitle>Quando imprimir</CardTitle>
+          <CardDescription>Escolha quando uma impressão deve ser criada.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
           <Toggle label="Impressao habilitada" checked={draft.enabled} disabled={!canManage} onChange={(enabled) => setDraft({ ...draft, enabled })} />
-          <Toggle label="Expedicao ao ficar pronto" checked={draft.printOrderReady} disabled={!canManage} onChange={(printOrderReady) => setDraft({ ...draft, printOrderReady })} />
+          <Toggle label="Imprimir quando ficar pronto" checked={draft.printOrderReady} disabled={!canManage} onChange={(printOrderReady) => setDraft({ ...draft, printOrderReady })} />
           <Toggle label="Caixa ao confirmar pagamento" checked={draft.printPaymentConfirmed} disabled={!canManage} onChange={(printPaymentConfirmed) => setDraft({ ...draft, printPaymentConfirmed })} />
           <Toggle label="Aviso de cancelamento" checked={draft.printCancellation} disabled={!canManage} onChange={(printCancellation) => setDraft({ ...draft, printCancellation })} />
           <Toggle label="Via do cliente" checked={draft.customerReceiptEnabled} disabled={!canManage} onChange={(customerReceiptEnabled) => setDraft({ ...draft, customerReceiptEnabled })} />
@@ -557,7 +556,7 @@ function QueuePanel({
               <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge variant={meta.variant}>{meta.label}</Badge><Badge>{printTypeLabel(job.jobType)}</Badge></div><p className="mt-2 font-semibold text-white">{job.station?.name ?? job.stationCode ?? 'Sem setor'} · {job.printer?.name ?? 'Sem impressora'}</p><p className="mt-1 text-xs text-slate-500">Tentativa {job.attemptCount}/{job.maxAttempts} · criada em {formatDate(job.createdAt)}</p>{job.lastErrorCode ? <p className="mt-2 text-sm font-semibold text-amber-800">{printErrorMessage(job)}</p> : null}</div>
               <div className="flex flex-wrap gap-2">{canManage && retryable ? <Button type="button" size="sm" disabled={retry.isPending} onClick={() => void retry.mutateAsync(job.id).catch((cause) => toast.danger('Falha ao tentar novamente', errorMessage(cause)))}><RotateCcw className="h-3.5 w-3.5" /> Tentar novamente</Button> : null}{canManage && cancellable ? <Button type="button" size="sm" variant="outline" onClick={() => void cancelJob(job)}>Cancelar</Button> : null}{canReprint && !active ? <Button type="button" size="sm" onClick={() => void reprintJob(job)}><PrinterIcon className="h-3.5 w-3.5" /> Reimprimir</Button> : null}</div>
             </div>
-            <details className="mt-3 rounded-lg bg-muted/45 px-3 py-2 text-xs text-muted-foreground"><summary className="cursor-pointer font-semibold text-foreground">Detalhes tecnicos</summary><div className="mt-2 space-y-1 font-mono"><p>Impressao {shortId(job.id)} · tipo {job.jobType}</p><p>Modelo {job.templateKey}:{job.templateVersion}</p>{job.lastErrorCode ? <p>Codigo {job.lastErrorCode}</p> : null}{job.attempts.map((attempt) => <p key={attempt.id}>#{attempt.attemptNumber} · {attempt.status} · {attempt.durationMs ?? '—'} ms {attempt.errorCode ? `· ${attempt.errorCode}` : ''}</p>)}</div></details>
+            <details className="mt-3 rounded-lg bg-muted/45 px-3 py-2 text-xs text-muted-foreground"><summary className="cursor-pointer font-semibold text-foreground">Detalhes da impressão</summary><div className="mt-2 space-y-1 font-mono"><p>Impressão {shortId(job.id)} · tipo {job.jobType}</p><p>Modelo {job.templateKey}:{job.templateVersion}</p>{job.lastErrorCode ? <p>Código {job.lastErrorCode}</p> : null}{job.attempts.map((attempt) => <p key={attempt.id}>#{attempt.attemptNumber} · {attempt.status} · {attempt.durationMs ?? '—'} ms {attempt.errorCode ? `· ${attempt.errorCode}` : ''}</p>)}</div></details>
           </div>
         })}
         {!loading && !jobs.length ? <EmptyState icon={<Clock3 className="h-5 w-5" />} text="Nenhuma impressao encontrada neste filtro." /> : null}
@@ -664,5 +663,5 @@ function formatDate(value: string) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Erro inesperado na operacao de impressao.'
+  return error instanceof Error ? error.message : 'Erro inesperado ao imprimir.'
 }

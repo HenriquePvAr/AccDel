@@ -71,7 +71,7 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 }
 
 export function DashboardPage() {
-  usePageTitle('Dashboard operacional')
+  usePageTitle('Visão geral')
   const [period, setPeriod] = useState<DashboardPeriod>('today')
 
   const reportsQuery = useReportsQuery({ period })
@@ -130,7 +130,7 @@ export function DashboardPage() {
       ? { id: 'cash-unavailable', label: 'Caixa indisponivel', to: '/cash-register', tone: 'danger' as const }
       : null,
     driversQuery.isError
-      ? { id: 'drivers-unavailable', label: 'Expedicao indisponivel', to: '/drivers/location', tone: 'danger' as const }
+      ? { id: 'drivers-unavailable', label: 'Entrega indisponível', to: '/drivers/location', tone: 'danger' as const }
       : null,
     aiDashboardQuery.isError
       ? { id: 'ai-unavailable', label: 'Atendimento indisponivel', to: '/ai-attendant', tone: 'warning' as const }
@@ -159,9 +159,8 @@ export function DashboardPage() {
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="Operacao"
-        title="Dashboard operacional"
-        description="Veja o que exige acao agora e entre direto na fila certa."
+        title="Visão geral"
+        description="Veja o que precisa ser resolvido agora."
         actions={
           <div className="inline-flex rounded-lg bg-muted p-1">
             {periodOptions.map((option) => (
@@ -178,12 +177,11 @@ export function DashboardPage() {
         }
       />
 
-      <section className="flex flex-col gap-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center" aria-label="Alertas operacionais">
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center" aria-label="Alertas">
         <div className="flex min-w-0 items-center gap-2 sm:w-52">
           <AlertTriangle className={cn('h-4 w-4 shrink-0', operationalAlerts.length ? 'text-red-700' : 'text-emerald-700')} />
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-foreground">Precisa de atencao</h2>
-            <p className="text-xs text-muted-foreground">Prioridades da operacao agora</p>
+            <h2 className="text-sm font-semibold text-foreground">Precisa de atenção</h2>
           </div>
         </div>
         <div className="flex min-w-0 flex-1 flex-wrap gap-2">
@@ -222,8 +220,7 @@ export function DashboardPage() {
           <section aria-labelledby="dashboard-now-title">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Agora</p>
-                <h2 id="dashboard-now-title" className="mt-1 text-xl font-bold text-foreground">Fila operacional</h2>
+                <h2 id="dashboard-now-title" className="text-xl font-bold text-foreground">Pedidos agora</h2>
               </div>
               <p className="hidden text-sm text-muted-foreground sm:block">Toque em um indicador para agir</p>
             </div>
@@ -237,7 +234,7 @@ export function DashboardPage() {
                 icon={<AlertTriangle className="h-5 w-5" />}
               />
               <PrioritySignalCard
-                label="Aguardando aceite"
+                label="Novos"
                 value={formatNullableNumber(kitchenQueue?.summary.awaiting)}
                 caption="novos pedidos"
                 to="/orders"
@@ -249,7 +246,7 @@ export function DashboardPage() {
                 value={formatNullableNumber(kitchenQueue?.summary.inProduction)}
                 caption="na cozinha"
                 to="/kitchen"
-                tone="warning"
+                tone="info"
                 icon={<ChefHat className="h-5 w-5" />}
               />
               <PrioritySignalCard
@@ -283,12 +280,12 @@ export function DashboardPage() {
             <OperationalSection
               icon={<ChefHat className="h-4 w-4" />}
               title="Cozinha"
-              description="Fila de preparo em tempo real."
+              description="Pedidos que estão na cozinha."
               status={
                 kitchenQuery.isError
                   ? 'indisponivel'
                   : kitchenQueue
-                    ? 'ao vivo'
+                    ? 'atualizado'
                     : 'carregando'
               }
             >
@@ -301,7 +298,7 @@ export function DashboardPage() {
                 <SignalTile
                   title="Em preparo"
                   value={formatNullableNumber(kitchenQueue?.summary.inProduction)}
-                  caption="em producao agora"
+                  caption="sendo preparados"
                   tone="warning"
                 />
                 <SignalTile
@@ -327,8 +324,8 @@ export function DashboardPage() {
 
             <OperationalSection
               icon={<Bike className="h-4 w-4" />}
-              title="Motoboys"
-              description="Disponibilidade e desempenho no periodo selecionado."
+              title="Entregas"
+              description="Disponibilidade e entregas recentes."
               status={
                 driversQuery.isError
                   ? 'indisponivel'
@@ -363,8 +360,8 @@ export function DashboardPage() {
                 />
               </SignalGrid>
               <SummaryList
-                title="Ranking do periodo"
-                emptyMessage="Sem entregas concluidas no periodo."
+                title="Entregas recentes"
+                emptyMessage="Nenhuma entrega concluída aqui ainda."
                 rows={snapshot?.driverSummaries.slice(0, 4).map((row) => ({
                   id: row.id,
                   label: row.name,
@@ -377,8 +374,7 @@ export function DashboardPage() {
 
           <section aria-labelledby="dashboard-results-title">
             <div className="mb-3">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Abaixo da operacao</p>
-              <h2 id="dashboard-results-title" className="mt-1 text-xl font-bold text-foreground">Resultado do periodo</h2>
+              <h2 id="dashboard-results-title" className="text-xl font-bold text-foreground">Resultados</h2>
             </div>
             {snapshot ? (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -660,8 +656,8 @@ function PrioritySignalCard({
   icon: ReactNode
 }) {
   const toneClasses = {
-    info: 'border-blue-200 bg-blue-50 text-blue-700',
-    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    info: 'border-border border-l-blue-500 bg-white text-foreground',
+    success: 'border-border border-l-emerald-500 bg-white text-foreground',
     warning: 'border-amber-200 bg-amber-50 text-amber-800',
     danger: 'border-red-200 bg-red-50 text-red-700',
   }[tone]
@@ -679,7 +675,11 @@ function PrioritySignalCard({
         <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-current">{value}</p>
         <p className="mt-1 text-xs font-semibold opacity-80">{caption}</p>
       </div>
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 shadow-sm transition group-hover:scale-105">
+      <span className={cn(
+        'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm transition group-hover:scale-105',
+        tone === 'info' && 'text-blue-700',
+        tone === 'success' && 'text-emerald-700',
+      )}>
         {icon}
       </span>
     </Link>
@@ -731,9 +731,9 @@ function SignalTile({ title, value, caption, tone = 'default', icon }: SignalTil
     <div
       className={cn(
         'rounded-lg border p-3',
-        tone === 'default' && 'border-border bg-muted/45',
-        tone === 'success' && 'border-emerald-200 bg-emerald-50',
-        tone === 'warning' && 'border-amber-200 bg-amber-50',
+        tone === 'default' && 'border-border bg-white',
+        tone === 'success' && 'border-border border-l-emerald-500 bg-white',
+        tone === 'warning' && 'border-border border-l-amber-500 bg-white',
         tone === 'danger' && 'border-red-200 bg-red-50',
       )}
     >

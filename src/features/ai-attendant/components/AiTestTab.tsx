@@ -399,7 +399,7 @@ function RealWhatsappMode() {
                 rows={5}
                 maxLength={2000}
                 className="min-h-32 w-full resize-y rounded-xl border border-white/10 bg-[#071525] px-3 py-2 text-sm leading-6 text-slate-100 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-primary/70 focus:ring-2 focus:ring-primary/20"
-                placeholder="Mensagem operacional para validar envio real."
+                placeholder="Mensagem para validar o envio real."
               />
             </div>
 

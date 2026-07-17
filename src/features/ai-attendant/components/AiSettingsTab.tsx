@@ -100,7 +100,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
 
     if (form.assistantName.trim().length < 2 || form.mainPrompt.trim().length < 20) {
       pushToast({
-        title: 'Revise o comportamento da IA',
+        title: 'Revise as respostas automáticas',
         description: 'Nome do atendente e prompt principal precisam estar preenchidos.',
         variant: 'warning',
       })
@@ -146,15 +146,15 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5 text-primary" />
-            Operacao da IA
+            Respostas automáticas
           </CardTitle>
           <CardDescription>
-            Controle se a IA responde, sugere ou transfere conversas para humanos.
+            Escolha quando responder, sugerir ou transferir conversas para a equipe.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <ToggleRow
-            label="Atendente IA ativo"
+            label="Resposta automática ativa"
             description="Quando desligado, o modo salvo sera enviado como off."
             checked={form.isEnabled}
             onCheckedChange={(checked) =>
@@ -209,7 +209,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-primary" />
-            Comportamento da IA
+            Como responder
           </CardTitle>
           <CardDescription>
             Defina como o atendimento automatico deve falar e agir nas conversas.
@@ -440,7 +440,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
           />
           <ToggleRow
             label="Transferir cancelamentos"
-            description="Pedidos de cancelamento saem do fluxo automatico."
+            description="Pedidos de cancelamento aguardam a equipe."
             checked={form.transferOnCancellation}
             onCheckedChange={(checked) =>
               setForm((current) => ({ ...current, transferOnCancellation: checked }))
@@ -448,7 +448,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
           />
           <ToggleRow
             label="Transferir pedido de atendente"
-            description="Quando o cliente pedir humano, a conversa sai do fluxo automatico."
+            description="Quando o cliente pedir uma pessoa, a conversa aguarda a equipe."
             checked={form.transferOnHumanRequest}
             onCheckedChange={(checked) =>
               setForm((current) => ({ ...current, transferOnHumanRequest: checked }))

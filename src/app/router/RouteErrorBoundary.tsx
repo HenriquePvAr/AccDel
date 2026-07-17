@@ -1,5 +1,5 @@
 import { isRouteErrorResponse, useNavigate, useRouteError } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, RotateCcw } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Home } from 'lucide-react'
 
 import { PageShell } from '@/components/shared/PageShell'
 import { Button } from '@/components/ui/button'
@@ -8,8 +8,8 @@ function getErrorCopy(error: unknown) {
   if (isRouteErrorResponse(error)) {
     if (error.status === 404) {
       return {
-        title: 'Pagina nao encontrada',
-        description: 'Este endereco nao existe ou foi movido. Volte ao painel para continuar.',
+        title: 'Página não encontrada',
+        description: 'Este endereço não existe ou foi removido.',
       }
     }
 
@@ -48,9 +48,6 @@ export function RouteErrorBoundary() {
           <AlertTriangle className="h-7 w-7" />
         </div>
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Cain Delivery
-          </p>
           <h1 className="text-2xl font-semibold text-foreground">{copy.title}</h1>
           <p className="text-sm leading-6 text-muted-foreground">{copy.description}</p>
         </div>
@@ -59,12 +56,9 @@ export function RouteErrorBoundary() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar
           </Button>
-          <Button variant="secondary" onClick={() => window.location.reload()}>
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Recarregar
-          </Button>
           <Button onClick={() => navigate('/dashboard')}>
-            Voltar ao painel
+            <Home className="mr-2 h-4 w-4" />
+            Ir para o início
           </Button>
         </div>
       </div>

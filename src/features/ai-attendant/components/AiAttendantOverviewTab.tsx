@@ -55,7 +55,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           <AlertDescription>
             {loadingDelayed
               ? 'Os dados ainda nao responderam. Voce pode tentar novamente sem sair desta tela.'
-              : 'Verificando IA, conexao do WhatsApp e conversas pendentes.'}
+              : 'Verificando respostas automáticas, WhatsApp e conversas pendentes.'}
           </AlertDescription>
           {loadingDelayed ? (
             <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => void refetch()}>
@@ -104,7 +104,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <MetricTile
           icon={<Bot className="h-5 w-5" />}
-          label="Status IA"
+          label="Respostas automáticas"
           value={overview.aiActive ? 'Ativa' : 'Inativa'}
           detail={overview.aiActive ? 'Pronta para operar conforme modo.' : 'Nao responde clientes.'}
           tone={overview.aiActive ? 'success' : 'muted'}
@@ -127,7 +127,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           icon={<MessageSquare className="h-5 w-5" />}
           label="Conversas hoje"
           value={String(overview.conversationsToday)}
-          detail={`${overview.repliesSentToday} respostas da IA enviadas hoje.`}
+          detail={`${overview.repliesSentToday} respostas automáticas enviadas hoje.`}
           tone="default"
         />
         <MetricTile
@@ -141,7 +141,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           icon={<AlertCircle className="h-5 w-5" />}
           label="Erros"
           value={String(overview.integrationErrors)}
-          detail={overview.integrationErrors > 0 ? 'Ha falhas de integracao registradas.' : 'Sem erro registrado.'}
+          detail={overview.integrationErrors > 0 ? 'Há falhas registradas.' : 'Sem erro registrado.'}
           tone={overview.integrationErrors > 0 ? 'danger' : 'success'}
         />
       </div>
@@ -178,7 +178,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
               Base vazia
             </AlertTitle>
             <AlertDescription>
-              Cadastre FAQs, politicas e dados da loja para melhorar o contexto das respostas.
+              Cadastre perguntas, políticas e dados da loja para melhorar as respostas.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -187,7 +187,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           <Alert variant="danger">
             <AlertTitle>
               <AlertCircle className="h-4 w-4" />
-              Integracao com erro
+              Conexão com erro
             </AlertTitle>
             <AlertDescription>
               Abra WhatsApp ou Teste para consultar o motivo e tentar novamente.
@@ -211,7 +211,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
             disabled={updateSettings.isPending}
           >
             {overview.aiActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            {overview.aiActive ? 'Pausar IA' : 'Ativar IA'}
+            {overview.aiActive ? 'Pausar respostas' : 'Ativar respostas'}
           </Button>
           <Button variant="outline" size="sm" onClick={() => onNavigate('whatsapp')}>
             <Smartphone className="h-4 w-4" />

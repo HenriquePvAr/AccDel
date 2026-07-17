@@ -1,11 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { Bot, Brain, LayoutDashboard, MessageSquare, Settings, Smartphone, TestTube } from 'lucide-react'
+import { BarChart3, Brain, MessageSquare, Settings, Smartphone, TestTube } from 'lucide-react'
 
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AiAttendantOverviewTab } from '@/features/ai-attendant/components/AiAttendantOverviewTab'
 import { AiConversationsTab } from '@/features/ai-attendant/components/AiConversationsTab'
 import { AiDashboardTab } from '@/features/ai-attendant/components/AiDashboardTab'
 import { AiKnowledgeTab } from '@/features/ai-attendant/components/AiKnowledgeTab'
@@ -14,12 +13,12 @@ import { AiTestTab } from '@/features/ai-attendant/components/AiTestTab'
 import { AiWhatsappTab } from '@/features/ai-attendant/components/AiWhatsappTab'
 
 export type AiAttendantTabValue =
-  | 'overview'
   | 'dashboard'
   | 'whatsapp'
   | 'knowledge'
   | 'conversations'
   | 'settings'
+  | 'preferences'
   | 'test'
 
 interface AiAttendantPageTab {
@@ -30,16 +29,16 @@ interface AiAttendantPageTab {
 
 const tabs: AiAttendantPageTab[] = [
   { value: 'conversations', label: 'Conversas', icon: <MessageSquare className="h-4 w-4" /> },
-  { value: 'overview', label: 'Visao geral', icon: <Bot className="h-4 w-4" /> },
-  { value: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+  { value: 'dashboard', label: 'Resumo', icon: <BarChart3 className="h-4 w-4" /> },
   { value: 'whatsapp', label: 'WhatsApp', icon: <Smartphone className="h-4 w-4" /> },
-  { value: 'knowledge', label: 'Base', icon: <Brain className="h-4 w-4" /> },
-  { value: 'settings', label: 'Ajustes', icon: <Settings className="h-4 w-4" /> },
-  { value: 'test', label: 'Testar IA', icon: <TestTube className="h-4 w-4" /> },
+  { value: 'settings', label: 'Respostas automáticas', icon: <MessageSquare className="h-4 w-4" /> },
+  { value: 'knowledge', label: 'Base de conhecimento', icon: <Brain className="h-4 w-4" /> },
+  { value: 'test', label: 'Testar respostas', icon: <TestTube className="h-4 w-4" /> },
+  { value: 'preferences', label: 'Ajustes', icon: <Settings className="h-4 w-4" /> },
 ]
 
-const dailyTabs = tabs.filter((tab) => ['conversations', 'overview', 'dashboard'].includes(tab.value))
-const configurationTabs = tabs.filter((tab) => ['whatsapp', 'knowledge', 'settings', 'test'].includes(tab.value))
+const dailyTabs = tabs.filter((tab) => ['conversations', 'dashboard'].includes(tab.value))
+const configurationTabs = tabs.filter((tab) => ['whatsapp', 'settings', 'knowledge', 'test', 'preferences'].includes(tab.value))
 
 function isAiAttendantTabValue(value: string): value is AiAttendantTabValue {
   return tabs.some((tab) => tab.value === value)
@@ -51,9 +50,8 @@ export function AiAttendantPage() {
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="Atendimento"
-        title="Central de conversas"
-        description="Acompanhe clientes, assuma conversas e consulte o pedido sem sair da tela."
+        title="Conversas"
+        description="Atenda clientes e acompanhe seus pedidos."
       />
 
       <Card>
@@ -97,9 +95,6 @@ export function AiAttendantPage() {
             </div>
 
             <div className="p-3 sm:p-4">
-              <TabsContent value="overview">
-                <AiAttendantOverviewTab onNavigate={setActiveTab} />
-              </TabsContent>
               <TabsContent value="dashboard">
                 <AiDashboardTab />
               </TabsContent>
@@ -113,6 +108,9 @@ export function AiAttendantPage() {
                 <AiConversationsTab />
               </TabsContent>
               <TabsContent value="settings">
+                <AiSettingsTab />
+              </TabsContent>
+              <TabsContent value="preferences">
                 <AiSettingsTab />
               </TabsContent>
               <TabsContent value="test">

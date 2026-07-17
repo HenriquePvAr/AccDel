@@ -121,7 +121,7 @@ export function AiConversationsTab() {
           <AlertDescription>
             {loadingDelayed
               ? 'A conexao ainda nao respondeu. Tente novamente sem recarregar todo o painel.'
-              : 'Sincronizando clientes, mensagens e contexto dos pedidos.'}
+              : 'Carregando clientes, mensagens e pedidos.'}
           </AlertDescription>
           {loadingDelayed ? (
             <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => void refetch()}>
@@ -503,14 +503,14 @@ function ConversationContextPanel({ conversation }: { conversation: AiConversati
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
-          Contexto
+          Detalhes
         </CardTitle>
         <CardDescription>Cliente, historico e rascunho detectado pela IA.</CardDescription>
       </CardHeader>
       <CardContent className="max-h-[620px] space-y-4 overflow-y-auto pr-2 scrollbar-thin">
         {!conversation ? (
           <p className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
-            Selecione uma conversa para ver contexto real.
+            Selecione uma conversa para ver os detalhes.
           </p>
         ) : (
           <>
