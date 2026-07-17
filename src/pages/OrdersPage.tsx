@@ -12,8 +12,10 @@ import {
   Package,
   RefreshCcw,
   Route,
+  Search,
   StickyNote,
   Wifi,
+  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -51,6 +53,7 @@ import {
   useDriversQuery,
   useOrderByIdQuery,
   useOrdersQuery,
+  usePrintJobsQuery,
   useUpdateOrderStatusMutation,
 } from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
@@ -65,6 +68,7 @@ type KanbanStatus = OperationalStatus
 type KanbanStatusFilter = KanbanStatus | 'all'
 type SourceFilter = Extract<OrderChannel, 'delivery' | 'counter' | 'pickup'> | 'all'
 type SortOption = 'recent' | 'oldest' | 'delayed'
+type QuickFilter = 'all' | 'late' | 'priority' | 'no_driver' | 'print_failure'
 
 interface KanbanColumnConfig {
   status: KanbanStatus
@@ -292,6 +296,8 @@ export function OrdersPage() {
   const [operationalView, setOperationalView] = useState<OperationalView>('preparation')
   const [activeMobileStatus, setActiveMobileStatus] = useState<KanbanStatus>('in_analysis')
   const [sortBy, setSortBy] = useState<SortOption>('recent')
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
+  const [searchExpanded, setSearchExpanded] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null)
@@ -325,9 +331,20 @@ export function OrdersPage() {
   })
   const selectedOrderQuery = useOrderByIdQuery(selectedOrderId)
   const driversQuery = useDriversQuery()
+  const printJobsQuery = usePrintJobsQuery({ page: 1, pageSize: 50, status: 'all' })
   const updateOrderStatus = useUpdateOrderStatusMutation()
 
   const allOrders = ordersQuery.data?.data ?? emptyOrders
+  const printIssueOrderIds = useMemo(
+    () =>
+      new Set(
+        (printJobsQuery.data?.data ?? [])
+          .filter((job) => job.status === 'FAILED' || job.status === 'PRINT_RESULT_UNKNOWN')
+          .map((job) => job.orderId)
+          .filter((orderId): orderId is string => Boolean(orderId)),
+      ),
+    [printJobsQuery.data?.data],
+  )
   const searchedOrders = useMemo(
     () => sortOrders(allOrders.filter((order) => matchesSearch(order, search)), sortBy),
     [allOrders, search, sortBy],
@@ -338,9 +355,15 @@ export function OrdersPage() {
         (order) =>
           isStatusInOperationalView(order.status, operationalView) &&
           (selectedStatus === 'all' || order.status === selectedStatus) &&
-          (!delayedOnly || isOrderLate(order)),
+          (!(delayedOnly || quickFilter === 'late') || isOrderLate(order)) &&
+          (quickFilter !== 'priority' || order.priority !== 'normal') &&
+          (quickFilter !== 'no_driver' ||
+            (order.source === 'delivery' &&
+              (order.status === 'ready' || order.status === 'out_for_delivery') &&
+              !order.driverId)) &&
+          (quickFilter !== 'print_failure' || printIssueOrderIds.has(order.id)),
       ),
-    [delayedOnly, operationalView, searchedOrders, selectedStatus],
+    [delayedOnly, operationalView, printIssueOrderIds, quickFilter, searchedOrders, selectedStatus],
   )
   const counts = useMemo(
     () => ({
@@ -352,8 +375,16 @@ export function OrdersPage() {
       delayed: searchedOrders.filter(
         (order) => isStatusInOperationalView(order.status, operationalView) && isOrderLate(order),
       ).length,
+      priority: searchedOrders.filter((order) => order.priority !== 'normal').length,
+      noDriver: searchedOrders.filter(
+        (order) =>
+          order.source === 'delivery' &&
+          (order.status === 'ready' || order.status === 'out_for_delivery') &&
+          !order.driverId,
+      ).length,
+      printFailure: searchedOrders.filter((order) => printIssueOrderIds.has(order.id)).length,
     }),
-    [operationalView, searchedOrders],
+    [operationalView, printIssueOrderIds, searchedOrders],
   )
   const selectedOrder =
     selectedOrderQuery.data?.data ??
@@ -418,6 +449,7 @@ export function OrdersPage() {
 
   const handleStatusSummaryClick = (status: KanbanStatus) => {
     setDelayedOnly(false)
+    setQuickFilter('all')
     setStatus(selectedStatus === status ? 'all' : status)
     setActiveMobileStatus(status)
   }
@@ -474,11 +506,25 @@ export function OrdersPage() {
   const clearFilters = () => {
     resetFilters()
     setSortBy('recent')
+    setQuickFilter('all')
     setFiltersOpen(false)
   }
 
+  const applyQuickFilter = (value: QuickFilter) => {
+    setQuickFilter(value)
+    setDelayedOnly(value === 'late')
+  }
+
+  const activeFilterCount = [
+    search.trim(),
+    selectedSource !== 'all',
+    selectedStatus !== 'all',
+    sortBy !== 'recent',
+    quickFilter !== 'all',
+  ].filter(Boolean).length
+
   return (
-    <PageShell className="min-h-[calc(100vh-64px)] space-y-4 overflow-hidden pt-5">
+    <PageShell className="min-h-[calc(100vh-64px)] space-y-4 overflow-visible pt-4 sm:pt-5">
       <header className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -526,14 +572,40 @@ export function OrdersPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Buscar pedido, cliente, endereco ou telefone..."
-            className="min-w-0 flex-1"
-            inputClassName="h-11 pl-10"
-          />
+        <div className="sticky top-14 z-20 -mx-2 space-y-2 rounded-xl border border-border bg-[#f3f5f7]/95 p-2 shadow-sm backdrop-blur-sm sm:top-16">
+          <div className="flex items-center gap-2">
+            {!searchExpanded ? (
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Abrir busca de pedidos"
+                onClick={() => setSearchExpanded(true)}
+                className="h-12 w-12 shrink-0 p-0 sm:hidden"
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            ) : null}
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Buscar pedido, cliente ou endereco..."
+              className={cn('min-w-0 flex-1', !searchExpanded && 'hidden sm:block')}
+              inputClassName="h-12 pl-10 sm:h-11"
+            />
+            {searchExpanded ? (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Fechar busca de pedidos"
+                onClick={() => {
+                  setSearch('')
+                  setSearchExpanded(false)
+                }}
+                className="h-12 w-12 shrink-0 p-0 sm:hidden"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            ) : null}
           <div className="hidden h-11 shrink-0 items-center gap-2 rounded-lg border border-border bg-white px-3 text-xs font-semibold text-foreground sm:inline-flex">
             <span
               className={cn(
@@ -550,7 +622,7 @@ export function OrdersPage() {
             aria-label="Atualizar pedidos"
             onClick={handleRefresh}
             disabled={ordersQuery.isFetching}
-            className="h-11 w-11 shrink-0 p-0"
+            className="h-12 w-12 shrink-0 p-0 sm:h-11 sm:w-11"
           >
             <RefreshCcw className={cn('h-4 w-4', ordersQuery.isFetching && 'animate-spin')} />
           </Button>
@@ -562,15 +634,31 @@ export function OrdersPage() {
               aria-expanded={filtersOpen}
               aria-label="Abrir filtros de pedidos"
               onClick={() => setFiltersOpen((current) => !current)}
-              className="h-11 px-3 sm:px-4"
+              className="h-12 px-3 sm:h-11 sm:px-4"
             >
               <Filter className="h-4 w-4" />
               <span className="hidden sm:inline">Filtros</span>
+              {activeFilterCount ? (
+                <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] text-white">{activeFilterCount}</span>
+              ) : null}
               <ChevronDown className={cn('h-4 w-4 transition', filtersOpen && 'rotate-180')} />
             </Button>
 
             {filtersOpen ? (
-              <div className="absolute right-0 top-12 z-30 w-[min(340px,calc(100vw-32px))] rounded-xl border border-border bg-white p-4 shadow-panel">
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-20 bg-slate-950/35 sm:hidden"
+                  aria-label="Fechar filtros"
+                  onClick={() => setFiltersOpen(false)}
+                />
+                <div className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 max-h-[74vh] overflow-y-auto rounded-t-2xl border border-border bg-white p-5 pb-6 shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-12 sm:w-[340px] sm:rounded-xl sm:p-4 sm:shadow-panel scrollbar-thin">
+                  <div className="mb-4 flex items-center justify-between sm:hidden">
+                    <p className="font-bold text-foreground">Filtrar pedidos</p>
+                    <Button type="button" size="icon" variant="ghost" aria-label="Fechar filtros" onClick={() => setFiltersOpen(false)}>
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-foreground">
@@ -648,9 +736,49 @@ export function OrdersPage() {
                     Limpar filtros
                   </Button>
                 </div>
-              </div>
+                </div>
+              </>
             ) : null}
           </div>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-thin" aria-label="Filtros rapidos">
+            {([
+              ['all', 'Todos', allOrders.length],
+              ['late', 'Atrasados', counts.delayed],
+              ['priority', 'Prioridade', counts.priority],
+              ['no_driver', 'Sem motoboy', counts.noDriver],
+              ['print_failure', 'Falha de impressao', counts.printFailure],
+            ] as Array<[QuickFilter, string, number]>).map(([value, label, count]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={quickFilter === value}
+                onClick={() => applyQuickFilter(value)}
+                className={cn(
+                  'flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors',
+                  quickFilter === value
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border bg-white text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {label}
+                {value !== 'all' ? <span className="font-mono">{count}</span> : null}
+              </button>
+            ))}
+          </div>
+
+          {activeFilterCount ? (
+            <div className="flex gap-2 overflow-x-auto scrollbar-thin" aria-label="Filtros aplicados">
+              {quickFilter !== 'all' ? (
+                <ActiveFilterChip label={quickFilter === 'late' ? 'Atrasados' : quickFilter === 'priority' ? 'Prioridade' : quickFilter === 'no_driver' ? 'Sem motoboy' : 'Falha de impressao'} onRemove={() => applyQuickFilter('all')} />
+              ) : null}
+              {selectedSource !== 'all' ? <ActiveFilterChip label={sourceOptions.find((item) => item.value === selectedSource)?.label ?? selectedSource} onRemove={() => setSource('all')} /> : null}
+              {selectedStatus !== 'all' ? <ActiveFilterChip label={statusOptions.find((item) => item.value === selectedStatus)?.label ?? selectedStatus} onRemove={() => setStatus('all')} /> : null}
+              {sortBy !== 'recent' ? <ActiveFilterChip label={sortOptions.find((item) => item.value === sortBy)?.label ?? sortBy} onRemove={() => setSortBy('recent')} /> : null}
+              {search.trim() ? <ActiveFilterChip label={`Busca: ${search.trim()}`} onRemove={() => setSearch('')} /> : null}
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -673,7 +801,7 @@ export function OrdersPage() {
           icon={<AlertTriangle className="h-4 w-4" />}
           active={delayedOnly}
           onClick={() => {
-            setDelayedOnly(!delayedOnly)
+            applyQuickFilter(quickFilter === 'late' ? 'all' : 'late')
             setStatus('all')
           }}
         />
@@ -728,7 +856,7 @@ export function OrdersPage() {
                     }
                   }}
                   className={cn(
-                    'inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm',
+                    'inline-flex h-12 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-11 sm:text-sm',
                     activeMobileStatus === column.status
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border bg-white text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -1122,9 +1250,9 @@ function KanbanOrderCard({
       <div className={cn('mt-3 grid gap-2', showPrimaryAction && 'grid-cols-2')}>
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           onClick={() => onOpen(order.id)}
-          className="h-11 text-xs font-semibold"
+          className="h-12 border-border bg-white text-xs font-semibold text-foreground hover:bg-muted sm:h-11"
         >
           Detalhes
         </Button>
@@ -1142,12 +1270,32 @@ function KanbanOrderCard({
 
               onTrack(order)
             }}
-            className={cn('h-11 px-3 text-xs font-semibold shadow-none', toneClasses.button)}
+            className={cn(
+              'h-12 px-3 text-xs font-bold text-white shadow-none sm:h-11',
+              primaryAction.action === 'accept' && 'border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700',
+              primaryAction.action === 'ready' && 'border-primary bg-primary hover:border-[#e94a22] hover:bg-[#e94a22]',
+              (primaryAction.action === 'dispatch' || primaryAction.action === 'complete') && 'border-emerald-600 bg-emerald-600 hover:border-emerald-700 hover:bg-emerald-700',
+              !primaryAction.action && 'border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700',
+            )}
           >
             {primaryAction.label}
           </Button>
         ) : null}
       </div>
     </article>
+  )
+}
+
+function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 text-xs font-semibold text-primary"
+      aria-label={`Remover filtro ${label}`}
+    >
+      {label}
+      <X className="h-3.5 w-3.5" />
+    </button>
   )
 }

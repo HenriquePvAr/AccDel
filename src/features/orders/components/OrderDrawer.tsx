@@ -103,7 +103,7 @@ export function OrderDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[min(100vw,520px)] gap-0 overflow-hidden bg-background p-0 text-foreground">
+      <SheetContent className="w-full max-w-[520px] gap-0 overflow-hidden bg-background p-0 text-foreground max-sm:border-l-0">
         <SheetHeader className="border-b border-border px-5 py-5 pr-14">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -258,13 +258,17 @@ export function OrderDrawer({
         </div>
 
         {actions.length ? (
-          <div className="grid grid-cols-2 gap-3 border-t border-border bg-background/95 px-5 py-4">
+          <div className="grid grid-cols-2 gap-3 border-t border-border bg-background/95 px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-4 sm:px-5">
             {actions.map((action) => (
               <Button
                 key={action.label}
                 type="button"
                 variant={getButtonVariant(action)}
-                className={cn(actions.length === 1 ? 'col-span-2' : null)}
+                className={cn(
+                  'h-12',
+                  actions.length === 1 ? 'col-span-2' : null,
+                  getDrawerActionClass(action),
+                )}
                 disabled={isActionDisabled(action, canUpdate, busy)}
                 onClick={() => {
                   if (action.type === 'track') {
@@ -374,6 +378,26 @@ function getButtonVariant(action: DrawerAction): 'default' | 'outline' | 'danger
   }
 
   return 'outline'
+}
+
+function getDrawerActionClass(action: DrawerAction) {
+  if (action.type === 'track') {
+    return 'border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100'
+  }
+
+  if (action.action === 'accept') {
+    return 'border-blue-600 bg-blue-600 text-white hover:border-blue-700 hover:bg-blue-700'
+  }
+
+  if (action.action === 'ready') {
+    return 'border-primary bg-primary text-white hover:border-[#e94a22] hover:bg-[#e94a22]'
+  }
+
+  if (action.action === 'dispatch' || action.action === 'complete') {
+    return 'border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700'
+  }
+
+  return ''
 }
 
 function isActionDisabled(action: DrawerAction, canUpdate: boolean, busy: boolean) {

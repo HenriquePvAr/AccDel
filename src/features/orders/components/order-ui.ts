@@ -78,9 +78,9 @@ export function getPrimaryOrderAction(order: Order): {
 } {
   switch (order.status) {
     case 'in_analysis':
-      return { action: 'accept', label: 'Aceitar', tone: 'orange' }
+      return { action: 'accept', label: 'Aceitar', tone: 'blue' }
     case 'in_preparation':
-      return { action: 'ready', label: 'Marcar como pronto', tone: 'orange' }
+      return { action: 'ready', label: 'Pronto', tone: 'orange' }
     case 'ready':
       return order.source === 'delivery'
         ? { action: 'dispatch', label: 'Despachar', tone: 'green' }

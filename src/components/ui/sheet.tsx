@@ -27,7 +27,7 @@ export function SheetContent({
         {children}
         <DialogPrimitive.Close
           aria-label="Fechar painel"
-          className="absolute right-4 top-4 rounded-lg bg-muted p-2 text-muted-foreground transition hover:bg-muted/75 hover:text-foreground"
+          className="absolute right-3 top-3 flex h-12 w-12 items-center justify-center rounded-lg bg-muted text-muted-foreground transition hover:bg-muted/75 hover:text-foreground sm:right-4 sm:top-4 sm:h-10 sm:w-10"
         >
           <X className="h-4 w-4" />
         </DialogPrimitive.Close>
