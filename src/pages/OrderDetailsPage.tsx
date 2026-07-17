@@ -116,7 +116,7 @@ export function OrderDetailsPage() {
     updateOrderStatus.mutate({
       orderId: order.id,
       action,
-      actor: action === 'ready' ? 'Cozinha' : 'Operacao',
+      actor: action === 'ready' ? 'Cozinha' : 'Equipe',
     })
   }
 
@@ -428,17 +428,17 @@ export function OrderDetailsPage() {
                     </span>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-400">Tempo de preparo (SLA)</p>
+                    <p className="text-sm text-slate-400">Prazo de preparo</p>
                     <p className="mt-1 font-bold text-white">
                       Meta: {order.estimatedPrepTimeMinutes ?? '--'} min
                     </p>
                     <p className="mt-1 text-sm text-emerald-300">
-                      {order.delayed ? 'Fora do SLA' : 'Dentro do SLA'}
+                      {order.delayed ? 'Fora do prazo' : 'Dentro do prazo'}
                     </p>
                   </div>
                 </div>
                 <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
-                  {order.notes || `${getOrderItemCountLabel(order)} para producao.`}
+                  {order.notes || `${getOrderItemCountLabel(order)} para preparo.`}
                 </div>
               </DetailCard>
             </div>

@@ -31,6 +31,7 @@ import type {
   PrintConnectionType,
   PrintJob,
   PrintJobStatus,
+  PrintJobType,
   Printer as PrinterConfig,
   PrinterRoutingRule,
   PrinterStation,
@@ -63,7 +64,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { Category, Product } from '@/types'
 
 const controlClass =
-  'h-10 w-full rounded-xl border border-white/10 bg-[#071525] px-3 text-sm text-slate-100 outline-none transition focus:border-primary/70 focus:ring-2 focus:ring-primary/20'
+  'h-11 w-full rounded-lg border border-input bg-white px-3 text-sm text-foreground outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20'
 
 const statuses: Array<{ value: PrintJobStatus | 'all'; label: string }> = [
   { value: 'all', label: 'Todos os estados' },
@@ -71,17 +72,18 @@ const statuses: Array<{ value: PrintJobStatus | 'all'; label: string }> = [
   { value: 'CLAIMED', label: 'Reservados' },
   { value: 'PRINTING', label: 'Imprimindo' },
   { value: 'PRINTED', label: 'Impressos' },
-  { value: 'RETRY_WAIT', label: 'Aguardando retry' },
+  { value: 'RETRY_WAIT', label: 'Aguardando nova tentativa' },
   { value: 'FAILED', label: 'Falhos' },
-  { value: 'PRINT_RESULT_UNKNOWN', label: 'Resultado ambiguo' },
+  { value: 'PRINT_RESULT_UNKNOWN', label: 'Precisa de revisao' },
   { value: 'CANCELLED', label: 'Cancelados' },
 ]
 
 export function PrintingSettingsPage() {
-  usePageTitle('Impressao termica')
+  usePageTitle('Impressão')
   const canManage = useCan('printing:manage')
   const canReprint = useCan('printing:reprint')
   const [jobStatus, setJobStatus] = useState<PrintJobStatus | 'all'>('all')
+  const [activeTab, setActiveTab] = useState('queue')
   const overviewQuery = usePrintingOverviewQuery()
   const jobsQuery = usePrintJobsQuery({ page: 1, pageSize: 50, status: jobStatus })
   const categoriesQuery = useCategoriesQuery()
@@ -89,13 +91,17 @@ export function PrintingSettingsPage() {
 
   const overview = overviewQuery.data?.data
   const jobs = jobsQuery.data?.data ?? []
+  const printingDisconnected = Boolean(
+    overview?.settings.enabled &&
+      overview.printers.some((printer) => printer.enabled) &&
+      !overview.agents.some((agent) => agent.online && agent.enabled && !agent.revokedAt),
+  )
 
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="Operacao local"
-        title="Impressao termica"
-        description="Configure setores, impressoras e agentes; acompanhe cada tentativa persistida sem imprimir diretamente pelo navegador."
+        title="Impressão"
+        description="Acompanhe e recupere impressões da loja."
         actions={
           <Button
             type="button"
@@ -119,13 +125,29 @@ export function PrintingSettingsPage() {
       ) : (
         <>
           <Metrics overview={overview} />
-          <Tabs defaultValue="policies" className="space-y-5">
+          {printingDisconnected ? (
+            <Alert variant="danger">
+              <AlertTitle><WifiOff className="h-4 w-4" /> Impressao desconectada</AlertTitle>
+              <AlertDescription>
+                Nenhum computador de impressao esta conectado. Os pedidos permanecem seguros na fila ate a conexao voltar.
+              </AlertDescription>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => setActiveTab('agents')}>
+                  Ver computadores
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => void overviewQuery.refetch()}>
+                  Atualizar estado
+                </Button>
+              </div>
+            </Alert>
+          ) : null}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
             <TabsList>
-              <TabsTrigger value="policies"><Settings2 className="h-4 w-4" /> Politicas</TabsTrigger>
-              <TabsTrigger value="printers"><PrinterIcon className="h-4 w-4" /> Impressoras</TabsTrigger>
-              <TabsTrigger value="routing"><Route className="h-4 w-4" /> Roteamento</TabsTrigger>
               <TabsTrigger value="queue"><Clock3 className="h-4 w-4" /> Fila</TabsTrigger>
-              <TabsTrigger value="agents"><Server className="h-4 w-4" /> Agentes</TabsTrigger>
+              <TabsTrigger value="printers"><PrinterIcon className="h-4 w-4" /> Impressoras</TabsTrigger>
+              <TabsTrigger value="agents"><Server className="h-4 w-4" /> Computadores</TabsTrigger>
+              <TabsTrigger value="routing"><Route className="h-4 w-4" /> Onde imprimir</TabsTrigger>
+              <TabsTrigger value="policies"><Settings2 className="h-4 w-4" /> Quando imprimir</TabsTrigger>
             </TabsList>
 
             <TabsContent value="policies">
@@ -182,10 +204,10 @@ function Metrics({ overview }: { overview: PrintingOverviewResponse['data'] }) {
     (overview.jobCounts.PRINTING ?? 0) +
     (overview.jobCounts.RETRY_WAIT ?? 0)
   const values = [
-    { label: 'Sistema', value: overview.settings.enabled ? 'Ativo' : 'Desativado', tone: overview.settings.enabled ? 'success' : 'warning' },
-    { label: 'Agentes online', value: String(overview.agents.filter((agent) => agent.online).length), tone: 'success' },
-    { label: 'Jobs ativos', value: String(pending), tone: pending > 0 ? 'warning' : 'default' },
-    { label: 'Ambiguos', value: String(overview.jobCounts.PRINT_RESULT_UNKNOWN ?? 0), tone: (overview.jobCounts.PRINT_RESULT_UNKNOWN ?? 0) > 0 ? 'danger' : 'default' },
+    { label: 'Funcionamento', value: overview.settings.enabled ? 'Ativo' : 'Desativado', tone: overview.settings.enabled ? 'success' : 'warning' },
+    { label: 'Pontos conectados', value: String(overview.agents.filter((agent) => agent.online).length), tone: 'success' },
+    { label: 'Na fila', value: String(pending), tone: pending > 0 ? 'warning' : 'default' },
+    { label: 'Com problema', value: String(overview.jobCounts.PRINT_RESULT_UNKNOWN ?? 0), tone: (overview.jobCounts.PRINT_RESULT_UNKNOWN ?? 0) > 0 ? 'danger' : 'default' },
   ] as const
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -240,12 +262,12 @@ function PolicyPanel({
     <form onSubmit={(event) => void save(event)} className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Eventos e documentos</CardTitle>
-          <CardDescription>Os jobs nascem no backend dentro da transacao do evento operacional.</CardDescription>
+          <CardTitle>Quando imprimir</CardTitle>
+          <CardDescription>Escolha quando uma impressão deve ser criada.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
           <Toggle label="Impressao habilitada" checked={draft.enabled} disabled={!canManage} onChange={(enabled) => setDraft({ ...draft, enabled })} />
-          <Toggle label="Expedicao ao ficar pronto" checked={draft.printOrderReady} disabled={!canManage} onChange={(printOrderReady) => setDraft({ ...draft, printOrderReady })} />
+          <Toggle label="Imprimir quando ficar pronto" checked={draft.printOrderReady} disabled={!canManage} onChange={(printOrderReady) => setDraft({ ...draft, printOrderReady })} />
           <Toggle label="Caixa ao confirmar pagamento" checked={draft.printPaymentConfirmed} disabled={!canManage} onChange={(printPaymentConfirmed) => setDraft({ ...draft, printPaymentConfirmed })} />
           <Toggle label="Aviso de cancelamento" checked={draft.printCancellation} disabled={!canManage} onChange={(printCancellation) => setDraft({ ...draft, printCancellation })} />
           <Toggle label="Via do cliente" checked={draft.customerReceiptEnabled} disabled={!canManage} onChange={(customerReceiptEnabled) => setDraft({ ...draft, customerReceiptEnabled })} />
@@ -253,11 +275,11 @@ function PolicyPanel({
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Fallback e lease</CardTitle>
-          <CardDescription>Itens sem regra usam uma estacao segura ou falham visivelmente.</CardDescription>
+          <CardTitle>Destino padrao e tentativas</CardTitle>
+          <CardDescription>Defina para onde enviar itens sem uma regra especifica.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Field label="Politica para item sem rota">
+          <Field label="Quando o item nao tem destino">
             <select className={controlClass} value={draft.fallbackPolicy} disabled={!canManage} onChange={(event) => setDraft({ ...draft, fallbackPolicy: event.target.value as UpdatePrintingSettingsRequest['fallbackPolicy'] })}>
               <option value="DEFAULT_STATION">Estacao padrao</option>
               <option value="BLOCK">Bloquear e alertar</option>
@@ -271,7 +293,7 @@ function PolicyPanel({
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Max. tentativas"><Input type="number" min={1} max={20} value={draft.defaultMaxAttempts} disabled={!canManage} onChange={(event) => setDraft({ ...draft, defaultMaxAttempts: Number(event.target.value) })} /></Field>
-            <Field label="Lease (segundos)"><Input type="number" min={15} max={300} value={draft.leaseDurationSeconds} disabled={!canManage} onChange={(event) => setDraft({ ...draft, leaseDurationSeconds: Number(event.target.value) })} /></Field>
+            <Field label="Tempo reservado (segundos)"><Input type="number" min={15} max={300} value={draft.leaseDurationSeconds} disabled={!canManage} onChange={(event) => setDraft({ ...draft, leaseDurationSeconds: Number(event.target.value) })} /></Field>
           </div>
           {canManage ? <Button type="submit" className="w-full" disabled={mutation.isPending}><Save className="h-4 w-4" /> Salvar politicas</Button> : null}
         </CardContent>
@@ -380,13 +402,13 @@ function PrinterPanel({
       {canManage ? (
         <div className="space-y-5">
           <Card>
-            <CardHeader><CardTitle>{printerDraft.id ? 'Editar impressora' : 'Nova impressora'}</CardTitle><CardDescription>O endereco e usado apenas pelo Cain Print Agent atribuido.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>{printerDraft.id ? 'Editar impressora' : 'Nova impressora'}</CardTitle><CardDescription>Vincule a impressora ao computador que fara a impressao.</CardDescription></CardHeader>
             <CardContent>
               <form onSubmit={(event) => void submitPrinter(event)} className="space-y-3">
                 <Field label="Nome"><Input required minLength={2} value={printerDraft.name} onChange={(event) => setPrinterDraft({ ...printerDraft, name: event.target.value })} /></Field>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Estacao"><select required className={controlClass} value={printerDraft.stationId} onChange={(event) => setPrinterDraft({ ...printerDraft, stationId: event.target.value })}>{stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select></Field>
-                  <Field label="Agente local"><select className={controlClass} value={printerDraft.agentId ?? ''} onChange={(event) => setPrinterDraft({ ...printerDraft, agentId: event.target.value || null })}><option value="">Sem agente</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.online ? ' (online)' : ''}</option>)}</select></Field>
+                  <Field label="Computador"><select className={controlClass} value={printerDraft.agentId ?? ''} onChange={(event) => setPrinterDraft({ ...printerDraft, agentId: event.target.value || null })}><option value="">Sem computador</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.online ? ' (conectado)' : ''}</option>)}</select></Field>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Conexao"><select className={controlClass} value={printerDraft.connectionType} onChange={(event) => setPrinterDraft({ ...printerDraft, connectionType: event.target.value as PrintConnectionType })}><option value="FILE_OR_VIRTUAL">Arquivo / dry-run</option><option value="NETWORK_TCP">TCP de rede</option><option value="WINDOWS_PRINTER">Impressora Windows</option></select></Field>
@@ -415,7 +437,7 @@ function PrinterPanel({
         </div>
       ) : null}
       <Card className={!canManage ? 'xl:col-span-2' : undefined}>
-        <CardHeader><CardTitle>Impressoras cadastradas</CardTitle><CardDescription>{printers.length} dispositivo(s). O navegador nunca abre socket para eles.</CardDescription></CardHeader>
+        <CardHeader><CardTitle>Impressoras cadastradas</CardTitle><CardDescription>{printers.length} impressora(s) configurada(s) para a loja.</CardDescription></CardHeader>
         <CardContent className="space-y-3">
           {printers.length ? printers.map((printer) => (
             <div key={printer.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
@@ -423,11 +445,11 @@ function PrinterPanel({
                 <div>
                   <div className="flex flex-wrap items-center gap-2"><p className="font-bold text-white">{printer.name}</p><Badge variant={printer.enabled ? 'success' : 'default'}>{printer.enabled ? 'Ativa' : 'Inativa'}</Badge>{printer.isDefault ? <Badge>Padrao</Badge> : null}</div>
                   <p className="mt-1 text-sm text-slate-400">{printer.station.name} · {connectionLabel(printer.connectionType)} · {printer.paperWidth} mm</p>
-                  <p className="mt-1 text-xs text-slate-500">Agente: {printer.agent?.name ?? 'nao atribuido'} {printer.agent ? (printer.agent.online ? '· online' : '· offline') : ''}</p>
+                  <p className="mt-1 text-xs text-slate-500">Computador: {printer.agent?.name ?? 'nao atribuido'} {printer.agent ? (printer.agent.online ? '· conectado' : '· desconectado') : ''}</p>
                 </div>
                 {canManage ? <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="secondary" onClick={() => editPrinter(printer)}>Editar</Button><Button type="button" size="sm" variant="outline" disabled={!printer.enabled || !printer.agentId || testPrint.isPending} onClick={() => void testPrint.mutateAsync(printer.id).catch((error) => toast.danger('Falha ao enfileirar teste', errorMessage(error)))}><TestTube2 className="h-3.5 w-3.5" /> Testar</Button><Switch checked={printer.enabled} onCheckedChange={(value) => void setEnabled(printer, value)} /></div> : null}
               </div>
-              {!printer.agentId ? <p className="mt-3 text-xs text-amber-300">Atribua um agente antes de executar jobs nesta impressora.</p> : null}
+              {!printer.agentId ? <p className="mt-3 text-xs text-amber-800">Atribua um computador antes de enviar impressoes para esta impressora.</p> : null}
             </div>
           )) : <EmptyState icon={<PrinterIcon className="h-5 w-5" />} text="Nenhuma impressora cadastrada." />}
         </CardContent>
@@ -476,8 +498,8 @@ function RoutingPanel({
 
   return (
     <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-      {canManage ? <Card><CardHeader><CardTitle>Nova regra</CardTitle><CardDescription>Produto vence categoria; cada item e resolvido uma unica vez.</CardDescription></CardHeader><CardContent><form onSubmit={(event) => void submit(event)} className="space-y-3"><Field label="Escopo"><select className={controlClass} value={scope} onChange={(event) => { setScope(event.target.value as 'CATEGORY' | 'PRODUCT'); setSubjectId('') }}><option value="CATEGORY">Categoria</option><option value="PRODUCT">Produto especifico</option></select></Field><Field label={scope === 'CATEGORY' ? 'Categoria' : 'Produto'}><select required className={controlClass} value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><option value="">Selecione</option>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></Field><Field label="Estacao"><select required className={controlClass} value={stationId} onChange={(event) => setStationId(event.target.value)}>{stations.filter((station) => station.enabled).map((station) => <option key={station.id} value={station.id}>{station.name} ({station.code})</option>)}</select></Field><Button type="submit" className="w-full" disabled={saveRule.isPending || !subjectId}><Route className="h-4 w-4" /> Salvar rota</Button></form></CardContent></Card> : null}
-      <Card className={!canManage ? 'xl:col-span-2' : undefined}><CardHeader><CardTitle>Rotas persistidas</CardTitle><CardDescription>O frontend apenas administra; o backend recalcula o setor usando produto e categoria persistidos.</CardDescription></CardHeader><CardContent className="space-y-3">{rules.length ? rules.map((rule) => <div key={rule.id} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div><div className="flex items-center gap-2"><Badge>{rule.scope === 'PRODUCT' ? 'Produto' : 'Categoria'}</Badge><p className="font-semibold text-white">{rule.product?.name ?? rule.category?.name ?? 'Item removido'}</p></div><p className="mt-1 text-sm text-slate-400">→ {rule.station.name} ({rule.station.code})</p></div>{canManage ? <Button type="button" size="icon" variant="ghost" aria-label="Remover regra" disabled={deleteRule.isPending} onClick={() => void deleteRule.mutateAsync(rule.id).catch((error) => toast.danger('Falha ao remover rota', errorMessage(error)))}><Trash2 className="h-4 w-4" /></Button> : null}</div>) : <EmptyState icon={<Route className="h-5 w-5" />} text="Nenhuma regra explicita; o fallback configurado sera aplicado." />}</CardContent></Card>
+      {canManage ? <Card><CardHeader><CardTitle>Novo destino</CardTitle><CardDescription>Escolha onde cada categoria ou produto deve ser impresso.</CardDescription></CardHeader><CardContent><form onSubmit={(event) => void submit(event)} className="space-y-3"><Field label="Aplicar por"><select className={controlClass} value={scope} onChange={(event) => { setScope(event.target.value as 'CATEGORY' | 'PRODUCT'); setSubjectId('') }}><option value="CATEGORY">Categoria</option><option value="PRODUCT">Produto especifico</option></select></Field><Field label={scope === 'CATEGORY' ? 'Categoria' : 'Produto'}><select required className={controlClass} value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><option value="">Selecione</option>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></Field><Field label="Setor de impressao"><select required className={controlClass} value={stationId} onChange={(event) => setStationId(event.target.value)}>{stations.filter((station) => station.enabled).map((station) => <option key={station.id} value={station.id}>{station.name} ({station.code})</option>)}</select></Field><Button type="submit" className="w-full" disabled={saveRule.isPending || !subjectId}><Route className="h-4 w-4" /> Salvar destino</Button></form></CardContent></Card> : null}
+      <Card className={!canManage ? 'xl:col-span-2' : undefined}><CardHeader><CardTitle>Destinos configurados</CardTitle><CardDescription>Cada item segue para o setor indicado pela categoria ou pelo produto.</CardDescription></CardHeader><CardContent className="space-y-3">{rules.length ? rules.map((rule) => <div key={rule.id} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div><div className="flex items-center gap-2"><Badge>{rule.scope === 'PRODUCT' ? 'Produto' : 'Categoria'}</Badge><p className="font-semibold text-white">{rule.product?.name ?? rule.category?.name ?? 'Item removido'}</p></div><p className="mt-1 text-sm text-slate-400">→ {rule.station.name} ({rule.station.code})</p></div>{canManage ? <Button type="button" size="icon" variant="ghost" aria-label="Remover regra" disabled={deleteRule.isPending} onClick={() => void deleteRule.mutateAsync(rule.id).catch((error) => toast.danger('Falha ao remover destino', errorMessage(error)))}><Trash2 className="h-4 w-4" /></Button> : null}</div>) : <EmptyState icon={<Route className="h-5 w-5" />} text="Nenhum destino especifico; o setor padrao sera usado." />}</CardContent></Card>
     </div>
   )
 }
@@ -510,34 +532,34 @@ function QueuePanel({
   const cancelJob = async (job: PrintJob) => {
     const reason = askReason('Motivo do cancelamento (minimo 5 caracteres)')
     if (reason.length < 5) return
-    try { await cancel.mutateAsync({ jobId: job.id, reason }) } catch (cause) { toast.danger('Falha ao cancelar job', errorMessage(cause)) }
+    try { await cancel.mutateAsync({ jobId: job.id, reason }) } catch (cause) { toast.danger('Falha ao cancelar impressao', errorMessage(cause)) }
   }
   const reprintJob = async (job: PrintJob) => {
     const reason = askReason('Motivo da reimpressao (minimo 5 caracteres)')
     if (reason.length < 5) return
-    try { await reprint.mutateAsync({ jobId: job.id, reason }) } catch (cause) { toast.danger('Falha ao criar reimpressao', errorMessage(cause)) }
+    try { await reprint.mutateAsync({ jobId: job.id, reason }) } catch (cause) { toast.danger('Falha ao reimprimir', errorMessage(cause)) }
   }
 
   return (
     <Card>
-      <CardHeader className="gap-4 sm:flex-row sm:items-end sm:justify-between"><div><CardTitle>Fila persistente</CardTitle><CardDescription>{total} job(s) no filtro atual; atualizacao automatica a cada 10 segundos.</CardDescription></div><select className={`${controlClass} sm:w-56`} value={status} onChange={(event) => setStatus(event.target.value as PrintJobStatus | 'all')}>{statuses.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select></CardHeader>
+      <CardHeader className="gap-4 sm:flex-row sm:items-end sm:justify-between"><div><CardTitle>Fila de impressoes</CardTitle><CardDescription>{total === 1 ? '1 impressao no filtro atual' : `${total} impressoes no filtro atual`}; a lista atualiza automaticamente.</CardDescription></div><select className={`${controlClass} sm:w-64`} value={status} onChange={(event) => setStatus(event.target.value as PrintJobStatus | 'all')}>{statuses.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select></CardHeader>
       <CardContent className="space-y-3">
         {error ? <Alert variant="danger"><AlertTitle>Falha ao carregar fila</AlertTitle><AlertDescription>{errorMessage(error)}</AlertDescription></Alert> : null}
-        {loading && !jobs.length ? <p className="py-6 text-center text-sm text-slate-400">Consultando jobs...</p> : null}
+        {loading && !jobs.length ? <p className="py-6 text-center text-sm text-slate-400">Carregando impressoes...</p> : null}
         {jobs.map((job) => {
           const meta = statusMeta(job.status)
           const cancellable = ['PENDING', 'RETRY_WAIT', 'FAILED'].includes(job.status)
           const retryable = ['FAILED', 'RETRY_WAIT'].includes(job.status)
           const active = ['PENDING', 'CLAIMED', 'PRINTING', 'RETRY_WAIT'].includes(job.status)
-          return <div key={job.id} className={`rounded-2xl border p-4 ${job.status === 'PRINT_RESULT_UNKNOWN' ? 'border-amber-300/25 bg-amber-400/[0.07]' : 'border-white/10 bg-white/[0.035]'}`}>
+          return <div key={job.id} className={`rounded-xl border p-4 ${job.status === 'PRINT_RESULT_UNKNOWN' ? 'border-amber-300 bg-amber-50' : 'border-border bg-white'}`}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge variant={meta.variant}>{meta.label}</Badge><Badge>{job.jobType}</Badge><span className="font-mono text-xs text-slate-500">{shortId(job.id)}</span></div><p className="mt-2 font-semibold text-white">{job.station?.name ?? job.stationCode ?? 'Sem estacao'} · {job.printer?.name ?? 'Sem impressora'}</p><p className="mt-1 text-xs text-slate-500">Template {job.templateKey}:{job.templateVersion} · tentativa {job.attemptCount}/{job.maxAttempts} · criado {formatDate(job.createdAt)}</p>{job.lastErrorCode ? <p className="mt-2 text-sm text-amber-200">{job.lastErrorCode}: {job.lastErrorMessageSanitized}</p> : null}</div>
-              <div className="flex flex-wrap gap-2">{canManage && retryable ? <Button type="button" size="sm" variant="secondary" disabled={retry.isPending} onClick={() => void retry.mutateAsync(job.id).catch((cause) => toast.danger('Falha ao liberar retry', errorMessage(cause)))}><RotateCcw className="h-3.5 w-3.5" /> Retry</Button> : null}{canManage && cancellable ? <Button type="button" size="sm" variant="outline" onClick={() => void cancelJob(job)}>Cancelar</Button> : null}{canReprint && !active ? <Button type="button" size="sm" onClick={() => void reprintJob(job)}><PrinterIcon className="h-3.5 w-3.5" /> Reimprimir</Button> : null}</div>
+              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge variant={meta.variant}>{meta.label}</Badge><Badge>{printTypeLabel(job.jobType)}</Badge></div><p className="mt-2 font-semibold text-white">{job.station?.name ?? job.stationCode ?? 'Sem setor'} · {job.printer?.name ?? 'Sem impressora'}</p><p className="mt-1 text-xs text-slate-500">Tentativa {job.attemptCount}/{job.maxAttempts} · criada em {formatDate(job.createdAt)}</p>{job.lastErrorCode ? <p className="mt-2 text-sm font-semibold text-amber-800">{printErrorMessage(job)}</p> : null}</div>
+              <div className="flex flex-wrap gap-2">{canManage && retryable ? <Button type="button" size="sm" disabled={retry.isPending} onClick={() => void retry.mutateAsync(job.id).catch((cause) => toast.danger('Falha ao tentar novamente', errorMessage(cause)))}><RotateCcw className="h-3.5 w-3.5" /> Tentar novamente</Button> : null}{canManage && cancellable ? <Button type="button" size="sm" variant="outline" onClick={() => void cancelJob(job)}>Cancelar</Button> : null}{canReprint && !active ? <Button type="button" size="sm" onClick={() => void reprintJob(job)}><PrinterIcon className="h-3.5 w-3.5" /> Reimprimir</Button> : null}</div>
             </div>
-            {job.attempts.length ? <details className="mt-3 text-xs text-slate-400"><summary className="cursor-pointer font-semibold text-slate-300">Ultimas tentativas</summary><div className="mt-2 space-y-1">{job.attempts.map((attempt) => <p key={attempt.id}>#{attempt.attemptNumber} · {attempt.status} · {attempt.durationMs ?? '—'} ms {attempt.errorCode ? `· ${attempt.errorCode}` : ''}</p>)}</div></details> : null}
+            <details className="mt-3 rounded-lg bg-muted/45 px-3 py-2 text-xs text-muted-foreground"><summary className="cursor-pointer font-semibold text-foreground">Detalhes da impressão</summary><div className="mt-2 space-y-1 font-mono"><p>Impressão {shortId(job.id)} · tipo {job.jobType}</p><p>Modelo {job.templateKey}:{job.templateVersion}</p>{job.lastErrorCode ? <p>Código {job.lastErrorCode}</p> : null}{job.attempts.map((attempt) => <p key={attempt.id}>#{attempt.attemptNumber} · {attempt.status} · {attempt.durationMs ?? '—'} ms {attempt.errorCode ? `· ${attempt.errorCode}` : ''}</p>)}</div></details>
           </div>
         })}
-        {!loading && !jobs.length ? <EmptyState icon={<Clock3 className="h-5 w-5" />} text="Nenhum job encontrado neste filtro." /> : null}
+        {!loading && !jobs.length ? <EmptyState icon={<Clock3 className="h-5 w-5" />} text="Nenhuma impressao encontrada neste filtro." /> : null}
       </CardContent>
     </Card>
   )
@@ -557,7 +579,7 @@ function AgentsPanel({ agents, canManage }: { agents: PrintAgentSummary[]; canMa
       const response = await provision.mutateAsync(draft)
       setCredential({ token: response.data.token, warning: response.data.warning })
       setDraft({ name: '', deviceName: '' })
-    } catch (error) { toast.danger('Falha ao provisionar agente', errorMessage(error)) }
+    } catch (error) { toast.danger('Falha ao cadastrar computador', errorMessage(error)) }
   }
   const rotateToken = async (agentId: string) => {
     if (!window.confirm('O token atual sera invalidado imediatamente. Continuar?')) return
@@ -573,8 +595,8 @@ function AgentsPanel({ agents, canManage }: { agents: PrintAgentSummary[]; canMa
 
   return (
     <div className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
-      {canManage ? <div className="space-y-5"><Card><CardHeader><CardTitle>Provisionar agente</CardTitle><CardDescription>Cria uma credencial propria, sem permissao humana ou acesso ao banco.</CardDescription></CardHeader><CardContent><form onSubmit={(event) => void submit(event)} className="space-y-3"><Field label="Nome do agente"><Input required minLength={2} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field><Field label="Nome do dispositivo"><Input required minLength={2} value={draft.deviceName} onChange={(event) => setDraft({ ...draft, deviceName: event.target.value })} /></Field><Button type="submit" className="w-full" disabled={provision.isPending}><ShieldAlert className="h-4 w-4" /> Gerar credencial</Button></form></CardContent></Card>{credential ? <Alert variant="warning"><AlertTitle>Credencial exibida uma unica vez</AlertTitle><AlertDescription>{credential.warning}</AlertDescription><div className="mt-3 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-black/25 p-2 text-xs text-amber-100">{credential.token}</code><Button type="button" size="icon" variant="secondary" aria-label="Copiar credencial" onClick={() => void copyCredential()}><Copy className="h-4 w-4" /></Button></div><Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => setCredential(null)}>Ocultar credencial</Button></Alert> : null}</div> : null}
-      <Card className={!canManage ? 'xl:col-span-2' : undefined}><CardHeader><CardTitle>Dispositivos</CardTitle><CardDescription>Online significa heartbeat valido nos ultimos 90 segundos.</CardDescription></CardHeader><CardContent className="space-y-3">{agents.length ? agents.map((agent) => <div key={agent.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex items-center gap-2">{agent.online ? <Wifi className="h-4 w-4 text-emerald-400" /> : <WifiOff className="h-4 w-4 text-slate-500" />}<p className="font-semibold text-white">{agent.name}</p><Badge variant={agent.online ? 'success' : agent.revokedAt ? 'danger' : 'default'}>{agent.revokedAt ? 'Revogado' : agent.online ? 'Online' : 'Offline'}</Badge></div><p className="mt-1 text-sm text-slate-400">{agent.deviceName} · versao {agent.version ?? 'nao informada'}</p><p className="mt-1 text-xs text-slate-500">Ultimo heartbeat: {agent.lastSeenAt ? formatDate(agent.lastSeenAt) : 'nunca'} · token {agent.tokenPrefix}</p><p className="mt-2 text-xs text-slate-400">Impressoras: {agent.printers.map((printer) => printer.name).join(', ') || 'nenhuma'}</p></div>{canManage && !agent.revokedAt ? <div className="flex gap-2"><Button type="button" size="sm" variant="secondary" onClick={() => void rotateToken(agent.id)} disabled={rotate.isPending}>Rotacionar</Button><Button type="button" size="sm" variant="danger" disabled={revoke.isPending} onClick={() => { if (window.confirm('Revogar este agente agora?')) void revoke.mutateAsync(agent.id).catch((error) => toast.danger('Falha ao revogar agente', errorMessage(error))) }}>Revogar</Button></div> : null}</div></div>) : <EmptyState icon={<Server className="h-5 w-5" />} text="Nenhum Cain Print Agent provisionado." />}</CardContent></Card>
+      {canManage ? <div className="space-y-5"><Card><CardHeader><CardTitle>Cadastrar computador</CardTitle><CardDescription>Crie o acesso usado pelo computador que imprime os pedidos.</CardDescription></CardHeader><CardContent><form onSubmit={(event) => void submit(event)} className="space-y-3"><Field label="Nome do ponto"><Input required minLength={2} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field><Field label="Nome do computador"><Input required minLength={2} value={draft.deviceName} onChange={(event) => setDraft({ ...draft, deviceName: event.target.value })} /></Field><Button type="submit" className="w-full" disabled={provision.isPending}><ShieldAlert className="h-4 w-4" /> Gerar acesso</Button></form></CardContent></Card>{credential ? <Alert variant="warning"><AlertTitle>Acesso exibido uma unica vez</AlertTitle><AlertDescription>{credential.warning}</AlertDescription><div className="mt-3 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-black/25 p-2 text-xs text-amber-100">{credential.token}</code><Button type="button" size="icon" variant="secondary" aria-label="Copiar acesso" onClick={() => void copyCredential()}><Copy className="h-4 w-4" /></Button></div><Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => setCredential(null)}>Ocultar acesso</Button></Alert> : null}</div> : null}
+      <Card className={!canManage ? 'xl:col-span-2' : undefined}><CardHeader><CardTitle>Pontos e computadores</CardTitle><CardDescription>Conectado significa que o computador respondeu recentemente.</CardDescription></CardHeader><CardContent className="space-y-3">{agents.length ? agents.map((agent) => <div key={agent.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex items-center gap-2">{agent.online ? <Wifi className="h-4 w-4 text-emerald-400" /> : <WifiOff className="h-4 w-4 text-slate-500" />}<p className="font-semibold text-white">{agent.name}</p><Badge variant={agent.online ? 'success' : agent.revokedAt ? 'danger' : 'default'}>{agent.revokedAt ? 'Desativado' : agent.online ? 'Conectado' : 'Desconectado'}</Badge></div><p className="mt-1 text-sm text-slate-400">{agent.deviceName} · versao {agent.version ?? 'nao informada'}</p><p className="mt-1 text-xs text-slate-500">Ultima conexao: {agent.lastSeenAt ? formatDate(agent.lastSeenAt) : 'nunca'}</p><p className="mt-2 text-xs text-slate-400">Impressoras: {agent.printers.map((printer) => printer.name).join(', ') || 'nenhuma'}</p></div>{canManage && !agent.revokedAt ? <div className="flex gap-2"><Button type="button" size="sm" variant="secondary" onClick={() => void rotateToken(agent.id)} disabled={rotate.isPending}>Trocar acesso</Button><Button type="button" size="sm" variant="outline" disabled={revoke.isPending} onClick={() => { if (window.confirm('Desativar este computador agora?')) void revoke.mutateAsync(agent.id).catch((error) => toast.danger('Falha ao desativar computador', errorMessage(error))) }}>Desativar</Button></div> : null}</div></div>) : <EmptyState icon={<Server className="h-5 w-5" />} text="Nenhum computador de impressao cadastrado." />}</CardContent></Card>
     </div>
   )
 }
@@ -595,13 +617,38 @@ function statusMeta(status: PrintJobStatus): { label: string; variant: 'default'
   switch (status) {
     case 'PRINTED': return { label: 'Impresso', variant: 'success' }
     case 'FAILED': return { label: 'Falhou', variant: 'danger' }
-    case 'PRINT_RESULT_UNKNOWN': return { label: 'Ambiguo', variant: 'warning' }
+    case 'PRINT_RESULT_UNKNOWN': return { label: 'Precisa de revisao', variant: 'warning' }
     case 'CANCELLED': return { label: 'Cancelado', variant: 'default' }
     case 'PRINTING': return { label: 'Imprimindo', variant: 'analysis' }
     case 'CLAIMED': return { label: 'Reservado', variant: 'analysis' }
-    case 'RETRY_WAIT': return { label: 'Retry', variant: 'warning' }
+    case 'RETRY_WAIT': return { label: 'Nova tentativa', variant: 'warning' }
     default: return { label: 'Pendente', variant: 'default' }
   }
+}
+
+const printTypeLabels: Record<PrintJobType, string> = {
+  ORDER_INITIAL: 'Pedido recebido',
+  ORDER_ADDITION: 'Item adicionado',
+  ORDER_REMOVAL: 'Item removido',
+  ORDER_CORRECTION: 'Pedido corrigido',
+  ORDER_CANCELLATION: 'Pedido cancelado',
+  CASHIER_RECEIPT: 'Via do caixa',
+  DISPATCH_ORDER: 'Despacho',
+  CUSTOMER_RECEIPT: 'Via do cliente',
+  TEST_PAGE: 'Pagina de teste',
+  REPRINT: 'Reimpressao',
+}
+
+function printTypeLabel(type: PrintJobType) {
+  return printTypeLabels[type]
+}
+
+function printErrorMessage(job: PrintJob) {
+  if (job.lastErrorCode === 'PRINTER_OFFLINE') {
+    return 'Impressora desconectada. Confira o computador e tente novamente.'
+  }
+
+  return job.lastErrorMessageSanitized ?? 'Nao foi possivel concluir a impressao.'
 }
 
 function connectionLabel(value: PrintConnectionType) {
@@ -616,5 +663,5 @@ function formatDate(value: string) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Erro inesperado na operacao de impressao.'
+  return error instanceof Error ? error.message : 'Erro inesperado ao imprimir.'
 }

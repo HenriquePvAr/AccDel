@@ -108,11 +108,11 @@ const emptySessions: TableSession[] = []
 const DELIVERY_FEE = 8.5
 
 const panelClass =
-  'rounded-[24px] border border-white/10 bg-[#07111f]/88 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl'
+  'rounded-xl border border-border bg-white shadow-sm'
 const inputClass =
-  'h-12 rounded-2xl border-white/10 bg-[#06111f] text-slate-100 placeholder:text-slate-600 focus:border-cyan-400/70 focus:ring-cyan-400/20'
+  'h-11 rounded-lg border-border bg-white text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring/20'
 const iconBoxClass =
-  'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-cyan-200'
+  'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/60 text-primary'
 
 export function NewOrderPage() {
   usePageTitle('Novo pedido')
@@ -702,7 +702,7 @@ export function NewOrderPage() {
     closeTableSessionMutation.mutate({
       sessionId: selectedSession.id,
       paymentMethod,
-      actor: 'Operacao',
+      actor: 'Equipe',
     })
   }
 
@@ -714,7 +714,7 @@ export function NewOrderPage() {
     transferTableSessionMutation.mutate({
       sessionId: selectedSession.id,
       targetTableId: transferTargetTableId,
-      actor: 'Operacao',
+      actor: 'Equipe',
     })
   }
 
@@ -787,12 +787,12 @@ export function NewOrderPage() {
   )
 
   return (
-    <PageShell className="min-h-[calc(100vh-72px)] space-y-5 text-slate-100">
+    <PageShell className="min-h-[calc(100vh-72px)] space-y-5">
       <header className="grid gap-5 xl:grid-cols-[1fr_auto] xl:items-end">
         <div>
           <div className="mb-5">{renderServiceTabs()}</div>
-          <p className="text-sm font-black text-orange-400">PDV operacional Cain Delivery</p>
-          <h1 className="mt-1 text-4xl font-black tracking-tight text-white sm:text-5xl">
+          <p className="text-sm font-black text-orange-400">PDV Cain Delivery</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground">
             Novo pedido
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
@@ -825,7 +825,7 @@ export function NewOrderPage() {
 
       {flowStep === 'customer' ? (
         <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
-          <main className="space-y-5">
+          <section aria-label="Identificacao do cliente" className="space-y-5">
             <section className={cn(panelClass, 'p-5 sm:p-6')}>
               <div className="mb-5">
                 <h2 className="text-3xl font-black tracking-tight text-white">
@@ -940,7 +940,7 @@ export function NewOrderPage() {
                 </h3>
                 {isEditingCustomer ? (
                   <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-200">
-                    Sincroniza no cadastro real
+                    Salva no cadastro da loja
                   </span>
                 ) : null}
               </div>
@@ -1080,7 +1080,7 @@ export function NewOrderPage() {
                 </Button>
               </div>
             </section>
-          </main>
+          </section>
 
           <aside className={cn(panelClass, 'sticky top-24 self-start overflow-hidden')}>
             <div className="border-b border-white/10 p-5">
@@ -1132,7 +1132,7 @@ export function NewOrderPage() {
 
       {flowStep === 'tables' ? (
         <div className="grid gap-6 xl:grid-cols-[1fr_440px]">
-          <main className="space-y-5">
+          <section aria-label="Selecao de mesa" className="space-y-5">
             <section className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
@@ -1225,7 +1225,7 @@ export function NewOrderPage() {
                 description="A busca atual nao encontrou mesas nessa situacao."
               />
             )}
-          </main>
+          </section>
 
           <aside className={cn(panelClass, 'sticky top-24 self-start overflow-hidden')}>
             <div className="border-b border-white/10 p-5">
@@ -1311,7 +1311,7 @@ export function NewOrderPage() {
                 {selectedTable.status === 'reserved' ? (
                   <div className="rounded-2xl border border-violet-300/20 bg-violet-400/10 p-4 text-sm text-violet-100">
                     {selectedTable.notes ||
-                      'Reserva marcada na mesa, mas o backend ainda nao possui entidade detalhada de reserva.'}
+                      'Reserva marcada na mesa; os detalhes complementares ainda nao estao disponiveis.'}
                   </div>
                 ) : null}
 
@@ -1467,7 +1467,7 @@ export function NewOrderPage() {
             </nav>
           </aside>
 
-          <main className="min-h-0 overflow-hidden">
+          <section aria-label="Catalogo do pedido" className="min-h-0 overflow-hidden">
             <div className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
             <section className="grid gap-3 lg:grid-cols-[1fr_auto]">
               <div className="relative">
@@ -1608,7 +1608,7 @@ export function NewOrderPage() {
               />
             )}
             </div>
-          </main>
+          </section>
 
           <aside className={cn(panelClass, 'min-h-0 overflow-hidden xl:flex xl:h-full xl:flex-col')}>
             <div className="border-b border-white/10 p-5">
@@ -1773,8 +1773,8 @@ export function NewOrderPage() {
 
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                 <div>
-                  <p className="font-black text-white">Enviar para producao</p>
-                  <p className="mt-1 text-xs text-slate-500">Mantem o fluxo operacional rapido.</p>
+                  <p className="font-black text-white">Enviar para preparo</p>
+                  <p className="mt-1 text-xs text-slate-500">O pedido vai direto para a cozinha.</p>
                 </div>
                 <Switch checked={sendToProduction} onCheckedChange={setSendToProduction} />
               </div>
@@ -2332,7 +2332,7 @@ function TableSelectionCard({
           ) : table.status === 'reserved' ? (
             <p className="flex items-center gap-2 text-violet-200">
               <CalendarClock className="h-4 w-4" />
-              Reserva sem detalhe operacional
+              Reserva sem observação
             </p>
           ) : null}
         </div>

@@ -24,24 +24,30 @@ import type { ReadinessSnapshot } from '@/services/operations/readiness-service'
 
 const featureLabels: Record<string, string> = {
   whatsapp: 'WhatsApp',
-  aiAttendant: 'Atendente IA',
+  aiAttendant: 'Atendimento automatico',
   printing: 'Impressao',
-  waiterPwa: 'PWA do garcom',
-  publicTracking: 'Rastreio publico',
+  waiterPwa: 'Aplicativo do garcom',
+  publicTracking: 'Acompanhamento publico',
   orderNotifications: 'Notificacoes de pedido',
 }
 
 export function OperationalReadinessPage() {
-  usePageTitle('Prontidao operacional')
+  usePageTitle('Sistema')
   const readinessQuery = useReadinessQuery()
-  const snapshot = readinessQuery.data
+  const responseSnapshot = readinessQuery.data
+  const snapshot =
+    responseSnapshot?.database &&
+    responseSnapshot.migrations &&
+    responseSnapshot.metrics &&
+    responseSnapshot.features
+      ? responseSnapshot
+      : null
 
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="Piloto supervisionado"
-        title="Prontidao operacional"
-        description="Leitura consolidada e restrita da API, banco, migracoes, filas, agentes, flags e sinais que exigem intervencao humana."
+        title="Sistema"
+        description="Confira o que está disponível e o que precisa de atenção."
         actions={(
           <Button
             type="button"
@@ -61,9 +67,23 @@ export function OperationalReadinessPage() {
           <CardContent className="flex items-start gap-3 p-5 text-red-100">
             <CircleOff className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p className="font-black">Nao foi possivel consultar /ready</p>
+              <p className="font-black">Não foi possível consultar o sistema</p>
               <p className="mt-1 text-sm text-red-200/75">
-                Confirme a API, a sessao e a permissao dashboard:view antes de liberar o piloto.
+                Confirme sua conexao e tente novamente antes de liberar o piloto.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!readinessQuery.isPending && !readinessQuery.isError && !snapshot ? (
+        <Card>
+          <CardContent className="flex items-start gap-3 p-5">
+            <CircleOff className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-semibold text-foreground">Estado ainda nao disponivel</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Atualize a tela antes de liberar o piloto.
               </p>
             </div>
           </CardContent>
@@ -77,34 +97,44 @@ export function OperationalReadinessPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SignalCard
               icon={<Database className="h-5 w-5" />}
-              title="Banco e migracoes"
+              title="Dados da loja"
               value={snapshot.database.reachable
                 ? `${snapshot.migrations.applied}/${snapshot.migrations.expected}`
                 : 'Indisponivel'}
               detail={snapshot.migrations.failed
-                ? `${snapshot.migrations.failed} migracao(oes) incompleta(s)`
-                : 'Sem migracao incompleta detectada'}
+                ? snapshot.migrations.failed === 1
+                  ? '1 atualizacao incompleta'
+                  : `${snapshot.migrations.failed} atualizacoes incompletas`
+                : 'Sem atualizacao incompleta detectada'}
               danger={!snapshot.database.reachable || snapshot.migrations.applied !== snapshot.migrations.expected || Boolean(snapshot.migrations.failed)}
             />
             <SignalCard
               icon={<MessagesSquare className="h-5 w-5" />}
-              title="Mensageria"
-              value={`${snapshot.queues?.outbound.pending ?? 0} pendente(s)`}
-              detail={`${snapshot.queues?.outbound.failed ?? 0} falha(s); ${snapshot.operation?.waitingHuman ?? 0} aguardando humano`}
+              title="Atendimento"
+              value={(snapshot.queues?.outbound.pending ?? 0) === 1 ? '1 mensagem pendente' : `${snapshot.queues?.outbound.pending ?? 0} mensagens pendentes`}
+              detail={`${snapshot.queues?.outbound.failed ?? 0} ${(snapshot.queues?.outbound.failed ?? 0) === 1 ? 'falha' : 'falhas'}; ${snapshot.operation?.waitingHuman ?? 0} aguardando atendente`}
               danger={Boolean(snapshot.queues?.outbound.failed)}
             />
             <SignalCard
               icon={<Printer className="h-5 w-5" />}
               title="Impressao"
-              value={`${snapshot.printingAgents?.online ?? 0} agente(s) online`}
-              detail={`${snapshot.printingAgents?.offline ?? 0} offline; ${snapshot.queues?.printing.failed ?? 0} job(s) falho(s)`}
+              value={
+                (snapshot.printingAgents?.online ?? 0) === 1
+                  ? '1 computador conectado'
+                  : `${snapshot.printingAgents?.online ?? 0} computadores conectados`
+              }
+              detail={`${snapshot.printingAgents?.offline ?? 0} ${
+                (snapshot.printingAgents?.offline ?? 0) === 1 ? 'desconectado' : 'desconectados'
+              }; ${snapshot.queues?.printing.failed ?? 0} ${
+                (snapshot.queues?.printing.failed ?? 0) === 1 ? 'impressao com falha' : 'impressoes com falha'
+              }`}
               danger={Boolean((snapshot.printingAgents?.offline ?? 0) + (snapshot.queues?.printing.failed ?? 0))}
             />
             <SignalCard
               icon={<Clock3 className="h-5 w-5" />}
-              title="Operacao"
-              value={`${snapshot.operation?.delayedOrders ?? 0} atrasado(s)`}
-              detail={`${snapshot.metrics.activeRealtimeConnections} conexao(oes) realtime neste processo`}
+              title="Loja"
+              value={(snapshot.operation?.delayedOrders ?? 0) === 1 ? '1 pedido atrasado' : `${snapshot.operation?.delayedOrders ?? 0} pedidos atrasados`}
+              detail={snapshot.metrics.activeRealtimeConnections === 1 ? '1 conexão ativa neste painel' : `${snapshot.metrics.activeRealtimeConnections} conexões ativas neste painel`}
               danger={Boolean(snapshot.operation?.delayedOrders)}
             />
           </div>
@@ -112,9 +142,9 @@ export function OperationalReadinessPage() {
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <Card>
               <CardHeader>
-                <CardTitle>Flags efetivas no servidor</CardTitle>
+                <CardTitle>Recursos ativados</CardTitle>
                 <CardDescription>
-                  O frontend apenas exibe o estado. Alteracoes exigem configuracao controlada e reinicio da API.
+                  Esta tela apenas mostra o estado; alteracoes exigem configuracao controlada.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -129,16 +159,16 @@ export function OperationalReadinessPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Processo local da API</CardTitle>
+                <CardTitle>Sinais do servico</CardTitle>
                 <CardDescription>
-                  Metricas em memoria; em mais de uma replica, cada processo deve ser observado separadamente.
+                  Indicadores para ajudar a equipe a identificar instabilidade.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-3">
                 <ProcessMetric label="Requisicoes" value={snapshot.metrics.requests} />
-                <ProcessMetric label="Falhas HTTP" value={snapshot.metrics.failures} />
+                <ProcessMetric label="Falhas" value={snapshot.metrics.failures} />
                 <ProcessMetric label="Conflitos" value={snapshot.metrics.conflicts} />
-                <ProcessMetric label="Latencia media" value={`${snapshot.metrics.averageDurationMs} ms`} />
+                <ProcessMetric label="Tempo medio" value={`${snapshot.metrics.averageDurationMs} ms`} />
               </CardContent>
             </Card>
           </div>
@@ -177,13 +207,13 @@ function ReadinessBanner({ snapshot }: { snapshot: ReadinessSnapshot }) {
         <Icon className={cn('mt-1 h-6 w-6', blocked ? 'text-red-300' : attention ? 'text-amber-300' : 'text-emerald-300')} />
         <div>
           <p className="text-lg font-black text-white">
-            {blocked ? 'Liberacao bloqueada' : attention ? 'Pronto com atencao operacional' : 'Sinais de software prontos'}
+            {blocked ? 'Liberação bloqueada' : attention ? 'Pronto com pontos de atenção' : 'Sistema pronto'}
           </p>
           <p className="mt-1 text-sm leading-6 text-slate-300">
             {blocked
               ? 'Corrija banco ou migracoes antes de iniciar qualquer turno piloto.'
               : attention
-                ? 'Ha filas, atrasos, agentes offline ou handoffs que precisam de responsavel.'
+                ? 'Ha filas, atrasos, computadores desconectados ou conversas que precisam de responsavel.'
                 : 'Ainda sao obrigatorias as validacoes fisicas e externas do checklist do piloto.'}
           </p>
         </div>

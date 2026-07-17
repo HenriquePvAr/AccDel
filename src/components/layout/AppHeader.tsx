@@ -1,20 +1,20 @@
-import { LogOut, PanelLeft, Plus, Search } from 'lucide-react'
+import { LogOut, Plus, Search } from 'lucide-react'
 import { type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { navigationGroups } from '@/app/navigation'
 import { StoreSelector } from '@/components/layout/StoreSelector'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { queryClient } from '@/hooks/queries'
 import { useCan } from '@/hooks/use-permissions'
 import { roleLabelMap } from '@/lib/domain'
-import { useOrderFiltersStore, useUiStore } from '@/stores'
+import { useOrderFiltersStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth-store'
 
 export function AppHeader() {
   const navigate = useNavigate()
   const location = useLocation()
-  const toggleMobileSidebar = useUiStore((state) => state.toggleMobileSidebar)
   const orderSearch = useOrderFiltersStore((state) => state.search)
   const setOrderSearch = useOrderFiltersStore((state) => state.setSearch)
   const currentUser = useAuthStore((state) => state.user)
@@ -22,6 +22,9 @@ export function AppHeader() {
   const canViewOrders = useCan('orders:view')
   const canCreateOrders = useCan('orders:create')
   const isOrdersRoute = location.pathname.startsWith('/orders')
+  const currentPageLabel =
+    navigationGroups.flatMap((group) => group.items).find((item) => item.to === location.pathname)
+      ?.label ?? (isOrdersRoute ? 'Pedidos' : 'Cain Delivery')
 
   const handleLogout = () => {
     clearSession()
@@ -35,19 +38,13 @@ export function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#020914]/82 backdrop-blur-xl">
-      <div className="flex items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="rounded-2xl text-slate-100 hover:bg-white/[0.08] lg:hidden"
-          aria-label="Abrir menu de navegacao"
-          onClick={toggleMobileSidebar}
-        >
-          <PanelLeft className="h-5 w-5" />
-        </Button>
+    <header className="sticky top-0 z-30 h-14 border-b border-border bg-white/95 backdrop-blur-sm sm:h-16">
+      <div className="flex h-full items-center gap-3 px-3 sm:px-6 lg:px-8">
+        <div className="min-w-0 flex-1 lg:hidden">
+          <p className="truncate text-sm font-semibold text-foreground sm:text-base">{currentPageLabel}</p>
+        </div>
 
-        <div className="hidden flex-1 items-center gap-3 lg:flex">
+        <div className="hidden min-w-0 flex-1 items-center justify-start gap-3 lg:flex">
           {canViewOrders && !isOrdersRoute ? (
             <form className="relative max-w-xl flex-1" onSubmit={handleOrderSearch} role="search">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -56,44 +53,45 @@ export function AppHeader() {
                 onChange={(event) => setOrderSearch(event.target.value)}
                 placeholder="Buscar pedido ou cliente"
                 aria-label="Buscar pedido ou cliente"
-                className="h-11 rounded-2xl border-white/10 bg-[#07111f] pl-10 text-slate-100 placeholder:text-slate-600 focus:border-orange-500 focus:ring-orange-500/20"
+                className="h-[42px] pl-10"
               />
             </form>
           ) : null}
         </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2">
           {canCreateOrders ? (
             <Button
               type="button"
               aria-label="Criar novo pedido"
               onClick={() => navigate('/orders/new')}
-              className="h-10 rounded-xl bg-orange-600 px-3 font-bold text-white hover:bg-orange-500 sm:px-4"
+              className="h-12 px-3 sm:h-11 sm:px-4"
             >
               <Plus className="h-4 w-4" />
+              <span className="sm:hidden">Novo</span>
               <span className="hidden sm:inline">Novo pedido</span>
             </Button>
           ) : null}
-          <div className="hidden max-w-[210px] md:block">
+          <div className="hidden max-w-[190px] lg:block">
             <StoreSelector />
           </div>
-          <div className="hidden items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-2.5 py-2 sm:flex">
+          <div className="hidden items-center gap-2 border-l border-border pl-3 md:flex">
             <div className="hidden text-right md:block">
-              <p className="text-sm font-bold text-white">
+              <p className="max-w-36 truncate text-sm font-semibold text-foreground">
                 {currentUser?.name ?? 'Sessao ativa'}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {currentUser ? roleLabelMap[currentUser.role] : 'Perfil'}
               </p>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0b2038] text-sm font-black text-white ring-1 ring-white/10">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-xs font-bold text-white">
               {currentUser?.initials ?? 'AD'}
             </div>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            className="rounded-2xl border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+            className="hidden border border-border md:inline-flex"
             aria-label="Sair do admin"
             onClick={handleLogout}
           >

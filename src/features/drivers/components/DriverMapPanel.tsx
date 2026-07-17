@@ -375,7 +375,7 @@ export function DriverMapPanel({
         {mapStatus === 'loading' ? (
           <MapOverlay
             icon={<Loader2 className="h-5 w-5 animate-spin text-primary" />}
-            title="Carregando mapa operacional"
+            title="Carregando mapa"
             description="Preparando base MapLibre, loja, motoboys e rotas."
           />
         ) : null}
@@ -395,7 +395,7 @@ export function DriverMapPanel({
           {previewActive ? <MapChip label="Preview de despacho" /> : null}
           {routeLoading ? <MapChip label="Recalculando rota" /> : null}
           <MapChip label={fallbackStyleActive ? 'Fallback OSM' : 'OpenFreeMap'} />
-          <MapChip label={realtimeConnected ? 'Realtime conectado' : 'Fallback de sincronizacao'} />
+          <MapChip label={realtimeConnected ? 'Atualização conectada' : 'Atualização básica'} />
           {selectedTrackingLocation ? (
             <MapChip label={`Atualizado ${formatDriverLastUpdate(selectedTrackingLocation)}`} />
           ) : null}
@@ -450,7 +450,7 @@ export function DriverMapPanel({
             <div className="min-w-0">
               <p className="truncate text-sm font-black text-white">{driverMapStoreLabel}</p>
               <p className="text-xs text-slate-400">
-                Origem da operacao | {drivers.length} motoboys monitorados
+                Loja | {drivers.length} entregadores no mapa
               </p>
             </div>
           </div>
@@ -460,7 +460,7 @@ export function DriverMapPanel({
           <div className="absolute bottom-4 right-4 z-10 w-[300px] rounded-[22px] border border-white/10 bg-[#07111f]/88 px-4 py-3 shadow-panel backdrop-blur-xl">
             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
               <Signal className={cn('h-3.5 w-3.5', realtimeConnected ? 'text-emerald-300' : 'text-amber-300')} />
-              Operacao selecionada
+              Entrega selecionada
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-300">
               <span>{getDriverStatusLabel(selectedDriver)}</span>

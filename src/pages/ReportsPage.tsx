@@ -45,7 +45,7 @@ export function ReportsPage() {
     <PageShell>
       <SectionHeader
         title="Relatorios"
-        description="Central operacional com leitura real de pedidos, motoboys, garcons, canais e mix de vendas."
+        description="Veja pedidos, entregadores, garçons, canais e produtos vendidos."
       />
 
       <FilterBar className="grid gap-3 lg:grid-cols-[1.2fr_1.3fr_1.5fr_auto]">
@@ -124,7 +124,7 @@ export function ReportsPage() {
             <div className="space-y-1">
               <h3 className="text-lg font-semibold">Falha ao carregar relatorios</h3>
               <p className="max-w-md text-sm text-muted-foreground">
-                A API nao retornou a consolidacao operacional. Revise o backend ou tente novamente.
+                Os dados consolidados nao ficaram disponiveis. Tente novamente.
               </p>
             </div>
             <Button onClick={() => reportsQuery.refetch()}>
@@ -147,7 +147,7 @@ export function ReportsPage() {
               description="Receita consolidada por origem do pedido no periodo filtrado."
             >
               <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={snapshot.byChannel}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e6e1d7" />
                     <XAxis dataKey="label" />
@@ -164,7 +164,7 @@ export function ReportsPage() {
               description="Composicao financeira do periodo filtrado."
             >
               <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie
                       data={snapshot.byPayment}
@@ -225,7 +225,7 @@ export function ReportsPage() {
                 primary: row.primary,
                 value: formatCompactCurrency(row.value),
               }))}
-              emptyLabel="Sem motoboys cadastrados."
+              emptyLabel="Sem entregadores cadastrados."
             />
             <CompactTable
               title="Garcons"
@@ -359,9 +359,9 @@ export function ReportsPage() {
 }
 
 const statusLabelMap: Record<OrderStatus, string> = {
-  in_analysis: 'Em analise',
+  in_analysis: 'Novos',
   in_preparation: 'Em preparo',
-  ready: 'Pronto',
+  ready: 'Prontos',
   out_for_delivery: 'Em rota',
   completed: 'Finalizado',
   cancelled: 'Cancelado',

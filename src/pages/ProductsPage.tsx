@@ -134,7 +134,7 @@ export function ProductsPage() {
     <PageShell>
       <SectionHeader
         title="Produtos"
-        description="Catalogo operacional real, com edicao rapida de status, canais e disponibilidade."
+        description="Edite produtos, canais e disponibilidade do cardápio."
         actions={
           canManageProducts ? (
             <Button onClick={() => setEditingProductId('new')}>

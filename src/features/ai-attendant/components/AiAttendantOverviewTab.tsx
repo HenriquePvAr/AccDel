@@ -2,6 +2,7 @@ import {
   AlertCircle,
   Bot,
   Brain,
+  Clock3,
   MessageSquare,
   Pause,
   Play,
@@ -10,7 +11,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -31,16 +32,42 @@ interface AiAttendantOverviewTabProps {
 }
 
 export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabProps) {
-  const { data: overview, isLoading } = useAiAttendantOverviewQuery()
+  const { data: overview, isLoading, refetch } = useAiAttendantOverviewQuery()
   const { data: session } = useWhatsappSessionQuery()
   const updateSettings = useUpdateAiAttendantSettingsMutation()
+  const [loadingDelayed, setLoadingDelayed] = useState(false)
+
+  useEffect(() => {
+    if (!isLoading) return
+
+    const timer = window.setTimeout(() => setLoadingDelayed(true), 4000)
+    return () => window.clearTimeout(timer)
+  }, [isLoading])
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {['status', 'whatsapp', 'mode', 'today', 'human', 'errors'].map((item) => (
-          <Skeleton key={item} className="h-32" />
-        ))}
+      <div className="space-y-4">
+        <Alert variant={loadingDelayed ? 'warning' : 'default'}>
+          <AlertTitle>
+            <Clock3 className="h-4 w-4" />
+            {loadingDelayed ? 'A verificacao esta demorando' : 'Carregando status do atendimento'}
+          </AlertTitle>
+          <AlertDescription>
+            {loadingDelayed
+              ? 'Os dados ainda nao responderam. Voce pode tentar novamente sem sair desta tela.'
+              : 'Verificando respostas automáticas, WhatsApp e conversas pendentes.'}
+          </AlertDescription>
+          {loadingDelayed ? (
+            <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => void refetch()}>
+              Tentar novamente
+            </Button>
+          ) : null}
+        </Alert>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {['status', 'whatsapp', 'mode', 'today', 'human', 'errors'].map((item) => (
+            <Skeleton key={item} className="h-28" />
+          ))}
+        </div>
       </div>
     )
   }
@@ -53,7 +80,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           Nao foi possivel carregar a visao geral
         </AlertTitle>
         <AlertDescription>
-          Verifique se a API esta rodando e se o usuario possui permissao para o Atendente IA.
+          Verifique a conexao e se o usuario possui permissao para o atendimento automatico.
         </AlertDescription>
       </Alert>
     )
@@ -73,11 +100,11 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <MetricTile
           icon={<Bot className="h-5 w-5" />}
-          label="Status IA"
+          label="Respostas automáticas"
           value={overview.aiActive ? 'Ativa' : 'Inativa'}
           detail={overview.aiActive ? 'Pronta para operar conforme modo.' : 'Nao responde clientes.'}
           tone={overview.aiActive ? 'success' : 'muted'}
@@ -93,14 +120,14 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           icon={<Zap className="h-5 w-5" />}
           label="Modo atual"
           value={aiModeLabels[overview.mode]}
-          detail={overview.mode === 'off' ? 'Fluxo automatico desligado.' : 'Comportamento salvo na API.'}
+          detail={overview.mode === 'off' ? 'Resposta automatica desligada.' : 'Comportamento salvo.'}
           tone={overview.mode === 'off' ? 'muted' : 'success'}
         />
         <MetricTile
           icon={<MessageSquare className="h-5 w-5" />}
           label="Conversas hoje"
           value={String(overview.conversationsToday)}
-          detail={`${overview.repliesSentToday} respostas da IA enviadas hoje.`}
+          detail={`${overview.repliesSentToday} respostas automáticas enviadas hoje.`}
           tone="default"
         />
         <MetricTile
@@ -114,7 +141,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           icon={<AlertCircle className="h-5 w-5" />}
           label="Erros"
           value={String(overview.integrationErrors)}
-          detail={overview.integrationErrors > 0 ? 'Ha falhas de integracao registradas.' : 'Sem erro registrado.'}
+          detail={overview.integrationErrors > 0 ? 'Há falhas registradas.' : 'Sem erro registrado.'}
           tone={overview.integrationErrors > 0 ? 'danger' : 'success'}
         />
       </div>
@@ -124,11 +151,10 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           <Alert variant="danger" className="lg:col-span-3">
             <AlertTitle>
               <AlertCircle className="h-4 w-4" />
-              Provider de WhatsApp nao configurado
+              Servico de WhatsApp nao configurado
             </AlertTitle>
             <AlertDescription>
-              Use WHATSAPP_PROVIDER=cloud com as variaveis WHATSAPP_* da Meta para a integracao
-              oficial sem QR Code, ou evolution_api com BASE_URL e API_KEY para o fluxo legado.
+              Complete as credenciais do servico escolhido antes de iniciar o atendimento.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -152,7 +178,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
               Base vazia
             </AlertTitle>
             <AlertDescription>
-              Cadastre FAQs, politicas e dados da loja para melhorar o contexto das respostas.
+              Cadastre perguntas, políticas e dados da loja para melhorar as respostas.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -161,10 +187,10 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           <Alert variant="danger">
             <AlertTitle>
               <AlertCircle className="h-4 w-4" />
-              Integracao com erro
+              Conexão com erro
             </AlertTitle>
             <AlertDescription>
-              Abra WhatsApp ou Teste para ver o erro retornado pela API real.
+              Abra WhatsApp ou Teste para consultar o motivo e tentar novamente.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -185,7 +211,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
             disabled={updateSettings.isPending}
           >
             {overview.aiActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            {overview.aiActive ? 'Pausar IA' : 'Ativar IA'}
+            {overview.aiActive ? 'Pausar respostas' : 'Ativar respostas'}
           </Button>
           <Button variant="outline" size="sm" onClick={() => onNavigate('whatsapp')}>
             <Smartphone className="h-4 w-4" />
@@ -215,13 +241,14 @@ interface MetricTileProps {
 
 function MetricTile({ icon, label, value, detail, tone }: MetricTileProps) {
   return (
-    <Card className="min-h-32">
-      <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-primary">
+    <Card className="min-h-28">
+      <CardContent className="flex h-full flex-col gap-3 p-4">
+        <div className="flex w-full items-center justify-between gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
             {icon}
           </div>
           <Badge
+            className="ml-auto"
             variant={
               tone === 'success'
                 ? 'success'
@@ -235,9 +262,9 @@ function MetricTile({ icon, label, value, detail, tone }: MetricTileProps) {
             {label}
           </Badge>
         </div>
-        <div className="space-y-1">
-          <p className="font-mono text-3xl font-black tracking-tight text-white">{value}</p>
-          <p className="text-sm leading-6 text-slate-400">{detail}</p>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="font-mono text-2xl font-bold tracking-tight text-foreground">{value}</p>
+          <p className="text-sm leading-5 text-muted-foreground">{detail}</p>
         </div>
       </CardContent>
     </Card>

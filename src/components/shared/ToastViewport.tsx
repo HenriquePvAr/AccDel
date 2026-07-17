@@ -17,7 +17,7 @@ export function ToastViewport() {
   const removeToast = useToastStore((state) => state.removeToast)
 
   return (
-    <div className="pointer-events-none fixed right-5 top-5 z-[80] flex w-full max-w-sm flex-col gap-3">
+    <div className="pointer-events-none fixed right-4 top-4 z-[80] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-3 sm:right-5 sm:top-5">
       <AnimatePresence>
         {toasts.map((toast) => {
           const Icon = iconMap[toast.variant ?? 'default']
@@ -29,7 +29,7 @@ export function ToastViewport() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.98 }}
               className={cn(
-                'pointer-events-auto rounded-[22px] border border-white/10 bg-[#07111f]/95 p-4 text-slate-100 shadow-panel backdrop-blur-xl',
+                'pointer-events-auto rounded-xl border border-border bg-white p-4 text-foreground shadow-panel',
                 toast.variant === 'success' && 'border-status-success/20',
                 toast.variant === 'warning' && 'border-status-warning/20',
                 toast.variant === 'danger' && 'border-status-danger/20',
@@ -38,7 +38,7 @@ export function ToastViewport() {
               <div className="flex gap-3">
                 <div
                   className={cn(
-                    'mt-0.5 rounded-2xl p-2',
+                    'mt-0.5 rounded-lg p-2',
                     toast.variant === 'success' && 'bg-status-success/10 text-status-success',
                     toast.variant === 'warning' && 'bg-status-warning/10 text-status-warning',
                     toast.variant === 'danger' && 'bg-status-danger/10 text-status-danger',
@@ -56,7 +56,8 @@ export function ToastViewport() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-full"
+                  className="h-9 w-9 rounded-lg"
+                  aria-label="Fechar notificacao"
                   onClick={() => removeToast(toast.id)}
                 >
                   <X className="h-4 w-4" />

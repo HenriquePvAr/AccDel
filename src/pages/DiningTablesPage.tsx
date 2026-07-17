@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableSessionDrawer } from '@/features/dining/components/TableSessionDrawer'
+import { formatItemLaunchMeta } from '@/features/dining/utils/item-launch'
 import {
   useAddTableSessionItemsMutation,
   useCatalogMenuSourceQuery,
@@ -205,7 +206,7 @@ export function DiningTablesPage() {
     <PageShell>
       <SectionHeader
         title="Salao / Mesas"
-        description="Mapa operacional do salao com mesas reais, sessoes abertas e acoes claras por status."
+        description="Veja mesas, comandas abertas e ações disponíveis no salão."
       />
 
       <section className="rounded-2xl border border-white/10 bg-[#071525]/86 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
@@ -271,7 +272,7 @@ export function DiningTablesPage() {
               <EmptyState
                 icon={<LayoutGrid className="h-5 w-5" />}
                 title="Falha ao carregar o salao"
-                description="A API nao retornou mesas e sessoes. Tente novamente para continuar a operacao."
+                description="Mesas e comandas ainda não estão disponíveis. Tente atualizar."
               />
             </div>
           ) : filteredTables.length ? (
@@ -521,10 +522,7 @@ function TableDetailsPanel({
                     {item.notes ? (
                       <p className="truncate text-xs text-muted-foreground">{item.notes}</p>
                     ) : null}
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {item.createdByName ?? session.waiterName ?? 'Operacao'} lancou
-                      {item.createdAt ? ` as ${formatItemTime(item.createdAt)}` : ''}
-                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatItemLaunchMeta(item)}</p>
                   </div>
                   <span className="font-mono text-orange-200">{formatCurrency(item.totalPrice)}</span>
                 </div>
@@ -563,13 +561,6 @@ function TableDetailsPanel({
       </div>
     </aside>
   )
-}
-
-function formatItemTime(value: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }
 
 function DetailMetric({

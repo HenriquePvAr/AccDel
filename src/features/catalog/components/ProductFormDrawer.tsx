@@ -67,7 +67,7 @@ export function ProductFormDrawer({
         <SheetHeader>
           <SheetTitle>{product ? 'Editar produto' : 'Novo produto'}</SheetTitle>
           <SheetDescription>
-            Edicao operacional do catalogo com disponibilidade por canal e setor de preparo.
+            Edite o cardápio, os canais e o setor de preparo.
           </SheetDescription>
         </SheetHeader>
 

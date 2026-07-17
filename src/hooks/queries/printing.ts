@@ -55,47 +55,47 @@ export function useSavePrinterMutation() {
   return usePrintingMutation(
     (request: SavePrinterRequest) => printingService.savePrinter(request),
     'Impressora salva',
-    'A configuracao foi persistida para o agente local.',
+    'A configuracao foi salva para o computador de impressao.',
   )
 }
 
 export function useCreateTestPrintMutation() {
   return usePrintingMutation(
     (printerId: string) => printingService.createTestJob(printerId),
-    'Pagina de teste enfileirada',
-    'O Print Agent executara o job quando estiver online.',
+    'Pagina de teste enviada',
+    'O computador conectado fara a impressao.',
   )
 }
 
 export function useUpdatePrintingSettingsMutation() {
   return usePrintingMutation(
     (request: UpdatePrintingSettingsRequest) => printingService.updateSettings(request),
-    'Politicas salvas',
-    'As regras de criacao e recuperacao de jobs foram atualizadas.',
+    'Regras salvas',
+    'As regras de criacao e recuperacao das impressoes foram atualizadas.',
   )
 }
 
 export function useSavePrintRoutingRuleMutation() {
   return usePrintingMutation(
     (request: SavePrinterRoutingRuleRequest) => printingService.saveRoutingRule(request),
-    'Roteamento salvo',
-    'O backend usara esta regra nos proximos eventos.',
+    'Destino salvo',
+    'Esta regra sera usada nas proximas impressoes.',
   )
 }
 
 export function useDeletePrintRoutingRuleMutation() {
   return usePrintingMutation(
     (ruleId: string) => printingService.deleteRoutingRule(ruleId),
-    'Roteamento removido',
-    'Os proximos jobs usarao outra regra ou o fallback configurado.',
+    'Destino removido',
+    'As proximas impressoes usarao outra regra ou o destino padrao.',
   )
 }
 
 export function useRetryPrintJobMutation() {
   return usePrintingMutation(
     (jobId: string) => printingService.retryJob(jobId),
-    'Job liberado para retry',
-    'A mesma impressao persistente voltara para a fila.',
+    'Nova tentativa liberada',
+    'A impressao voltou para a fila.',
   )
 }
 
@@ -103,7 +103,7 @@ export function useCancelPrintJobMutation() {
   return usePrintingMutation(
     ({ jobId, reason }: { jobId: string; reason: string }) =>
       printingService.cancelJob(jobId, reason),
-    'Job cancelado',
+    'Impressao cancelada',
     'O cancelamento foi registrado na auditoria.',
   )
 }
@@ -113,14 +113,14 @@ export function useReprintJobMutation() {
     ({ jobId, reason }: { jobId: string; reason: string }) =>
       printingService.reprintJob(jobId, reason),
     'Reimpressao criada',
-    'Um novo job auditado foi criado a partir do snapshot original.',
+    'Uma nova impressao foi criada a partir do registro original.',
   )
 }
 
 export function useProvisionPrintAgentMutation() {
   return usePrintingMutation(
     (request: ProvisionPrintAgentRequest) => printingService.provisionAgent(request),
-    'Agente provisionado',
+    'Computador cadastrado',
     'Copie a credencial exibida agora; ela nao sera mostrada novamente.',
   )
 }
@@ -136,7 +136,7 @@ export function useRotatePrintAgentMutation() {
 export function useRevokePrintAgentMutation() {
   return usePrintingMutation(
     (agentId: string) => printingService.revokeAgent(agentId),
-    'Agente revogado',
+    'Computador desativado',
     'O dispositivo nao pode mais acessar endpoints de impressao.',
   )
 }

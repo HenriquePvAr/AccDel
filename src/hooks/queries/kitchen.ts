@@ -28,7 +28,7 @@ export function useMoveKitchenOrderMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(response.data.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
       useToastStore.getState().pushToast({
-        title: 'KDS atualizado',
+        title: 'Cozinha atualizada',
         description: `${response.data.number} mudou para ${response.data.status}.`,
         variant: 'success',
       })
@@ -49,7 +49,7 @@ export function useMarkKitchenOrderReadyMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
       useToastStore.getState().pushToast({
         title: 'Pedido pronto',
-        description: `${response.data.number} saiu da fila de producao.`,
+        description: `${response.data.number} saiu da fila de preparo.`,
         variant: 'success',
       })
     },

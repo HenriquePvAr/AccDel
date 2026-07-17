@@ -146,10 +146,10 @@ export function buildOrderFromRequest(args: {
     notes: request.notes,
     items,
     timeline: [
-      buildTimelineEntry('Pedido criado no admin', 'Operação'),
+      buildTimelineEntry('Pedido criado no admin', 'Equipe'),
       buildTimelineEntry(
-        request.sendToProduction ? 'Enviado direto para produção' : 'Mantido em análise',
-        'Operação',
+        request.sendToProduction ? 'Enviado direto para preparo' : 'Mantido como novo',
+        'Equipe',
       ),
     ],
   }
@@ -166,7 +166,7 @@ export function applyOrderStatusAction(
   order: Order,
   request: UpdateOrderStatusRequest,
 ): Order {
-  const actor = request.actor ?? 'Operação'
+  const actor = request.actor ?? 'Equipe'
 
   const timeline = [...order.timeline]
   let nextStatus = order.status
@@ -177,7 +177,7 @@ export function applyOrderStatusAction(
       break
     case 'start_preparation':
       nextStatus = 'in_preparation'
-      timeline.push(buildTimelineEntry('Produção iniciada', actor))
+      timeline.push(buildTimelineEntry('Preparo iniciado', actor))
       break
     case 'ready':
       nextStatus = 'ready'

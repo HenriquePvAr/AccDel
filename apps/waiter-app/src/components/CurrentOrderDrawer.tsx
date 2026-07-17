@@ -10,6 +10,7 @@ interface CurrentOrderDrawerProps {
   open: boolean
   sending: boolean
   online: boolean
+  currentUserName?: string
   onOpen(): void
   onClose(): void
   onQuantity(clientId: string, quantity: number): void
@@ -39,7 +40,13 @@ export function CurrentOrderDrawer(props: CurrentOrderDrawerProps) {
         <div className="draft-list">
           {props.items.map((item) => (
             <article className="draft-row" key={item.clientId}>
-              <div><strong>{item.name}</strong>{item.optionLabels.length > 0 && <small>{item.optionLabels.join(' · ')}</small>}{item.notes && <small>Obs.: {item.notes}</small>}<span>{currency.format(item.unitPrice * item.quantity)}</span></div>
+              <div>
+                <strong>{item.name}</strong>
+                {item.optionLabels.length > 0 && <small>{item.optionLabels.join(' · ')}</small>}
+                {item.notes && <small>Obs.: {item.notes}</small>}
+                <small>{props.currentUserName ? `Agora · ${props.currentUserName}` : 'Agora · por você'}</small>
+                <span>{currency.format(item.unitPrice * item.quantity)}</span>
+              </div>
               <div className="draft-row-actions"><QuantityStepper value={item.quantity} onChange={(quantity) => props.onQuantity(item.clientId, quantity)} /><button className="icon-button danger-text" type="button" aria-label={`Remover ${item.name}`} onClick={() => props.onRemove(item.clientId)}><Trash2 size={19} /></button></div>
             </article>
           ))}

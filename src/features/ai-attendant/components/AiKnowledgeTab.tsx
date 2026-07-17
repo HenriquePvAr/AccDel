@@ -69,7 +69,7 @@ const exampleEntries: Array<Pick<KnowledgeFormState, 'type' | 'title' | 'content
   {
     type: 'payment',
     title: 'Formas de pagamento',
-    content: 'Aceitamos Pix, dinheiro, cartao de credito e debito. Pagamento online so deve ser citado quando houver integracao configurada.',
+    content: 'Aceitamos Pix, dinheiro, cartao de credito e debito. Pagamento online so deve ser citado quando estiver disponivel.',
     channels: ['whatsapp', 'digital_menu', 'delivery', 'counter', 'dine_in'],
   },
   {
@@ -294,7 +294,7 @@ export function AiKnowledgeTab() {
               <span>
                 <span className="block text-sm font-semibold text-white">Entrada ativa</span>
                 <span className="block text-xs leading-5 text-slate-400">
-                  Entradas inativas ficam salvas, mas saem do contexto da IA.
+                  Entradas inativas ficam salvas, mas não são usadas nas respostas.
                 </span>
               </span>
               <input
@@ -322,7 +322,7 @@ export function AiKnowledgeTab() {
                 placeholder="0"
               />
               <p className="text-xs leading-5 text-slate-500">
-                Entradas com prioridade maior entram primeiro no contexto da IA.
+                Entradas com prioridade maior são usadas primeiro nas respostas.
               </p>
             </div>
 
@@ -373,7 +373,7 @@ export function AiKnowledgeTab() {
                   Base de conhecimento
                 </CardTitle>
                 <CardDescription>
-                  {entries.length} entrada(s) cadastrada(s) na API.
+                  {entries.length === 1 ? '1 orientacao cadastrada.' : `${entries.length} orientacoes cadastradas.`}
                 </CardDescription>
               </div>
               <Badge variant={entries.some((entry) => entry.isActive) ? 'success' : 'warning'}>
@@ -502,7 +502,7 @@ export function AiKnowledgeTab() {
               Nenhuma entrada ativa
             </AlertTitle>
             <AlertDescription>
-              A IA pode responder com menos contexto enquanto todas as entradas estiverem inativas.
+              As respostas podem ter menos informações enquanto todas as entradas estiverem inativas.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -518,8 +518,8 @@ export function AiKnowledgeTab() {
         title="Excluir entrada da base?"
         description={
           entryToDelete
-            ? `A entrada "${entryToDelete.title}" sera removida da API.`
-            : 'A entrada sera removida da API.'
+            ? `A orientacao "${entryToDelete.title}" sera removida.`
+            : 'A orientacao sera removida.'
         }
         confirmLabel="Excluir"
         onConfirm={handleDelete}

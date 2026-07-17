@@ -10,9 +10,9 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description }: EmptyStateProps) {
   return (
-    <Card className="border-dashed border-white/10 bg-white/[0.03]">
+    <Card className="border-dashed bg-muted/30 shadow-none">
       <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-primary">
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
           {icon}
         </div>
         <div className="space-y-1">

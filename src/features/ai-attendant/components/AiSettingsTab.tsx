@@ -72,7 +72,7 @@ export function AiSettingsTab() {
       <Alert variant="danger">
         <AlertTitle>Nao foi possivel carregar as configuracoes</AlertTitle>
         <AlertDescription>
-          A API nao retornou as configuracoes do Atendente IA para a loja atual.
+          As configuracoes do atendimento automatico ainda nao estao disponiveis para esta loja.
         </AlertDescription>
       </Alert>
     )
@@ -100,7 +100,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
 
     if (form.assistantName.trim().length < 2 || form.mainPrompt.trim().length < 20) {
       pushToast({
-        title: 'Revise o comportamento da IA',
+        title: 'Revise as respostas automáticas',
         description: 'Nome do atendente e prompt principal precisam estar preenchidos.',
         variant: 'warning',
       })
@@ -146,15 +146,15 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5 text-primary" />
-            Operacao da IA
+            Respostas automáticas
           </CardTitle>
           <CardDescription>
-            Controle se a IA responde, sugere ou transfere conversas para humanos.
+            Escolha quando responder, sugerir ou transferir conversas para a equipe.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <ToggleRow
-            label="Atendente IA ativo"
+            label="Resposta automática ativa"
             description="Quando desligado, o modo salvo sera enviado como off."
             checked={form.isEnabled}
             onCheckedChange={(checked) =>
@@ -209,10 +209,10 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-primary" />
-            Comportamento da IA
+            Como responder
           </CardTitle>
           <CardDescription>
-            Esses dados ficam no banco e o backend monta o system prompt final para o Groq.
+            Defina como o atendimento automatico deve falar e agir nas conversas.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -280,7 +280,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
           </div>
 
           <TextAreaField
-            label="Prompt principal"
+            label="Orientacoes principais"
             value={form.mainPrompt}
             onChange={(value) => setForm((current) => ({ ...current, mainPrompt: value }))}
             placeholder="Voce e um atendente virtual de delivery..."
@@ -314,12 +314,12 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
             Ritmo de resposta
           </CardTitle>
           <CardDescription>
-            Ajustes salvos na API e usados pelo pipeline antes de enviar mensagens automaticas.
+            Defina a espera e o agrupamento antes de enviar respostas automaticas.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
           <NumberField
-            label="Delay minimo"
+            label="Espera minima"
             value={form.minDelaySeconds}
             min={1}
             max={120}
@@ -327,7 +327,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
             onChange={(value) => setForm((current) => ({ ...current, minDelaySeconds: value }))}
           />
           <NumberField
-            label="Delay maximo"
+            label="Espera maxima"
             value={form.maxDelaySeconds}
             min={1}
             max={300}
@@ -354,12 +354,12 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
             Venda assistida
           </CardTitle>
           <CardDescription>
-            Regras comerciais usadas pelo backend para sugerir combos e adicionais com base no banco.
+            Regras comerciais para sugerir combos e adicionais disponiveis no cardapio.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
           <ToggleRow
-            label="Upsell ativo"
+            label="Sugestoes de venda"
             description="Permite sugerir combos, cupons e adicionais somente quando existirem dados reais no catálogo."
             checked={form.upsellEnabled}
             onCheckedChange={(checked) =>
@@ -386,7 +386,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
             Regras de seguranca
           </CardTitle>
           <CardDescription>
-            Limites que entram no system prompt e nas regras de transferencia do pipeline.
+            Limites usados nas respostas e na transferencia para um atendente.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
@@ -440,7 +440,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
           />
           <ToggleRow
             label="Transferir cancelamentos"
-            description="Pedidos de cancelamento saem do fluxo automatico."
+            description="Pedidos de cancelamento aguardam a equipe."
             checked={form.transferOnCancellation}
             onCheckedChange={(checked) =>
               setForm((current) => ({ ...current, transferOnCancellation: checked }))
@@ -448,7 +448,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
           />
           <ToggleRow
             label="Transferir pedido de atendente"
-            description="Quando o cliente pedir humano, a conversa sai do fluxo automatico."
+            description="Quando o cliente pedir uma pessoa, a conversa aguarda a equipe."
             checked={form.transferOnHumanRequest}
             onCheckedChange={(checked) =>
               setForm((current) => ({ ...current, transferOnHumanRequest: checked }))
@@ -467,7 +467,7 @@ function SettingsForm({ settings }: { settings: AiAttendantSettings }) {
         <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <ToggleRow
             label="Permitir envio para numero de teste"
-            description="Quando desligado, o backend bloqueia o endpoint de teste WhatsApp real."
+            description="Quando desligado, nenhuma mensagem de teste e enviada ao WhatsApp."
             checked={form.allowTestWhatsappSend}
             onCheckedChange={(checked) =>
               setForm((current) => ({ ...current, allowTestWhatsappSend: checked }))

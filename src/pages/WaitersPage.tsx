@@ -40,7 +40,7 @@ export function WaitersPage() {
     <PageShell>
       <SectionHeader
         title="Garcons"
-        description="Cadastro, historico operacional e leitura de performance da equipe de salao."
+        description="Cadastro, histórico e desempenho da equipe de salão."
         actions={
           canManageUsers ? (
             <Button onClick={() => setEditingWaiterId('new')}>Novo garcom</Button>
@@ -64,7 +64,7 @@ export function WaitersPage() {
         <StatCard
           label="Pedidos lancados"
           value={String(waiters.reduce((sum, entry) => sum + entry.totalOrders, 0))}
-          trendLabel="Volume operacional"
+          trendLabel="Pedidos atendidos"
           trendDirection="up"
         />
         <StatCard
@@ -91,7 +91,7 @@ export function WaitersPage() {
         <EmptyState
           icon={<Users className="h-5 w-5" />}
           title="Falha ao carregar garcons"
-          description="Nao foi possivel buscar a equipe de salao na API. Tente atualizar novamente."
+          description="Nao foi possivel buscar a equipe de salao. Tente atualizar novamente."
         />
       ) : waiters.length ? (
         <div className="grid gap-5 xl:grid-cols-2">
