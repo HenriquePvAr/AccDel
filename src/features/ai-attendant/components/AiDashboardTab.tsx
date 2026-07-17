@@ -24,7 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAiAttendantDashboardQuery } from '@/hooks/queries/ai-attendant'
 
-import { formatRelativeDate, whatsappStatusLabels } from './ai-attendant-labels'
+import { formatRelativeDate, integrationLogTypeLabels, whatsappStatusLabels } from './ai-attendant-labels'
 
 export function AiDashboardTab() {
   const { data: dashboard, isLoading } = useAiAttendantDashboardQuery()
@@ -37,7 +37,7 @@ export function AiDashboardTab() {
     return (
       <Alert variant="danger">
         <AlertTitle>Dashboard indisponivel</AlertTitle>
-        <AlertDescription>A API nao retornou metricas do Atendente IA.</AlertDescription>
+        <AlertDescription>Os indicadores do atendimento nao ficaram disponiveis.</AlertDescription>
       </Alert>
     )
   }
@@ -216,7 +216,7 @@ export function AiDashboardTab() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
-              Provider e ultimos eventos
+              Servico e ultimos eventos
             </CardTitle>
             <CardDescription>Status seguro, sem tokens ou segredos.</CardDescription>
           </CardHeader>
@@ -226,7 +226,11 @@ export function AiDashboardTab() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-white">
-                      {dashboard.provider.whatsapp.provider}
+                      {dashboard.provider.whatsapp.provider === 'whatsapp_cloud'
+                        ? 'WhatsApp oficial'
+                        : dashboard.provider.whatsapp.provider === 'unconfigured'
+                          ? 'Nao configurado'
+                          : 'Servico conectado'}
                     </p>
                     <p className="text-xs text-slate-500">
                       {dashboard.provider.whatsapp.displayName ??
@@ -253,7 +257,7 @@ export function AiDashboardTab() {
                 dashboard.provider.lastLogs.slice(0, 6).map((log) => (
                   <div key={log.id} className="rounded-xl bg-white/[0.04] p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <Badge variant={log.status === 'error' ? 'danger' : 'default'}>{log.type}</Badge>
+                      <Badge variant={log.status === 'error' ? 'danger' : 'default'}>{integrationLogTypeLabels[log.type]}</Badge>
                       <span className="text-[11px] text-slate-500">
                         {formatRelativeDate(log.createdAt)}
                       </span>
@@ -262,7 +266,7 @@ export function AiDashboardTab() {
                   </div>
                 ))
               ) : (
-                <EmptyDashboardCopy text="Nenhum log de integracao registrado hoje." />
+                <EmptyDashboardCopy text="Nenhum evento de integracao registrado hoje." />
               )}
             </div>
           </CardContent>

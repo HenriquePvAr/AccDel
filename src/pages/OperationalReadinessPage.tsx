@@ -24,15 +24,15 @@ import type { ReadinessSnapshot } from '@/services/operations/readiness-service'
 
 const featureLabels: Record<string, string> = {
   whatsapp: 'WhatsApp',
-  aiAttendant: 'Atendente IA',
+  aiAttendant: 'Atendimento automatico',
   printing: 'Impressao',
-  waiterPwa: 'PWA do garcom',
-  publicTracking: 'Rastreio publico',
+  waiterPwa: 'Aplicativo do garcom',
+  publicTracking: 'Acompanhamento publico',
   orderNotifications: 'Notificacoes de pedido',
 }
 
 export function OperationalReadinessPage() {
-  usePageTitle('Prontidao operacional')
+  usePageTitle('Estado dos servicos')
   const readinessQuery = useReadinessQuery()
   const snapshot = readinessQuery.data
 
@@ -40,8 +40,8 @@ export function OperationalReadinessPage() {
     <PageShell>
       <SectionHeader
         eyebrow="Piloto supervisionado"
-        title="Prontidao operacional"
-        description="Leitura consolidada e restrita da API, banco, migracoes, filas, agentes, flags e sinais que exigem intervencao humana."
+        title="Estado dos servicos"
+        description="Veja se os servicos essenciais estao disponiveis e o que exige intervencao."
         actions={(
           <Button
             type="button"
@@ -61,9 +61,9 @@ export function OperationalReadinessPage() {
           <CardContent className="flex items-start gap-3 p-5 text-red-100">
             <CircleOff className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p className="font-black">Nao foi possivel consultar /ready</p>
+              <p className="font-black">Nao foi possivel consultar o estado dos servicos</p>
               <p className="mt-1 text-sm text-red-200/75">
-                Confirme a API, a sessao e a permissao dashboard:view antes de liberar o piloto.
+                Confirme sua conexao e tente novamente antes de liberar o piloto.
               </p>
             </div>
           </CardContent>
@@ -77,7 +77,7 @@ export function OperationalReadinessPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SignalCard
               icon={<Database className="h-5 w-5" />}
-              title="Banco e migracoes"
+              title="Dados da loja"
               value={snapshot.database.reachable
                 ? `${snapshot.migrations.applied}/${snapshot.migrations.expected}`
                 : 'Indisponivel'}
@@ -96,15 +96,15 @@ export function OperationalReadinessPage() {
             <SignalCard
               icon={<Printer className="h-5 w-5" />}
               title="Impressao"
-              value={`${snapshot.printingAgents?.online ?? 0} agente(s) online`}
-              detail={`${snapshot.printingAgents?.offline ?? 0} offline; ${snapshot.queues?.printing.failed ?? 0} job(s) falho(s)`}
+              value={`${snapshot.printingAgents?.online ?? 0} computador(es) conectado(s)`}
+              detail={`${snapshot.printingAgents?.offline ?? 0} desconectado(s); ${snapshot.queues?.printing.failed ?? 0} impressao(oes) com falha`}
               danger={Boolean((snapshot.printingAgents?.offline ?? 0) + (snapshot.queues?.printing.failed ?? 0))}
             />
             <SignalCard
               icon={<Clock3 className="h-5 w-5" />}
               title="Operacao"
               value={`${snapshot.operation?.delayedOrders ?? 0} atrasado(s)`}
-              detail={`${snapshot.metrics.activeRealtimeConnections} conexao(oes) realtime neste processo`}
+              detail={`${snapshot.metrics.activeRealtimeConnections} conexao(oes) ao vivo neste painel`}
               danger={Boolean(snapshot.operation?.delayedOrders)}
             />
           </div>
@@ -112,9 +112,9 @@ export function OperationalReadinessPage() {
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <Card>
               <CardHeader>
-                <CardTitle>Flags efetivas no servidor</CardTitle>
+                <CardTitle>Recursos ativados</CardTitle>
                 <CardDescription>
-                  O frontend apenas exibe o estado. Alteracoes exigem configuracao controlada e reinicio da API.
+                  Esta tela apenas mostra o estado; alteracoes exigem configuracao controlada.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -129,7 +129,7 @@ export function OperationalReadinessPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Processo local da API</CardTitle>
+                <CardTitle>Detalhes tecnicos do servico</CardTitle>
                 <CardDescription>
                   Metricas em memoria; em mais de uma replica, cada processo deve ser observado separadamente.
                 </CardDescription>
@@ -183,7 +183,7 @@ function ReadinessBanner({ snapshot }: { snapshot: ReadinessSnapshot }) {
             {blocked
               ? 'Corrija banco ou migracoes antes de iniciar qualquer turno piloto.'
               : attention
-                ? 'Ha filas, atrasos, agentes offline ou handoffs que precisam de responsavel.'
+                ? 'Ha filas, atrasos, computadores desconectados ou conversas que precisam de responsavel.'
                 : 'Ainda sao obrigatorias as validacoes fisicas e externas do checklist do piloto.'}
           </p>
         </div>

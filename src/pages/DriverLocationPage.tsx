@@ -158,11 +158,11 @@ export function DriverLocationPage() {
     Boolean(selectedDriver?.queue.length) && selectedDriver?.availability === 'delivering'
   const autoTrackingDescription = useMemo(() => {
     if (!selectedDriver) {
-      return 'Selecione um motoboy em entrega para simular tracking automatico.'
+      return 'Selecione um motoboy em entrega para simular o acompanhamento automatico.'
     }
 
     if (!canAutoTrackSelectedDriver) {
-      return 'Tracking automatico fica bloqueado sem entrega ativa.'
+      return 'O acompanhamento automatico fica bloqueado sem entrega ativa.'
     }
 
     return 'Simulacao de app do motoboy: 1 envio por minuto enquanto houver entrega ativa.'
@@ -481,7 +481,7 @@ export function DriverLocationPage() {
           title={autoTrackingDescription}
           onClick={() => setAutoTrackingDevEnabled((enabled) => !enabled)}
         >
-          Tracking auto {autoTrackingDevEnabled ? 'ativo' : 'dev'}
+          Acompanhamento {autoTrackingDevEnabled ? 'ativo' : 'de teste'}
         </Button>
       </>
     ) : null
@@ -490,7 +490,7 @@ export function DriverLocationPage() {
     <PageShell className="space-y-5">
       <SectionHeader
         title="Localizacao dos motoboys"
-        description="Mapa operacional com tracking real, ETA, rota restante e lista compacta de motoboys para escalar a leitura da operacao."
+        description="Mapa operacional com localizacao, previsao, rota restante e lista compacta de motoboys."
         actions={
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="rounded-full border border-emerald-400/18 bg-emerald-400/8 px-3 py-2 text-xs font-bold text-emerald-200">

@@ -124,7 +124,7 @@ export function ReportsPage() {
             <div className="space-y-1">
               <h3 className="text-lg font-semibold">Falha ao carregar relatorios</h3>
               <p className="max-w-md text-sm text-muted-foreground">
-                A API nao retornou a consolidacao operacional. Revise o backend ou tente novamente.
+                Os dados consolidados nao ficaram disponiveis. Tente novamente.
               </p>
             </div>
             <Button onClick={() => reportsQuery.refetch()}>

@@ -149,9 +149,9 @@ export function KitchenPage() {
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="KDS operacional"
+        eyebrow="Cozinha ao vivo"
         title="Cozinha"
-        description="Fila de producao com SLA, prioridade, canal e pronto para despacho/retirada/servico."
+        description="Fila de producao com prazo, prioridade, canal e pedidos prontos para sair."
         actions={
           <Button
             variant="outline"
@@ -184,7 +184,7 @@ export function KitchenPage() {
           icon={<BellRing className="h-5 w-5" />}
           label="Urgentes"
           value={queue?.summary.urgent ?? 0}
-          hint="SLA perto ou estourado"
+          hint="Prazo perto ou vencido"
           tone="red"
         />
         <KitchenMetricCard
@@ -266,7 +266,7 @@ export function KitchenPage() {
         <EmptyState
           icon={<AlertTriangle className="h-5 w-5" />}
           title="Falha ao carregar a cozinha"
-          description="Nao foi possivel carregar a fila KDS agora. Tente atualizar ou revise a API."
+          description="Nao foi possivel carregar a fila da cozinha. Tente atualizar."
         />
       ) : hasQueue ? (
         <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-5">
@@ -390,7 +390,7 @@ export function KitchenPage() {
         <EmptyState
           icon={<ChefHat className="h-5 w-5" />}
           title="Cozinha sem fila ativa"
-          description="Ao aceitar um pedido ou criar pedido direto para producao, ele aparece aqui com SLA, itens e canal."
+          description="Ao aceitar um pedido ou envia-lo para producao, ele aparece aqui com prazo, itens e canal."
         />
       )}
 
@@ -582,7 +582,7 @@ function KitchenOrderCard({
       <div className="mt-4 rounded-2xl bg-white/[0.035] px-3 py-2 ring-1 ring-white/10">
         <div className="flex items-center justify-between gap-3 text-xs">
           <span className="font-black uppercase tracking-[0.14em] text-slate-500">
-            SLA preparo
+            Prazo de preparo
           </span>
           <span className={cn('font-mono font-black', risk === 'late' ? 'text-red-300' : 'text-slate-300')}>
             {remainingMinutes > 0 ? `${remainingMinutes} min restantes` : 'limite estourado'}
@@ -725,7 +725,7 @@ function KitchenOrderDrawer({
                 value={`${prepTarget} min`}
               />
               <DrawerMetric
-                label="SLA agora"
+                label="Prazo agora"
                 value={elapsedMinutes >= prepTarget ? 'Atrasado' : `${prepTarget - elapsedMinutes} min restantes`}
               />
               <DrawerMetric label="Destino" value={getReadyDestination(order)} />

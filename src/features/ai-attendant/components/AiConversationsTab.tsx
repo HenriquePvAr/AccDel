@@ -7,6 +7,7 @@ import {
   MessageSquare,
   PauseCircle,
   Reply,
+  Search,
   Send,
   ShoppingCart,
   UserCheck,
@@ -57,9 +58,9 @@ type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'analysis'
 
 const conversationFilters: Array<{ value: ConversationFilter; label: string }> = [
   { value: 'all', label: 'Todas' },
-  { value: 'waiting_human', label: 'Aguardando humano' },
-  { value: 'waiting_ai', label: 'IA respondendo' },
-  { value: 'human_assigned', label: 'Humano assumiu' },
+  { value: 'waiting_human', label: 'Aguardando atendente' },
+  { value: 'waiting_ai', label: 'Resposta automatica' },
+  { value: 'human_assigned', label: 'Atendimento humano' },
   { value: 'closed', label: 'Fechadas' },
 ]
 
@@ -67,6 +68,7 @@ export function AiConversationsTab() {
   const { data: conversations = [], isLoading, refetch } = useConversationsQuery()
   const { data: session } = useWhatsappSessionQuery()
   const [filter, setFilter] = useState<ConversationFilter>('all')
+  const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loadingDelayed, setLoadingDelayed] = useState(false)
 
@@ -78,11 +80,26 @@ export function AiConversationsTab() {
   }, [isLoading])
   const filteredConversations = useMemo(
     () =>
-      conversations.filter((conversation) =>
-        filter === 'all' ? true : conversation.status === filter,
-      ),
-    [conversations, filter],
+      conversations.filter((conversation) => {
+        const matchesFilter = filter === 'all' ? true : conversation.status === filter
+        const query = search.trim().toLowerCase()
+        const matchesSearch = !query || [
+          conversation.customerName,
+          conversation.customer?.name,
+          conversation.whatsappNumber,
+          conversation.messages.at(-1)?.body,
+        ].filter(Boolean).join(' ').toLowerCase().includes(query)
+
+        return matchesFilter && matchesSearch
+      }),
+    [conversations, filter, search],
   )
+  const counts = useMemo(() => ({
+    all: conversations.length,
+    waitingHuman: conversations.filter((conversation) => conversation.status === 'waiting_human').length,
+    active: conversations.filter((conversation) => conversation.status !== 'closed').length,
+    unread: conversations.reduce((total, conversation) => total + conversation.unreadCount, 0),
+  }), [conversations])
   const activeConversationId =
     selectedId && conversations.some((conversation) => conversation.id === selectedId)
       ? selectedId
@@ -126,13 +143,32 @@ export function AiConversationsTab() {
       <EmptyState
         icon={<MessageSquare className="h-7 w-7" />}
         title="Nenhuma conversa encontrada"
-        description="As conversas aparecem aqui somente depois de mensagens reais recebidas pelo webhook do WhatsApp ou testes reais autorizados."
+        description="As novas conversas do WhatsApp aparecem aqui assim que a primeira mensagem chega."
       />
     )
   }
 
   return (
-    <div className="grid min-h-[640px] gap-3 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_300px]">
+    <div className="space-y-3">
+      <section className="grid gap-3 rounded-xl border border-border bg-muted/35 p-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(240px,1.4fr)]" aria-label="Resumo das conversas">
+        <ConversationCount label="Conversas" value={counts.all} />
+        <ConversationCount label="Ativas" value={counts.active} />
+        <ConversationCount label="Esperando" value={counts.waitingHuman} urgent={counts.waitingHuman > 0} />
+        <ConversationCount label="Nao lidas" value={counts.unread} urgent={counts.unread > 0} />
+        <label className="relative sm:col-span-2 lg:col-span-1">
+          <span className="sr-only">Buscar conversa</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar cliente ou telefone"
+            className="h-12 w-full rounded-lg border border-input bg-white pl-10 pr-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+          />
+        </label>
+      </section>
+
+      <div className="grid min-h-[640px] gap-3 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_300px]">
       <ConversationList
         conversations={filteredConversations}
         totalConversations={conversations.length}
@@ -166,6 +202,16 @@ export function AiConversationsTab() {
       <div className="lg:col-span-2 2xl:col-span-1">
         <ConversationContextPanel conversation={selectedConversation} />
       </div>
+      </div>
+    </div>
+  )
+}
+
+function ConversationCount({ label, value, urgent = false }: { label: string; value: number; urgent?: boolean }) {
+  return (
+    <div className={`rounded-lg border bg-white px-3 py-2 ${urgent ? 'border-amber-300' : 'border-border'}`}>
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+      <p className={`mt-1 font-mono text-xl font-bold ${urgent ? 'text-amber-800' : 'text-foreground'}`}>{value}</p>
     </div>
   )
 }
@@ -192,9 +238,9 @@ function ConversationList({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />
-          Inbox WhatsApp
+          Conversas do WhatsApp
         </CardTitle>
-        <CardDescription>{totalConversations} conversa(s) retornada(s) pela API.</CardDescription>
+        <CardDescription>{totalConversations} conversa(s) no atendimento.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 px-3 pb-3">
         <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
@@ -203,7 +249,7 @@ function ConversationList({
               key={item.value}
               type="button"
               onClick={() => onFilterChange(item.value)}
-              className="shrink-0 rounded-md border border-border bg-white px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[active=true]:border-primary/30 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+              className="min-h-10 shrink-0 rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[active=true]:border-primary/30 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
               data-active={filter === item.value}
             >
               {item.label}
@@ -211,7 +257,7 @@ function ConversationList({
           ))}
         </div>
 
-        <div className="max-h-[540px] space-y-1.5 overflow-y-auto pr-1 scrollbar-thin">
+        <div className="space-y-1.5 lg:max-h-[540px] lg:overflow-y-auto lg:pr-1 scrollbar-thin">
           {conversations.length > 0 ? (
             conversations.map((conversation) => (
               <ConversationListItem
@@ -290,7 +336,7 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
               {conversationStatusLabels[conversation.status]}
             </Badge>
             {conversation.type === 'test' ? <Badge variant="analysis">Teste real</Badge> : null}
-            {conversation.isAiPaused ? <Badge variant="warning">IA pausada</Badge> : null}
+            {conversation.isAiPaused ? <Badge variant="warning">Resposta automatica pausada</Badge> : null}
           </div>
         </div>
 
@@ -311,7 +357,7 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
             disabled={releaseConversation.isPending || conversation.status === 'closed'}
           >
             <Bot className="h-4 w-4" />
-            Devolver para IA
+            Devolver para resposta automatica
           </Button>
           <Button
             size="sm"
@@ -343,10 +389,10 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
           <Alert>
             <AlertTitle>
               <PauseCircle className="h-4 w-4" />
-              IA pausada nesta conversa
+              Resposta automatica pausada
             </AlertTitle>
             <AlertDescription>
-              Enquanto humano assumiu ou a conversa esta fechada, o pipeline nao envia resposta automatica.
+              Durante o atendimento humano ou depois do fechamento, nenhuma resposta automatica e enviada.
             </AlertDescription>
           </Alert>
         ) : pendingDelayMessage ? (
@@ -356,7 +402,7 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
               {pendingDelayMessage}
             </AlertTitle>
             <AlertDescription>
-              O envio sera cancelado se um humano assumir antes do delay terminar.
+              O envio sera cancelado se um atendente assumir antes desse tempo terminar.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -377,7 +423,7 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
             <EmptyState
               icon={<MessageSquare className="h-7 w-7" />}
               title="Sem mensagens nesta conversa"
-              description="A conversa existe, mas a API ainda nao possui mensagens vinculadas."
+              description="A conversa existe, mas ainda nao tem mensagens registradas."
             />
           ) : (
             conversation.messages.map((message) => (
@@ -399,14 +445,14 @@ function ConversationChat({ conversation, whatsappConnected }: ConversationChatP
           {sendError ? <p className="text-sm leading-6 text-red-800">{sendError}</p> : null}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs leading-5 text-muted-foreground">
-              Envio manual assume a conversa e pausa a IA.
+              O envio manual inicia o atendimento humano e pausa a resposta automatica.
             </p>
             <Button
               type="submit"
               disabled={!whatsappConnected || sendMessage.isPending || conversation.status === 'closed'}
             >
               <Send className="h-4 w-4" />
-              Enviar mensagem humana
+              Enviar mensagem
             </Button>
           </div>
         </form>
@@ -612,7 +658,7 @@ function ConversationListItem({ conversation, active, onClick }: ConversationLis
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>{formatRelativeDate(conversation.lastMessageAt)}</span>
         {conversation.type === 'test' ? <span>Teste</span> : null}
-        {conversation.isAiPaused ? <span>IA pausada</span> : null}
+        {conversation.isAiPaused ? <span>Resposta automatica pausada</span> : null}
       </div>
     </button>
   )

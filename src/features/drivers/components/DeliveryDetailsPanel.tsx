@@ -175,8 +175,8 @@ export function DeliveryDetailsPanel({
               {routeLoading
                 ? 'Recalculando rota...'
                 : realtimeConnected
-                  ? 'Tracking realtime conectado'
-                  : 'Tracking operacional em fallback'}
+                  ? 'Acompanhamento ao vivo conectado'
+                  : 'Acompanhamento usando a ultima posicao'}
             </span>
             {location ? (
               <>

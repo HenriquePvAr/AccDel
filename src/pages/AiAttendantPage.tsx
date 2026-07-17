@@ -38,6 +38,9 @@ const tabs: AiAttendantPageTab[] = [
   { value: 'test', label: 'Testar IA', icon: <TestTube className="h-4 w-4" /> },
 ]
 
+const dailyTabs = tabs.filter((tab) => ['conversations', 'overview', 'dashboard'].includes(tab.value))
+const configurationTabs = tabs.filter((tab) => ['whatsapp', 'knowledge', 'settings', 'test'].includes(tab.value))
+
 function isAiAttendantTabValue(value: string): value is AiAttendantTabValue {
   return tabs.some((tab) => tab.value === value)
 }
@@ -50,7 +53,7 @@ export function AiAttendantPage() {
       <SectionHeader
         eyebrow="Atendimento"
         title="Central de conversas"
-        description="Acompanhe clientes, assuma conversas e consulte o contexto do pedido em um unico workspace."
+        description="Acompanhe clientes, assuma conversas e consulte o pedido sem sair da tela."
       />
 
       <Card>
@@ -63,15 +66,34 @@ export function AiAttendantPage() {
               }
             }}
           >
-            <div className="sticky top-16 z-20 border-b border-border bg-white p-2">
-              <TabsList aria-label="Secoes do Atendente IA" className="w-full">
-                {tabs.map((tab) => (
-                  <TabsTrigger key={tab.value} value={tab.value} className="flex-1">
+            <div className="sticky top-14 z-20 flex flex-col gap-2 border-b border-border bg-white p-2 sm:top-16 lg:flex-row lg:items-center">
+              <TabsList aria-label="Trabalho diario do atendimento" className="min-w-0 flex-1">
+                {dailyTabs.map((tab) => (
+                  <TabsTrigger key={tab.value} value={tab.value} className="min-h-11 flex-1">
                     {tab.icon}
-                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span>{tab.label}</span>
                   </TabsTrigger>
                 ))}
               </TabsList>
+              <label className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-muted-foreground lg:w-[230px]">
+                <Settings className="h-4 w-4 shrink-0" />
+                <span className="sr-only">Configurar atendimento</span>
+                <select
+                  aria-label="Configurar atendimento"
+                  value={configurationTabs.some((tab) => tab.value === activeTab) ? activeTab : ''}
+                  onChange={(event) => {
+                    if (isAiAttendantTabValue(event.target.value)) {
+                      setActiveTab(event.target.value)
+                    }
+                  }}
+                  className="h-10 min-w-0 flex-1 bg-transparent text-foreground outline-none"
+                >
+                  <option value="">Configurar atendimento</option>
+                  {configurationTabs.map((tab) => (
+                    <option key={tab.value} value={tab.value}>{tab.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             <div className="p-3 sm:p-4">

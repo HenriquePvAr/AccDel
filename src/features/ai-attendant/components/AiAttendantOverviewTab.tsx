@@ -151,11 +151,10 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           <Alert variant="danger" className="lg:col-span-3">
             <AlertTitle>
               <AlertCircle className="h-4 w-4" />
-              Provider de WhatsApp nao configurado
+              Servico de WhatsApp nao configurado
             </AlertTitle>
             <AlertDescription>
-              Use WHATSAPP_PROVIDER=cloud com as variaveis WHATSAPP_* da Meta para a integracao
-              oficial sem QR Code, ou evolution_api com BASE_URL e API_KEY para o fluxo legado.
+              Complete as credenciais do servico escolhido antes de iniciar o atendimento.
             </AlertDescription>
           </Alert>
         ) : null}

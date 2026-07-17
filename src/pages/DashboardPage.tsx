@@ -8,6 +8,8 @@ import {
   Clock3,
   CreditCard,
   Crown,
+  MessageSquare,
+  Printer,
   RefreshCcw,
   Users,
   WalletCards,
@@ -41,9 +43,10 @@ import {
   useCustomerMetricsSummaryQuery,
   useDriversQuery,
   useKitchenQueueQuery,
+  usePrintingOverviewQuery,
   useReportsQuery,
 } from '@/hooks/queries'
-import { useAiAttendantDashboardQuery } from '@/hooks/queries/ai-attendant'
+import { useAiAttendantDashboardQuery, useConversationsQuery } from '@/hooks/queries/ai-attendant'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { formatCurrency, formatPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -77,12 +80,16 @@ export function DashboardPage() {
   const cashQuery = useCashRegisterQuery()
   const crmSummaryQuery = useCustomerMetricsSummaryQuery()
   const aiDashboardQuery = useAiAttendantDashboardQuery()
+  const printingQuery = usePrintingOverviewQuery()
+  const conversationsQuery = useConversationsQuery()
 
   const snapshot = reportsQuery.data?.data
   const kitchenQueue = kitchenQuery.data?.data
   const cashRegister = cashQuery.data?.data
   const crmSummary = crmSummaryQuery.data?.data
   const aiDashboard = aiDashboardQuery.data
+  const printing = printingQuery.data?.data
+  const conversations = conversationsQuery.data ?? []
   const drivers = driversQuery.data?.data ?? []
 
   const activeDrivers = drivers.filter((driver) => driver.active !== false)
@@ -103,6 +110,11 @@ export function DashboardPage() {
     : []
   const topProducts = snapshot?.topProducts ?? []
   const topNeighborhoods = crmSummary?.topNeighborhoods ?? []
+  const printingFailures =
+    (printing?.jobCounts.FAILED ?? 0) + (printing?.jobCounts.PRINT_RESULT_UNKNOWN ?? 0)
+  const conversationsWaiting = conversations.filter(
+    (conversation) => conversation.status === 'waiting_human',
+  ).length
 
   const isLoadingExecutive = reportsQuery.isLoading && !snapshot
   const operationalAlerts = [
@@ -123,6 +135,12 @@ export function DashboardPage() {
     aiDashboardQuery.isError
       ? { id: 'ai-unavailable', label: 'Atendimento indisponivel', to: '/ai-attendant', tone: 'warning' as const }
       : null,
+    printingFailures
+      ? { id: 'printing-failures', label: `${printingFailures} impressao(oes) pedem revisao`, to: '/settings/printing', tone: 'danger' as const }
+      : null,
+    conversationsWaiting
+      ? { id: 'conversations-waiting', label: `${conversationsWaiting} conversa(s) aguardando atendente`, to: '/ai-attendant', tone: 'warning' as const }
+      : null,
   ].filter((alert): alert is NonNullable<typeof alert> => Boolean(alert))
 
   return (
@@ -130,7 +148,7 @@ export function DashboardPage() {
       <SectionHeader
         eyebrow="Operacao"
         title="Dashboard operacional"
-        description="Pulso unico de cozinha, entregas, caixa, clientes e IA usando dados reais da loja atual."
+        description="Veja o que exige acao agora e entre direto na fila certa."
         actions={
           <div className="inline-flex rounded-lg bg-muted p-1">
             {periodOptions.map((option) => (
@@ -151,8 +169,8 @@ export function DashboardPage() {
         <div className="flex min-w-0 items-center gap-2 sm:w-52">
           <AlertTriangle className={cn('h-4 w-4 shrink-0', operationalAlerts.length ? 'text-red-700' : 'text-emerald-700')} />
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-foreground">Excecoes da operacao</h2>
-            <p className="text-xs text-muted-foreground">Prioridades que exigem atencao</p>
+            <h2 className="text-sm font-semibold text-foreground">Precisa de atencao</h2>
+            <p className="text-xs text-muted-foreground">Prioridades da operacao agora</p>
           </div>
         </div>
         <div className="flex min-w-0 flex-1 flex-wrap gap-2">
@@ -188,24 +206,71 @@ export function DashboardPage() {
         </div>
       ) : (
         <>
-          {snapshot ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {snapshot.metrics.map((metric) => (
-                <StatCard key={metric.id} {...metric} />
-              ))}
+          <section aria-labelledby="dashboard-now-title">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Agora</p>
+                <h2 id="dashboard-now-title" className="mt-1 text-xl font-bold text-foreground">Fila operacional</h2>
+              </div>
+              <p className="hidden text-sm text-muted-foreground sm:block">Toque em um indicador para agir</p>
             </div>
-          ) : (
-            <UnavailablePanel
-              title="Relatorios indisponiveis"
-              description="Nao foi possivel carregar o consolidado do periodo. Nenhum numero foi estimado."
-            />
-          )}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+              <PrioritySignalCard
+                label="Atrasados"
+                value={formatNullableNumber(kitchenQueue?.summary.delayed)}
+                caption="resolver primeiro"
+                to="/orders"
+                tone={kitchenQueue?.summary.delayed ? 'danger' : 'success'}
+                icon={<AlertTriangle className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Aguardando aceite"
+                value={formatNullableNumber(kitchenQueue?.summary.awaiting)}
+                caption="novos pedidos"
+                to="/orders"
+                tone="info"
+                icon={<Clock3 className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Em preparo"
+                value={formatNullableNumber(kitchenQueue?.summary.inProduction)}
+                caption="na cozinha"
+                to="/kitchen"
+                tone="warning"
+                icon={<ChefHat className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Prontos"
+                value={formatNullableNumber(kitchenQueue?.summary.ready)}
+                caption="despachar ou retirar"
+                to="/orders"
+                tone="success"
+                icon={<Bike className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Falhas de impressao"
+                value={printingQuery.isError ? 'Indisponivel' : String(printingFailures)}
+                caption="tentar novamente"
+                to="/settings/printing"
+                tone={printingFailures ? 'danger' : 'success'}
+                icon={<Printer className="h-5 w-5" />}
+              />
+              <PrioritySignalCard
+                label="Conversas esperando"
+                value={conversationsQuery.isError ? 'Indisponivel' : String(conversationsWaiting)}
+                caption="assumir atendimento"
+                to="/ai-attendant"
+                tone={conversationsWaiting ? 'warning' : 'success'}
+                icon={<MessageSquare className="h-5 w-5" />}
+              />
+            </div>
+          </section>
 
           <div className="grid gap-4 xl:grid-cols-2">
             <OperationalSection
               icon={<ChefHat className="h-4 w-4" />}
-              title="KDS"
-              description="Fila de preparo sem dados financeiros."
+              title="Cozinha"
+              description="Fila de preparo em tempo real."
               status={
                 kitchenQuery.isError
                   ? 'indisponivel'
@@ -235,7 +300,7 @@ export function DashboardPage() {
                 <SignalTile
                   title="Atrasados"
                   value={formatNullableNumber(kitchenQueue?.summary.delayed)}
-                  caption="marcados pelo KDS"
+                  caption="fora do prazo"
                   tone={kitchenQueue?.summary.delayed ? 'danger' : 'default'}
                 />
                 <SignalTile
@@ -297,6 +362,25 @@ export function DashboardPage() {
             </OperationalSection>
           </div>
 
+          <section aria-labelledby="dashboard-results-title">
+            <div className="mb-3">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Abaixo da operacao</p>
+              <h2 id="dashboard-results-title" className="mt-1 text-xl font-bold text-foreground">Resultado do periodo</h2>
+            </div>
+            {snapshot ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {snapshot.metrics.map((metric) => (
+                  <StatCard key={metric.id} {...metric} />
+                ))}
+              </div>
+            ) : (
+              <UnavailablePanel
+                title="Resultados indisponiveis"
+                description="Nao foi possivel carregar o consolidado do periodo. Nenhum numero foi estimado."
+              />
+            )}
+          </section>
+
           <div className="grid gap-4 xl:grid-cols-2">
             <OperationalSection
               icon={<WalletCards className="h-4 w-4" />}
@@ -355,8 +439,8 @@ export function DashboardPage() {
 
             <OperationalSection
               icon={<Users className="h-4 w-4" />}
-              title="CRM"
-              description="Segmentos vindos do cadastro e historico real."
+              title="Clientes"
+              description="Recorrencia e relacionamento com a loja."
               status={
                 crmSummaryQuery.isError
                   ? 'indisponivel'
@@ -428,8 +512,8 @@ export function DashboardPage() {
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <OperationalSection
               icon={<Bot className="h-4 w-4" />}
-              title="Atendente IA"
-              description="Conversas, conversoes e transferencias sem estimativa artificial."
+              title="Atendimento automatico"
+              description="Conversas, pedidos sugeridos e transferencias para a equipe."
               status={
                 aiDashboardQuery.isError
                   ? 'indisponivel'
@@ -447,7 +531,7 @@ export function DashboardPage() {
                 <SignalTile
                   title="Sugeridos"
                   value={formatNullableNumber(aiDashboard?.kpis.orderDraftsSuggested)}
-                  caption="orderDrafts criados"
+                  caption="rascunhos de pedido"
                   tone="warning"
                 />
                 <SignalTile
@@ -545,6 +629,48 @@ interface OperationalSectionProps {
   description: string
   status: string
   children: ReactNode
+}
+
+function PrioritySignalCard({
+  label,
+  value,
+  caption,
+  to,
+  tone,
+  icon,
+}: {
+  label: string
+  value: string
+  caption: string
+  to: string
+  tone: 'info' | 'success' | 'warning' | 'danger'
+  icon: ReactNode
+}) {
+  const toneClasses = {
+    info: 'border-blue-200 bg-blue-50 text-blue-700',
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    warning: 'border-amber-200 bg-amber-50 text-amber-800',
+    danger: 'border-red-200 bg-red-50 text-red-700',
+  }[tone]
+
+  return (
+    <Link
+      to={to}
+      className={cn(
+        'group flex min-h-[112px] items-center justify-between gap-4 rounded-xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        toneClasses,
+      )}
+    >
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-[0.08em] opacity-80">{label}</p>
+        <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-current">{value}</p>
+        <p className="mt-1 text-xs font-semibold opacity-80">{caption}</p>
+      </div>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 shadow-sm transition group-hover:scale-105">
+        {icon}
+      </span>
+    </Link>
+  )
 }
 
 function OperationalSection({

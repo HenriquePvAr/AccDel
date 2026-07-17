@@ -428,12 +428,12 @@ export function OrderDetailsPage() {
                     </span>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-400">Tempo de preparo (SLA)</p>
+                    <p className="text-sm text-slate-400">Prazo de preparo</p>
                     <p className="mt-1 font-bold text-white">
                       Meta: {order.estimatedPrepTimeMinutes ?? '--'} min
                     </p>
                     <p className="mt-1 text-sm text-emerald-300">
-                      {order.delayed ? 'Fora do SLA' : 'Dentro do SLA'}
+                      {order.delayed ? 'Fora do prazo' : 'Dentro do prazo'}
                     </p>
                   </div>
                 </div>

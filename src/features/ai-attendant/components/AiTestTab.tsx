@@ -127,7 +127,7 @@ function SimulatorMode() {
         },
       ])
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Provider de IA nao configurado ou indisponivel.'))
+      setErrorMessage(getErrorMessage(error, 'Servico de resposta automatica nao configurado ou indisponivel.'))
     }
   }
 
@@ -205,7 +205,7 @@ function SimulatorMode() {
                 Simulador sem envio real
               </AlertTitle>
               <AlertDescription>
-                Este modo chama /ai-attendant/test-chat/message. Se o provider IA nao estiver configurado, a tela mostra o erro da API.
+                Este modo envia uma mensagem de teste. Se o servico nao estiver configurado, a tela mostra o erro.
               </AlertDescription>
             </Alert>
 
@@ -263,7 +263,7 @@ function SimulatorMode() {
             <Alert variant="danger">
               <AlertTitle>
                 <AlertCircle className="h-4 w-4" />
-                Provider IA indisponivel
+                Servico de resposta automatica indisponivel
               </AlertTitle>
               <AlertDescription>{errorMessage}</AlertDescription>
             </Alert>
@@ -524,7 +524,7 @@ function TestResultPanel({
               ))}
             </div>
           ) : (
-            <p className="mt-3 text-sm text-slate-400">Nenhuma fonte retornada pelo provider.</p>
+            <p className="mt-3 text-sm text-slate-400">Nenhuma fonte foi retornada pelo servico.</p>
           )}
         </div>
       </div>
@@ -546,7 +546,7 @@ function TestResultPanel({
               ))}
             </div>
           ) : (
-            <p className="mt-3 text-sm text-slate-400">Provider retornou rascunho sem itens parseados.</p>
+          <p className="mt-3 text-sm text-slate-400">O servico retornou um rascunho sem itens reconhecidos.</p>
           )}
           {result.orderDraft.missingFields.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2">

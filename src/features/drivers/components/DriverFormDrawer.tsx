@@ -56,7 +56,7 @@ export function DriverFormDrawer({
         <SheetHeader>
           <SheetTitle>{driver ? 'Editar motoboy' : 'Novo motoboy'}</SheetTitle>
           <SheetDescription>
-            Cadastro operacional preparado para atribuicao de pedidos e tracking futuro.
+            Cadastro operacional preparado para atribuicao e acompanhamento de pedidos.
           </SheetDescription>
         </SheetHeader>
 

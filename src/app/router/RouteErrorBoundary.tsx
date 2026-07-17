@@ -6,25 +6,32 @@ import { Button } from '@/components/ui/button'
 
 function getErrorCopy(error: unknown) {
   if (isRouteErrorResponse(error)) {
+    if (error.status === 404) {
+      return {
+        title: 'Pagina nao encontrada',
+        description: 'Este endereco nao existe ou foi movido. Volte ao painel para continuar.',
+      }
+    }
+
     return {
-      title: `${error.status} ${error.statusText}`,
+      title: 'Nao foi possivel abrir esta pagina',
       description:
         typeof error.data === 'string'
           ? error.data
-          : 'A rota encontrou um problema inesperado.',
+          : 'Tente novamente ou volte ao painel para continuar.',
     }
   }
 
   if (error instanceof Error) {
     return {
       title: 'Falha ao carregar esta tela',
-      description: error.message,
+      description: 'Tente recarregar. Se o problema continuar, avise o responsavel pelo painel.',
     }
   }
 
   return {
-    title: 'Falha inesperada no admin',
-    description: 'Recarregue a página. Se persistir, revise o console e a integração atual.',
+    title: 'Nao foi possivel abrir esta pagina',
+    description: 'Recarregue a pagina ou volte ao painel para continuar.',
   }
 }
 
@@ -42,7 +49,7 @@ export function RouteErrorBoundary() {
         </div>
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Erro de rota
+            Cain Delivery
           </p>
           <h1 className="text-2xl font-semibold text-foreground">{copy.title}</h1>
           <p className="text-sm leading-6 text-muted-foreground">{copy.description}</p>

@@ -1024,7 +1024,7 @@ function DigitalOrderSuccess({
         </div>
         {trackingUrl ? (
           <p className="mt-4 break-all text-xs leading-5 text-slate-500">
-            Rastreamento protegido por link temporario: {trackingUrl}
+            Acompanhe por este link temporario: {trackingUrl}
           </p>
         ) : null}
       </section>
