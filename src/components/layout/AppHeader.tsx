@@ -1,4 +1,4 @@
-import { LogOut, PanelLeft, Plus, Search } from 'lucide-react'
+import { LogOut, Plus, Search } from 'lucide-react'
 import { type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -9,13 +9,12 @@ import { Input } from '@/components/ui/input'
 import { queryClient } from '@/hooks/queries'
 import { useCan } from '@/hooks/use-permissions'
 import { roleLabelMap } from '@/lib/domain'
-import { useOrderFiltersStore, useUiStore } from '@/stores'
+import { useOrderFiltersStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth-store'
 
 export function AppHeader() {
   const navigate = useNavigate()
   const location = useLocation()
-  const toggleMobileSidebar = useUiStore((state) => state.toggleMobileSidebar)
   const orderSearch = useOrderFiltersStore((state) => state.search)
   const setOrderSearch = useOrderFiltersStore((state) => state.setSearch)
   const currentUser = useAuthStore((state) => state.user)
@@ -39,18 +38,8 @@ export function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 h-16 border-b border-border bg-white/95 backdrop-blur-sm">
-      <div className="flex h-full items-center gap-3 px-4 sm:px-6 lg:px-8">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="xl:hidden"
-          aria-label="Abrir menu de navegacao"
-          onClick={toggleMobileSidebar}
-        >
-          <PanelLeft className="h-5 w-5" />
-        </Button>
-
+    <header className="sticky top-0 z-30 h-14 border-b border-border bg-white/95 backdrop-blur-sm sm:h-16">
+      <div className="flex h-full items-center gap-3 px-3 sm:px-6 lg:px-8">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-foreground sm:text-base">{currentPageLabel}</p>
           <p className="hidden truncate text-xs text-muted-foreground sm:block">Operacao da loja atual</p>
@@ -77,9 +66,10 @@ export function AppHeader() {
               type="button"
               aria-label="Criar novo pedido"
               onClick={() => navigate('/orders/new')}
-              className="h-[42px] px-3 sm:px-4"
+              className="h-11 px-3 sm:px-4"
             >
               <Plus className="h-4 w-4" />
+              <span className="sm:hidden">Novo</span>
               <span className="hidden sm:inline">Novo pedido</span>
             </Button>
           ) : null}
@@ -102,7 +92,7 @@ export function AppHeader() {
           <Button
             variant="ghost"
             size="icon"
-            className="border border-border"
+            className="hidden border border-border md:inline-flex"
             aria-label="Sair do admin"
             onClick={handleLogout}
           >

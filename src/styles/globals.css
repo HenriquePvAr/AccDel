@@ -10,42 +10,42 @@
 
 @layer base {
   :root {
-    --background: 210 10% 97%;
-    --foreground: 207 15% 15%;
+    --background: 210 20% 96%;
+    --foreground: 220 43% 11%;
     --card: 0 0% 100%;
     --card-foreground: 210 16% 15%;
     --popover: 0 0% 100%;
     --popover-foreground: 210 16% 15%;
-    --primary: 18 63% 48%;
+    --primary: 14 100% 59%;
     --primary-foreground: 25 100% 98%;
     --secondary: 210 12% 94%;
     --secondary-foreground: 210 16% 15%;
     --muted: 210 12% 94%;
-    --muted-foreground: 207 9% 44%;
+    --muted-foreground: 220 12% 46%;
     --accent: 18 42% 93%;
     --accent-foreground: 210 16% 15%;
-    --destructive: 5 55% 50%;
+    --destructive: 354 70% 54%;
     --destructive-foreground: 0 0% 100%;
-    --border: 204 12% 88%;
-    --input: 204 12% 82%;
-    --ring: 216 72% 53%;
-    --ui-canvas: #f6f7f8;
+    --border: 213 19% 89%;
+    --input: 213 19% 82%;
+    --ring: 221 83% 53%;
+    --ui-canvas: #f3f5f7;
     --ui-surface: #ffffff;
     --ui-surface-subtle: #f1f3f5;
-    --ui-sidebar: #182026;
-    --ui-sidebar-hover: #242e35;
-    --ui-ink: #20262b;
-    --ui-ink-muted: #667078;
-    --ui-ink-subtle: #8a949b;
-    --ui-border: #dde2e5;
+    --ui-sidebar: #0e1624;
+    --ui-sidebar-hover: #172235;
+    --ui-ink: #101828;
+    --ui-ink-muted: #667085;
+    --ui-ink-subtle: #8b95a7;
+    --ui-border: #dde2e8;
     --ui-border-strong: #c7ced3;
-    --ui-brand: #c65d2e;
-    --ui-brand-hover: #aa4a22;
-    --ui-focus: #2d6cdf;
-    --ui-info: #246b9e;
-    --ui-warning: #9a6500;
-    --ui-success: #16745a;
-    --ui-danger: #b23a38;
+    --ui-brand: #ff5a2f;
+    --ui-brand-hover: #e94a22;
+    --ui-focus: #2563eb;
+    --ui-info: #2563eb;
+    --ui-warning: #f59e0b;
+    --ui-success: #0f9f7f;
+    --ui-danger: #dc3545;
     --ui-sidebar-width: 232px;
     --ui-sidebar-collapsed-width: 68px;
     --ui-header-height: 64px;
@@ -132,16 +132,25 @@
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
+    scrollbar-color: rgba(102, 112, 133, 0.32) transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 5px;
+    height: 5px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(102, 112, 120, 0.34);
+    background: rgba(102, 112, 133, 0.32);
     border-radius: 999px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(102, 112, 133, 0.5);
   }
 
   .admin-shell {
@@ -249,6 +258,12 @@
 
   .admin-shell aside.admin-sidebar [class*='border-white/'] {
     border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  @media (max-width: 1279px) {
+    .admin-shell main {
+      padding-bottom: calc(76px + env(safe-area-inset-bottom));
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

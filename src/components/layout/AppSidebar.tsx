@@ -58,47 +58,16 @@ function SidebarNavigation({
 
 export function AppSidebar() {
   const user = useAuthStore((state) => state.user)
-  const [sidebarCollapsed, mobileSidebarOpen, toggleSidebar, setMobileSidebarOpen] = useUiStore(
+  const [sidebarCollapsed, toggleSidebar] = useUiStore(
     useShallow((state) => [
       state.sidebarCollapsed,
-      state.mobileSidebarOpen,
       state.toggleSidebar,
-      state.setMobileSidebarOpen,
     ]),
   )
   const storeName = user?.store.tradeName ?? 'Cain Delivery'
 
   return (
     <>
-      {mobileSidebarOpen ? (
-        <div className="fixed inset-0 z-40 bg-black/45 xl:hidden">
-          <aside className="admin-sidebar flex h-full w-[280px] flex-col border-r border-white/10 px-3 py-3 text-white shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex min-w-0 items-center gap-3 overflow-hidden">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
-                  <Store className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{storeName}</p>
-                  <p className="text-xs font-medium text-slate-400">Painel administrativo</p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/10"
-                aria-label="Fechar menu de navegacao"
-                onClick={() => setMobileSidebarOpen(false)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <SidebarNavigation onNavigate={() => setMobileSidebarOpen(false)} />
-          </aside>
-        </div>
-      ) : null}
-
       <aside
         className={cn(
           'admin-sidebar sticky top-0 hidden h-screen flex-col border-r border-white/10 px-3 py-3 text-white transition-[width] duration-200 xl:flex',

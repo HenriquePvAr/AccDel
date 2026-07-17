@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 
 import { AppHeader } from '@/components/layout/AppHeader'
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 
 export function AdminLayout() {
@@ -19,6 +20,7 @@ export function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      <MobileBottomNav />
     </div>
   )
 }
