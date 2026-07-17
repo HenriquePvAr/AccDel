@@ -82,14 +82,14 @@ export function AppSidebar() {
             {!sidebarCollapsed ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{storeName}</p>
-                <p className="text-xs font-medium text-slate-400">Painel administrativo</p>
+                <p className="text-xs font-medium text-slate-400">Gestão da loja</p>
               </div>
             ) : null}
           </div>
           <Button
             variant="ghost"
             size="icon"
-          className="h-9 w-9 text-white hover:bg-white/10"
+            className="h-9 w-9 text-white hover:bg-white/10"
             aria-label={sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
             onClick={toggleSidebar}
           >

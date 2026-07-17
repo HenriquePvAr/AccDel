@@ -40,12 +40,11 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-30 h-14 border-b border-border bg-white/95 backdrop-blur-sm sm:h-16">
       <div className="flex h-full items-center gap-3 px-3 sm:px-6 lg:px-8">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 lg:hidden">
           <p className="truncate text-sm font-semibold text-foreground sm:text-base">{currentPageLabel}</p>
-          <p className="hidden truncate text-xs text-muted-foreground sm:block">Operacao da loja atual</p>
         </div>
 
-        <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 lg:flex">
+        <div className="hidden min-w-0 flex-1 items-center justify-start gap-3 lg:flex">
           {canViewOrders && !isOrdersRoute ? (
             <form className="relative max-w-xl flex-1" onSubmit={handleOrderSearch} role="search">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
