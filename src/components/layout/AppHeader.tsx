@@ -66,7 +66,7 @@ export function AppHeader() {
               type="button"
               aria-label="Criar novo pedido"
               onClick={() => navigate('/orders/new')}
-              className="h-11 px-3 sm:px-4"
+              className="h-12 px-3 sm:h-11 sm:px-4"
             >
               <Plus className="h-4 w-4" />
               <span className="sm:hidden">Novo</span>

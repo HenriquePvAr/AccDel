@@ -572,7 +572,7 @@ export function OrdersPage() {
           </div>
         </div>
 
-        <div className="sticky top-14 z-20 -mx-2 space-y-2 rounded-xl border border-border bg-[#f3f5f7]/95 p-2 shadow-sm backdrop-blur-sm sm:top-16">
+        <div className="sticky top-14 z-20 -mx-2 space-y-2 rounded-xl border border-border bg-[#f3f5f7] p-2 shadow-sm sm:top-16">
           <div className="flex items-center gap-2">
             {!searchExpanded ? (
               <Button
@@ -652,7 +652,7 @@ export function OrdersPage() {
                   aria-label="Fechar filtros"
                   onClick={() => setFiltersOpen(false)}
                 />
-                <div className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 max-h-[74vh] overflow-y-auto rounded-t-2xl border border-border bg-white p-5 pb-6 shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-12 sm:w-[340px] sm:rounded-xl sm:p-4 sm:shadow-panel scrollbar-thin">
+                <div className="fixed inset-x-0 bottom-[68px] z-30 max-h-[calc(100dvh-84px)] overflow-y-auto overscroll-contain rounded-t-2xl border border-border bg-white p-5 pb-6 shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-12 sm:w-[340px] sm:rounded-xl sm:p-4 sm:shadow-panel scrollbar-thin">
                   <div className="mb-4 flex items-center justify-between sm:hidden">
                     <p className="font-bold text-foreground">Filtrar pedidos</p>
                     <Button type="button" size="icon" variant="ghost" aria-label="Fechar filtros" onClick={() => setFiltersOpen(false)}>
@@ -825,7 +825,7 @@ export function OrdersPage() {
           <ClipboardList className="mx-auto h-8 w-8 text-red-700" />
           <h2 className="mt-4 text-xl font-bold text-red-950">Nao foi possivel carregar pedidos</h2>
           <p className="mt-2 text-sm text-red-800">
-            Verifique a conexao com a API e tente atualizar a operacao.
+            Verifique sua conexao e tente atualizar a operacao.
           </p>
           <Button
             type="button"
@@ -1198,9 +1198,9 @@ function KanbanOrderCard({
           </span>
         </div>
 
-        <div className="mt-2 flex min-w-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-bold text-foreground">{order.customerName}</h3>
+        <div className="mt-2 flex min-w-0 items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <h3 className="line-clamp-2 min-w-0 flex-1 text-sm font-bold leading-5 text-foreground">{order.customerName}</h3>
             <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
               {channelLabelMap[order.source]}
             </span>

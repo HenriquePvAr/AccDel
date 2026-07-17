@@ -51,7 +51,7 @@ export function MobileBottomNav() {
                 <p className="font-bold text-foreground">Mais opcoes</p>
                 <p className="text-xs text-muted-foreground">{user?.store.tradeName ?? 'Cain Delivery'}</p>
               </div>
-              <Button size="icon" variant="ghost" aria-label="Fechar" onClick={() => setMoreOpen(false)}>
+              <Button size="icon" variant="ghost" className="h-12 w-12" aria-label="Fechar" onClick={() => setMoreOpen(false)}>
                 <X className="h-5 w-5" />
               </Button>
             </header>

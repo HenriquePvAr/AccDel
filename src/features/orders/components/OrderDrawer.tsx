@@ -104,7 +104,7 @@ export function OrderDrawer({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full max-w-[520px] gap-0 overflow-hidden bg-background p-0 text-foreground max-sm:border-l-0">
-        <SheetHeader className="border-b border-border px-5 py-5 pr-14">
+        <SheetHeader className="border-b border-border py-5 pl-5 pr-20 sm:pr-14">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -125,7 +125,7 @@ export function OrderDrawer({
             </div>
             <div className="shrink-0 text-right">
               <p className="text-xs text-muted-foreground">Total</p>
-              <p className="font-mono text-lg font-semibold text-foreground">
+              <p className="font-mono text-base font-semibold text-foreground sm:text-lg">
                 {formatCurrency(order.total)}
               </p>
             </div>
