@@ -54,7 +54,7 @@ export function DriversPage() {
     <PageShell>
       <SectionHeader
         title="Motoboys"
-        description="Gestao operacional de entregadores com despacho real, historico e leitura rapida da carga atual."
+        description="Acompanhe entregadores, despachos, histórico e carga atual."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant={activeOnly ? 'default' : 'secondary'} onClick={toggleActiveOnly}>
@@ -71,7 +71,7 @@ export function DriversPage() {
         <StatCard
           label="Ativos agora"
           value={String(drivers.filter((entry) => (entry.active ?? true)).length)}
-          trendLabel="Base operacional"
+          trendLabel="Base atual"
           trendDirection="up"
         />
         <StatCard

@@ -149,9 +149,8 @@ export function KitchenPage() {
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="Cozinha ao vivo"
         title="Cozinha"
-        description="Fila de producao com prazo, prioridade, canal e pedidos prontos para sair."
+        description="Veja pedidos em preparo e prontos para sair."
         actions={
           <Button
             variant="outline"
@@ -295,7 +294,7 @@ export function KitchenPage() {
 
           <KitchenColumn
             icon={<ChefHat className="h-5 w-5" />}
-            title="Em producao"
+            title="Em preparo"
             description="Pedidos aceitos e em preparo na cozinha."
             count={production.length}
             accent="amber"
@@ -312,14 +311,14 @@ export function KitchenPage() {
                 />
               ))
             ) : (
-              <ColumnEmptyState label="Nenhum pedido em producao." />
+              <ColumnEmptyState label="Nenhum pedido em preparo." />
             )}
           </KitchenColumn>
 
           <KitchenColumn
             icon={<CheckCircle2 className="h-5 w-5" />}
             title="Prontos"
-            description="Pronto para despacho, retirada ou servir."
+            description="Aguardando entrega, retirada ou serviço."
             count={ready.length}
             accent="green"
           >
@@ -335,7 +334,7 @@ export function KitchenPage() {
                 />
               ))
             ) : (
-              <ColumnEmptyState label="Nada pronto aguardando saida." />
+              <ColumnEmptyState label="Nenhum pedido pronto aqui agora." />
             )}
           </KitchenColumn>
 
@@ -390,7 +389,7 @@ export function KitchenPage() {
         <EmptyState
           icon={<ChefHat className="h-5 w-5" />}
           title="Cozinha sem fila ativa"
-          description="Ao aceitar um pedido ou envia-lo para producao, ele aparece aqui com prazo, itens e canal."
+          description="Ao aceitar um pedido ou enviá-lo para preparo, ele aparece aqui com prazo, itens e canal."
         />
       )}
 
@@ -712,7 +711,7 @@ function KitchenOrderDrawer({
             {order.number} · {operation.title}
           </SheetTitle>
           <SheetDescription>
-            Criado em {formatDateTime(order.createdAt)} · {elapsedMinutes} min em produção
+            Criado em {formatDateTime(order.createdAt)} · {elapsedMinutes} min em preparo
           </SheetDescription>
         </SheetHeader>
 
@@ -734,7 +733,7 @@ function KitchenOrderDrawer({
 
           <Card>
             <CardContent className="space-y-3 p-4">
-              <h3 className="font-black text-white">Contexto operacional</h3>
+              <h3 className="font-black text-white">Detalhes do pedido</h3>
               <div className="rounded-2xl bg-white/[0.04] px-4 py-3 text-sm text-slate-300 ring-1 ring-white/10">
                 <p className="font-bold text-white">{operation.title}</p>
                 <p className="mt-1">{operation.detail}</p>
@@ -751,7 +750,7 @@ function KitchenOrderDrawer({
 
           <Card>
             <CardContent className="space-y-3 p-4">
-              <h3 className="font-black text-white">Itens para producao</h3>
+              <h3 className="font-black text-white">Itens do pedido</h3>
               {order.items.map((item) => (
                 <div key={item.id} className="rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/10">
                   <div className="flex items-start justify-between gap-3">

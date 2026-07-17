@@ -109,7 +109,7 @@ export function useCreateOrderMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
       useToastStore.getState().pushToast({
         title: 'Pedido criado',
-        description: 'O pedido ja entrou no fluxo operacional.',
+        description: 'O pedido já está nesta etapa.',
         variant: 'success',
       })
     },
@@ -168,7 +168,7 @@ export function useRepeatOrderMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.snapshot({}) })
       useToastStore.getState().pushToast({
         title: 'Pedido repetido',
-        description: 'Uma nova cópia entrou em análise.',
+        description: 'Uma nova cópia ficou disponível.',
         variant: 'success',
       })
     },

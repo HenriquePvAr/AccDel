@@ -64,7 +64,7 @@ export function OrderHistoryPage() {
     updateOrderStatus.mutate({
       orderId,
       action,
-      actor: 'Histórico / Operação',
+      actor: 'Histórico / Equipe',
     })
   }
 

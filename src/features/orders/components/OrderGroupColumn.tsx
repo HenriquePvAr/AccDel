@@ -77,7 +77,7 @@ export function OrderGroupColumn({
 
         {!orders.length ? (
           <div className="rounded-[18px] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center">
-            <p className="text-sm font-semibold text-slate-500">Nenhum pedido nesta etapa.</p>
+            <p className="text-sm font-semibold text-slate-500">Nenhum pedido aqui agora.</p>
           </div>
         ) : null}
       </div>

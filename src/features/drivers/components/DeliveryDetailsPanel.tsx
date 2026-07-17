@@ -123,7 +123,7 @@ export function DeliveryDetailsPanel({
 
         {previewRoute ? (
           <div className={cn('mt-4 rounded-[22px] border px-4 py-3', previewSeverityTone)}>
-            <p className="text-xs font-black uppercase tracking-[0.16em]">Preview operacional ativo</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em]">Prévia ativa</p>
             <p className="mt-2 text-sm">
               +{previewRoute.addedEtaMinutes} min | {formatDistanceMeters(previewRoute.addedDistanceMeters)} | score {previewRoute.routeCompatibilityScore}/100
             </p>
@@ -175,7 +175,7 @@ export function DeliveryDetailsPanel({
               {routeLoading
                 ? 'Recalculando rota...'
                 : realtimeConnected
-                  ? 'Acompanhamento ao vivo conectado'
+                  ? 'Acompanhamento conectado'
                   : 'Acompanhamento usando a ultima posicao'}
             </span>
             {location ? (

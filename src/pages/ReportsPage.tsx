@@ -45,7 +45,7 @@ export function ReportsPage() {
     <PageShell>
       <SectionHeader
         title="Relatorios"
-        description="Central operacional com leitura real de pedidos, motoboys, garcons, canais e mix de vendas."
+        description="Veja pedidos, entregadores, garçons, canais e produtos vendidos."
       />
 
       <FilterBar className="grid gap-3 lg:grid-cols-[1.2fr_1.3fr_1.5fr_auto]">
@@ -225,7 +225,7 @@ export function ReportsPage() {
                 primary: row.primary,
                 value: formatCompactCurrency(row.value),
               }))}
-              emptyLabel="Sem motoboys cadastrados."
+              emptyLabel="Sem entregadores cadastrados."
             />
             <CompactTable
               title="Garcons"
@@ -359,9 +359,9 @@ export function ReportsPage() {
 }
 
 const statusLabelMap: Record<OrderStatus, string> = {
-  in_analysis: 'Em analise',
+  in_analysis: 'Novos',
   in_preparation: 'Em preparo',
-  ready: 'Pronto',
+  ready: 'Prontos',
   out_for_delivery: 'Em rota',
   completed: 'Finalizado',
   cancelled: 'Cancelado',

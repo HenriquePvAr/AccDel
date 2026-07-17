@@ -453,7 +453,7 @@ export function DigitalMenuPage() {
           </Button>
 
           <p className="text-xs leading-5 text-slate-500">
-            O pedido e conferido novamente antes de entrar na operacao. Produto, opcao,
+            O pedido é conferido novamente antes de ser enviado à loja. Produto, opção,
             disponibilidade, taxa e pagamento passam pelo banco real.
           </p>
         </aside>
@@ -972,7 +972,7 @@ function DigitalOrderSuccess({
             </p>
             <h1 className="mt-1 text-3xl font-black text-white">{order.number}</h1>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Seu pedido entrou no Cain Delivery e ja foi enviado para a operacao da loja.
+              Seu pedido entrou no Cain Delivery e já foi enviado para a loja.
             </p>
           </div>
         </div>

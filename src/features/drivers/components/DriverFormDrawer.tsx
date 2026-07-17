@@ -56,7 +56,7 @@ export function DriverFormDrawer({
         <SheetHeader>
           <SheetTitle>{driver ? 'Editar motoboy' : 'Novo motoboy'}</SheetTitle>
           <SheetDescription>
-            Cadastro operacional preparado para atribuicao e acompanhamento de pedidos.
+            Cadastro para atribuir e acompanhar pedidos.
           </SheetDescription>
         </SheetHeader>
 
@@ -98,7 +98,7 @@ export function DriverFormDrawer({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Status operacional</label>
+            <label className="text-sm font-medium">Status</label>
             <Select
               value={draft.availability}
               onValueChange={(value) =>

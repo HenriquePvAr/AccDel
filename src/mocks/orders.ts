@@ -89,7 +89,7 @@ export const ordersMock: Order[] = [
     ],
     timeline: [
       { id: 't_4', label: 'Mesa aberta', at: '2026-04-22T18:12:00-04:00', actor: 'Lia Costa' },
-      { id: 't_5', label: 'Enviado para produção', at: '2026-04-22T18:15:00-04:00', actor: 'Lia Costa' },
+      { id: 't_5', label: 'Enviado para preparo', at: '2026-04-22T18:15:00-04:00', actor: 'Lia Costa' },
     ],
   },
   {
@@ -117,7 +117,7 @@ export const ordersMock: Order[] = [
     items: [{ id: 'oi_8', productId: 'prd_1', name: 'Cain Prime', quantity: 1, unitPrice: 36.9, options: [] }],
     timeline: [
       { id: 't_6', label: 'Pedido aceito automaticamente', at: '2026-04-22T18:36:00-04:00', actor: 'Regra de autoaceite' },
-      { id: 't_7', label: 'Produção iniciada', at: '2026-04-22T18:38:00-04:00', actor: 'Caio Lima' },
+      { id: 't_7', label: 'Preparo iniciado', at: '2026-04-22T18:38:00-04:00', actor: 'Caio Lima' },
     ],
   },
   {

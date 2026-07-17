@@ -65,7 +65,7 @@ export function DriverCompactList({
             <span className="ml-2 text-sm font-medium text-slate-500">{visibleCount} visiveis</span>
           </p>
           <p className="text-sm text-slate-400">
-            Lista compacta para selecao operacional e leitura rapida de rota.
+            Escolha um entregador e confira a rota.
           </p>
         </div>
 
@@ -156,7 +156,7 @@ export function DriverCompactList({
             </div>
             <p className="text-base font-black text-white">Nenhum motoboy encontrado</p>
             <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">
-              Ajuste a busca ou os filtros para voltar a exibir a operacao no painel.
+              Tente mudar a busca ou remover algum filtro.
             </p>
           </div>
         )}

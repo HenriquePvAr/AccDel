@@ -109,7 +109,7 @@ export function DriverDetailDrawer({
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">Sem historico operacional ainda.</p>
+                <p className="text-sm text-muted-foreground">Sem histórico ainda.</p>
               )}
             </CardContent>
           </Card>

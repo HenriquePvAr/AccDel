@@ -7,7 +7,7 @@ export function PreferencesSettingsPage() {
     <PageShell>
       <SectionHeader
         title="Preferências"
-        description="Preferências de UI, densidade operacional e comportamento do painel para cada perfil."
+        description="Aparência, densidade e comportamento do painel para cada perfil."
       />
       <Card>
         <CardContent className="grid gap-4 p-5 md:grid-cols-2">

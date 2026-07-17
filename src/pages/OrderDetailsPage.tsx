@@ -116,7 +116,7 @@ export function OrderDetailsPage() {
     updateOrderStatus.mutate({
       orderId: order.id,
       action,
-      actor: action === 'ready' ? 'Cozinha' : 'Operacao',
+      actor: action === 'ready' ? 'Cozinha' : 'Equipe',
     })
   }
 
@@ -438,7 +438,7 @@ export function OrderDetailsPage() {
                   </div>
                 </div>
                 <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
-                  {order.notes || `${getOrderItemCountLabel(order)} para producao.`}
+                  {order.notes || `${getOrderItemCountLabel(order)} para preparo.`}
                 </div>
               </DetailCard>
             </div>

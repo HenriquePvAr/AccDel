@@ -65,7 +65,7 @@ export const cashRegisterService = {
         method:
           request.type === 'sale' || request.type === 'refund' ? 'pix' : 'internal',
         createdAt: new Date().toISOString(),
-        userName: 'Operação',
+        userName: 'Equipe',
       })
 
       if (request.type === 'supply') {

@@ -52,7 +52,7 @@ export function WaiterFormDrawer({
         <SheetHeader>
           <SheetTitle>{waiter ? 'Editar garcom' : 'Novo garcom'}</SheetTitle>
           <SheetDescription>
-            Cadastro integrado a operacao da loja.
+            Cadastro da equipe do salão.
           </SheetDescription>
         </SheetHeader>
 
@@ -73,7 +73,7 @@ export function WaiterFormDrawer({
             <Input value={draft.phone} onChange={(event) => setDraft((state) => ({ ...state, phone: event.target.value }))} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Status operacional</label>
+            <label className="text-sm font-medium">Status</label>
             <Select
               value={draft.status}
               onValueChange={(value) =>

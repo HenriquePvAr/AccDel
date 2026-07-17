@@ -42,7 +42,7 @@ export const tableSessionsMock: TableSession[] = [
       { id: 'tsi_2', productId: 'prod_fries', name: 'Batata Rustica', quantity: 1, unitPrice: 12.9, totalPrice: 12.9, options: [] },
     ],
     timeline: [
-      { id: 't_1', label: 'Mesa 02 aberta', actor: 'Operacao', at: '2026-04-22T18:10:00-04:00' },
+      { id: 't_1', label: 'Mesa 02 aberta', actor: 'Equipe', at: '2026-04-22T18:10:00-04:00' },
     ],
   },
   {
@@ -63,7 +63,7 @@ export const tableSessionsMock: TableSession[] = [
       { id: 'tsi_4', productId: 'prod_duo', name: 'Combo Duo', quantity: 1, unitPrice: 79.9, totalPrice: 79.9, options: [] },
     ],
     timeline: [
-      { id: 't_2', label: 'Mesa 04 aberta', actor: 'Operacao', at: '2026-04-22T17:44:00-04:00' },
+      { id: 't_2', label: 'Mesa 04 aberta', actor: 'Equipe', at: '2026-04-22T17:44:00-04:00' },
       { id: 't_3', label: 'Mesa sinalizada para fechamento', actor: 'Caixa', at: '2026-04-22T18:30:00-04:00' },
     ],
   },

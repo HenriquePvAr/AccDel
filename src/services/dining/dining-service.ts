@@ -173,7 +173,7 @@ export const diningService = {
           {
             id: crypto.randomUUID(),
             label: `Mesa ${table.code} aberta`,
-            actor: 'Operacao',
+            actor: 'Equipe',
             at: new Date().toISOString(),
           },
         ],
@@ -263,7 +263,7 @@ export const diningService = {
       session.timeline.push({
         id: crypto.randomUUID(),
         label: `${request.quantity}x ${product.name} lancado(s)`,
-        actor: 'Operacao',
+        actor: 'Equipe',
         at: new Date().toISOString(),
       })
       const table = database.dining.tables.find((entry) => entry.id === session.tableId)
@@ -342,7 +342,7 @@ export const diningService = {
           notes: item.notes,
           options,
           createdAt: new Date().toISOString(),
-          createdByName: 'Operacao',
+          createdByName: 'Equipe',
         })
         session.subtotal += totalPrice
         session.total += totalPrice
@@ -350,7 +350,7 @@ export const diningService = {
         session.timeline.push({
           id: crypto.randomUUID(),
           label: `${item.quantity}x ${product.name} lancado(s)`,
-          actor: 'Operacao',
+          actor: 'Equipe',
           at: new Date().toISOString(),
         })
         const table = database.dining.tables.find((entry) => entry.id === session.tableId)
@@ -364,7 +364,7 @@ export const diningService = {
         session.timeline.push({
           id: crypto.randomUUID(),
           label: `${request.items.length} item(ns) enviados para cozinha`,
-          actor: 'Operacao',
+          actor: 'Equipe',
           at: new Date().toISOString(),
         })
       }
@@ -411,7 +411,7 @@ export const diningService = {
       session.timeline.push({
         id: crypto.randomUUID(),
         label: 'Sessao atualizada',
-        actor: 'Operacao',
+        actor: 'Equipe',
         at: new Date().toISOString(),
       })
       const table = database.dining.tables.find((entry) => entry.id === session.tableId)
@@ -519,7 +519,7 @@ export const diningService = {
       session.timeline.push({
         id: crypto.randomUUID(),
         label: `Conta transferida para mesa ${target.code}`,
-        actor: request.actor ?? 'Operacao',
+        actor: request.actor ?? 'Equipe',
         at: new Date().toISOString(),
       })
 

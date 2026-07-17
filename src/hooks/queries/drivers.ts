@@ -70,7 +70,7 @@ export function useSaveDriverMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.drivers.locations })
       useToastStore.getState().pushToast({
         title: 'Motoboy salvo',
-        description: 'Cadastro operacional atualizado com sucesso.',
+        description: 'Cadastro atualizado com sucesso.',
         variant: 'success',
       })
     },

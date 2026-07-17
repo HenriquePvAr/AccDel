@@ -40,7 +40,7 @@ export function WaitersPage() {
     <PageShell>
       <SectionHeader
         title="Garcons"
-        description="Cadastro, historico operacional e leitura de performance da equipe de salao."
+        description="Cadastro, histórico e desempenho da equipe de salão."
         actions={
           canManageUsers ? (
             <Button onClick={() => setEditingWaiterId('new')}>Novo garcom</Button>
@@ -64,7 +64,7 @@ export function WaitersPage() {
         <StatCard
           label="Pedidos lancados"
           value={String(waiters.reduce((sum, entry) => sum + entry.totalOrders, 0))}
-          trendLabel="Volume operacional"
+          trendLabel="Pedidos atendidos"
           trendDirection="up"
         />
         <StatCard

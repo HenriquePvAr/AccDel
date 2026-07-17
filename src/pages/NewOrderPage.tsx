@@ -702,7 +702,7 @@ export function NewOrderPage() {
     closeTableSessionMutation.mutate({
       sessionId: selectedSession.id,
       paymentMethod,
-      actor: 'Operacao',
+      actor: 'Equipe',
     })
   }
 
@@ -714,7 +714,7 @@ export function NewOrderPage() {
     transferTableSessionMutation.mutate({
       sessionId: selectedSession.id,
       targetTableId: transferTargetTableId,
-      actor: 'Operacao',
+      actor: 'Equipe',
     })
   }
 
@@ -791,7 +791,7 @@ export function NewOrderPage() {
       <header className="grid gap-5 xl:grid-cols-[1fr_auto] xl:items-end">
         <div>
           <div className="mb-5">{renderServiceTabs()}</div>
-          <p className="text-sm font-black text-orange-400">PDV operacional Cain Delivery</p>
+          <p className="text-sm font-black text-orange-400">PDV Cain Delivery</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground">
             Novo pedido
           </h1>
@@ -940,7 +940,7 @@ export function NewOrderPage() {
                 </h3>
                 {isEditingCustomer ? (
                   <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-200">
-                    Sincroniza no cadastro real
+                    Salva no cadastro da loja
                   </span>
                 ) : null}
               </div>
@@ -1773,8 +1773,8 @@ export function NewOrderPage() {
 
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                 <div>
-                  <p className="font-black text-white">Enviar para producao</p>
-                  <p className="mt-1 text-xs text-slate-500">Mantem o fluxo operacional rapido.</p>
+                  <p className="font-black text-white">Enviar para preparo</p>
+                  <p className="mt-1 text-xs text-slate-500">O pedido vai direto para a cozinha.</p>
                 </div>
                 <Switch checked={sendToProduction} onCheckedChange={setSendToProduction} />
               </div>
@@ -2332,7 +2332,7 @@ function TableSelectionCard({
           ) : table.status === 'reserved' ? (
             <p className="flex items-center gap-2 text-violet-200">
               <CalendarClock className="h-4 w-4" />
-              Reserva sem detalhe operacional
+              Reserva sem observação
             </p>
           ) : null}
         </div>

@@ -22,8 +22,8 @@ export interface OrderStatusUi {
 
 export const orderStatusUi: Record<OrderStatus, OrderStatusUi> = {
   in_analysis: {
-    label: 'Em analise',
-    shortLabel: 'NOVO',
+    label: 'Novos',
+    shortLabel: 'NOVOS',
     textClass: 'text-sky-700',
     badgeClass: 'bg-sky-50 text-sky-800 ring-sky-200',
     borderClass: 'border-l-sky-600',
@@ -38,8 +38,8 @@ export const orderStatusUi: Record<OrderStatus, OrderStatusUi> = {
     icon: Clock3,
   },
   ready: {
-    label: 'Pronto',
-    shortLabel: 'PRONTO',
+    label: 'Prontos',
+    shortLabel: 'PRONTOS',
     textClass: 'text-emerald-700',
     badgeClass: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
     borderClass: 'border-l-emerald-600',
@@ -80,7 +80,7 @@ export function getPrimaryOrderAction(order: Order): {
     case 'in_analysis':
       return { action: 'accept', label: 'Aceitar', tone: 'blue' }
     case 'in_preparation':
-      return { action: 'ready', label: 'Pronto', tone: 'orange' }
+      return { action: 'ready', label: 'Marcar pronto', tone: 'orange' }
     case 'ready':
       return order.source === 'delivery'
         ? { action: 'dispatch', label: 'Despachar', tone: 'green' }

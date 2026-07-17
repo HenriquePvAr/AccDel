@@ -7,7 +7,7 @@ export function DeliverySettingsPage() {
     <PageShell>
       <SectionHeader
         title="Configurações de delivery"
-        description="Faixas de entrega, operação de motoboys e heurísticas de rota entrarão aqui nas próximas etapas."
+        description="Faixas de entrega, motoboys e sugestões de rota entrarão aqui nas próximas etapas."
       />
       <Card>
         <CardContent className="grid gap-4 p-5 md:grid-cols-3">

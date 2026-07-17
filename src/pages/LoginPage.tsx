@@ -101,24 +101,24 @@ export function LoginPage() {
             </span>
             <span>
               <strong className="block text-lg">Cain Delivery</strong>
-              <span className="block text-xs text-[#aab3be]">Painel administrativo</span>
+              <span className="block text-xs text-[#aab3be]">Gestão da loja</span>
             </span>
           </div>
 
           <div className="mt-12 hidden lg:block">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-              Comando operacional
+              Gestão da loja
             </p>
             <h2 className="mt-4 max-w-lg text-4xl font-bold leading-tight">
-              A operacao inteira, clara e acionavel.
+              Sua loja clara e fácil de acompanhar.
             </h2>
             <p className="mt-5 max-w-md text-base leading-7 text-[#aab3be]">
               Pedidos, cozinha, entregas e caixa organizados para a equipe agir sem perder
-              contexto.
+              informações.
             </p>
             <div className="mt-10 grid max-w-md gap-3 text-sm text-[#aab3be]">
               <p className="border-l-2 border-primary pl-4">Prioridades e excecoes em primeiro plano</p>
-              <p className="border-l-2 border-[#3b4551] pl-4">Fluxos preservados por perfil de acesso</p>
+              <p className="border-l-2 border-[#3b4551] pl-4">Acesso conforme o perfil de cada pessoa</p>
               <p className="border-l-2 border-[#3b4551] pl-4">Leitura rapida em desktop, tablet e celular</p>
             </div>
           </div>
@@ -135,7 +135,7 @@ export function LoginPage() {
             <p className="hidden text-base text-muted-foreground lg:block">Bem-vindo de volta!</p>
             <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-tight sm:text-[34px] lg:text-[38px]">
               <span className="lg:hidden">Bem-vindo de volta</span>
-              <span className="hidden lg:inline">Acesse sua operacao</span>
+              <span className="hidden lg:inline">Acesse sua loja</span>
             </h1>
             <button
               type="button"
@@ -145,7 +145,7 @@ export function LoginPage() {
               {email}
             </button>
             <p className="mt-3 hidden text-base leading-7 text-muted-foreground lg:block">
-              Use seu email e senha para entrar no painel administrativo.
+              Use seu email e senha para entrar na gestão da loja.
             </p>
           </div>
 

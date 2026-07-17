@@ -205,7 +205,7 @@ export function DiningTablesPage() {
     <PageShell>
       <SectionHeader
         title="Salao / Mesas"
-        description="Mapa operacional do salao com mesas reais, sessoes abertas e acoes claras por status."
+        description="Veja mesas, comandas abertas e ações disponíveis no salão."
       />
 
       <section className="rounded-2xl border border-white/10 bg-[#071525]/86 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
@@ -271,7 +271,7 @@ export function DiningTablesPage() {
               <EmptyState
                 icon={<LayoutGrid className="h-5 w-5" />}
                 title="Falha ao carregar o salao"
-                description="Mesas e sessoes ainda nao estao disponiveis. Atualize para continuar a operacao."
+                description="Mesas e comandas ainda não estão disponíveis. Tente atualizar."
               />
             </div>
           ) : filteredTables.length ? (
@@ -522,7 +522,7 @@ function TableDetailsPanel({
                       <p className="truncate text-xs text-muted-foreground">{item.notes}</p>
                     ) : null}
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {item.createdByName ?? session.waiterName ?? 'Operacao'} lancou
+                      {item.createdByName ?? session.waiterName ?? 'Equipe'} lançou
                       {item.createdAt ? ` as ${formatItemTime(item.createdAt)}` : ''}
                     </p>
                   </div>

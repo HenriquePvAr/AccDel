@@ -32,7 +32,7 @@ const featureLabels: Record<string, string> = {
 }
 
 export function OperationalReadinessPage() {
-  usePageTitle('Estado dos servicos')
+  usePageTitle('Sistema')
   const readinessQuery = useReadinessQuery()
   const responseSnapshot = readinessQuery.data
   const snapshot =
@@ -46,9 +46,8 @@ export function OperationalReadinessPage() {
   return (
     <PageShell>
       <SectionHeader
-        eyebrow="Piloto supervisionado"
-        title="Estado dos servicos"
-        description="Veja se os servicos essenciais estao disponiveis e o que exige intervencao."
+        title="Sistema"
+        description="Confira o que está disponível e o que precisa de atenção."
         actions={(
           <Button
             type="button"
@@ -68,7 +67,7 @@ export function OperationalReadinessPage() {
           <CardContent className="flex items-start gap-3 p-5 text-red-100">
             <CircleOff className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p className="font-black">Nao foi possivel consultar o estado dos servicos</p>
+              <p className="font-black">Não foi possível consultar o sistema</p>
               <p className="mt-1 text-sm text-red-200/75">
                 Confirme sua conexao e tente novamente antes de liberar o piloto.
               </p>
@@ -84,7 +83,7 @@ export function OperationalReadinessPage() {
             <div>
               <p className="font-semibold text-foreground">Estado ainda nao disponivel</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Atualize a tela antes de liberar a operacao do piloto.
+                Atualize a tela antes de liberar o piloto.
               </p>
             </div>
           </CardContent>
@@ -133,9 +132,9 @@ export function OperationalReadinessPage() {
             />
             <SignalCard
               icon={<Clock3 className="h-5 w-5" />}
-              title="Operacao"
+              title="Loja"
               value={(snapshot.operation?.delayedOrders ?? 0) === 1 ? '1 pedido atrasado' : `${snapshot.operation?.delayedOrders ?? 0} pedidos atrasados`}
-              detail={snapshot.metrics.activeRealtimeConnections === 1 ? '1 conexao ao vivo neste painel' : `${snapshot.metrics.activeRealtimeConnections} conexoes ao vivo neste painel`}
+              detail={snapshot.metrics.activeRealtimeConnections === 1 ? '1 conexão ativa neste painel' : `${snapshot.metrics.activeRealtimeConnections} conexões ativas neste painel`}
               danger={Boolean(snapshot.operation?.delayedOrders)}
             />
           </div>
@@ -208,7 +207,7 @@ function ReadinessBanner({ snapshot }: { snapshot: ReadinessSnapshot }) {
         <Icon className={cn('mt-1 h-6 w-6', blocked ? 'text-red-300' : attention ? 'text-amber-300' : 'text-emerald-300')} />
         <div>
           <p className="text-lg font-black text-white">
-            {blocked ? 'Liberacao bloqueada' : attention ? 'Pronto com atencao operacional' : 'Sinais de software prontos'}
+            {blocked ? 'Liberação bloqueada' : attention ? 'Pronto com pontos de atenção' : 'Sistema pronto'}
           </p>
           <p className="mt-1 text-sm leading-6 text-slate-300">
             {blocked

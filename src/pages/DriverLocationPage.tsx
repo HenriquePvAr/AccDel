@@ -490,7 +490,7 @@ export function DriverLocationPage() {
     <PageShell className="space-y-5">
       <SectionHeader
         title="Localizacao dos motoboys"
-        description="Mapa operacional com localizacao, previsao, rota restante e lista compacta de motoboys."
+        description="Veja localização, previsão, rota restante e entregadores disponíveis."
         actions={
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="rounded-full border border-emerald-400/18 bg-emerald-400/8 px-3 py-2 text-xs font-bold text-emerald-200">

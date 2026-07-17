@@ -129,7 +129,7 @@ export function StoreSettingsPage() {
     <PageShell>
       <SectionHeader
         title="Configuracoes da loja"
-        description="Fonte operacional para checkout publico, Atendente IA, canais de venda e calculo de taxa."
+        description="Dados usados pelo checkout público, atendimento automático, canais de venda e taxas."
         actions={
           canManageStore ? (
             <Button

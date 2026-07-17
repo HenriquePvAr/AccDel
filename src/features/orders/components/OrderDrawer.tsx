@@ -444,7 +444,7 @@ function buildOperationalTimeline(order: Order) {
     { label: 'Pedido recebido', at: received },
     { label: 'Pedido aceito', at: findTimelineEntry(order.timeline, ['aceito', 'accepted'])?.at },
     {
-      label: 'Enviado para producao',
+      label: 'Enviado para preparo',
       at: findTimelineEntry(order.timeline, ['preparo', 'producao', 'production'])?.at,
     },
     { label: 'Pedido pronto', at: findTimelineEntry(order.timeline, ['pronto', 'ready'])?.at },

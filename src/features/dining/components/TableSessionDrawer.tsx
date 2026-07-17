@@ -868,7 +868,7 @@ function CurrentConsumptionCard({
                     {item.quantity}x {item.name}
                   </p>
                   <p className={cn('mt-1 text-xs', selected ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
-                    {item.createdByName ?? session.waiterName ?? 'Operacao'} lancou
+                    {item.createdByName ?? session.waiterName ?? 'Equipe'} lançou
                     {item.createdAt ? ` as ${formatTime(item.createdAt)}` : ''}
                   </p>
                   {item.notes ? <p className="mt-1 truncate text-xs text-amber-100">{item.notes}</p> : null}

@@ -125,7 +125,7 @@ export const orderService = {
             {
               id: crypto.randomUUID(),
               label: `Mesa ${table.code} aberta a partir do lancamento manual`,
-              actor: 'Operacao',
+              actor: 'Equipe',
               at: new Date().toISOString(),
             },
           ],
@@ -167,7 +167,7 @@ export const orderService = {
           session.timeline.push({
             id: crypto.randomUUID(),
             label: `Pedido ${order.number} vinculado a mesa`,
-            actor: 'Operacao',
+            actor: 'Equipe',
             at: new Date().toISOString(),
           })
         }
@@ -254,7 +254,7 @@ export const orderService = {
           {
             id: crypto.randomUUID(),
             label: 'Pedido recriado a partir do histórico',
-            actor: 'Operação',
+            actor: 'Equipe',
             at: new Date().toISOString(),
           },
         ],

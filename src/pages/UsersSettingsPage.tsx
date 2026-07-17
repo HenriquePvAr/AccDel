@@ -16,7 +16,7 @@ export function UsersSettingsPage() {
     <PageShell>
       <SectionHeader
         title="Usuarios"
-        description="Perfis da loja e permissoes para cada parte da operacao."
+        description="Perfis e permissões para cada parte da loja."
       />
       {usersQuery.isLoading ? (
         <div className="space-y-4">
