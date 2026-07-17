@@ -27,4 +27,43 @@ describe('componentes operacionais', () => {
     render(<OrderItemRow item={item} />)
     expect(screen.getByText(expected)).toBeInTheDocument()
   })
+
+  it('exibe horário e responsável do lançamento do item', () => {
+    const item: SessionItem = {
+      id: 'item-a',
+      productId: 'product-a',
+      name: 'Burger',
+      quantity: 1,
+      unitPrice: 30,
+      totalPrice: 30,
+      options: [],
+      createdAt: new Date().toISOString(),
+      createdByName: 'Sara Vale',
+      productionStatus: 'in_preparation',
+      printStatus: 'confirmed',
+    }
+
+    render(<OrderItemRow item={item} />)
+
+    expect(screen.getByText(/Sara Vale/)).toBeInTheDocument()
+  })
+
+  it('não inventa responsável quando o item antigo não possui snapshot', () => {
+    const item: SessionItem = {
+      id: 'item-a',
+      productId: 'product-a',
+      name: 'Burger',
+      quantity: 1,
+      unitPrice: 30,
+      totalPrice: 30,
+      options: [],
+      createdAt: new Date().toISOString(),
+      productionStatus: 'in_preparation',
+      printStatus: 'confirmed',
+    }
+
+    render(<OrderItemRow item={item} />)
+
+    expect(screen.getByText(/Responsável não registrado/)).toBeInTheDocument()
+  })
 })

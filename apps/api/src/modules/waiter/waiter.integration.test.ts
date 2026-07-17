@@ -165,6 +165,8 @@ test(
         where: { sessionId },
         include: { productionOrder: true, productionOrderItem: true },
       })
+      assert.equal(firstItem.createdByName, 'Garcom A')
+      assert.ok(firstItem.createdAt instanceof Date)
       assert.equal(firstItem.unitPrice.toNumber(), 31.5)
       assert.equal(firstItem.totalPrice.toNumber(), 31.5)
       assert.equal(firstItem.productionOrder?.subtotal.toNumber(), 31.5)
@@ -175,11 +177,20 @@ test(
         () => inStoreA(() => waiter.sendItems(sessionId, sendPayload(1, productId), asWaiterA)),
         (error: unknown) => error instanceof ConflictException,
       )
+      await prisma.user.update({
+        where: { id: waiterA },
+        data: { name: 'Garcom A Renomeado' },
+      })
       await inStoreA(() => waiter.sendItems(sessionId, sendPayload(2, productId), asWaiterA))
       const secondItem = await prisma.tableSessionItem.findFirstOrThrow({
         where: { sessionId, id: { not: firstItem.id } },
         include: { productionOrder: true },
       })
+      assert.equal(secondItem.createdByName, 'Garcom A Renomeado')
+      assert.equal((await prisma.tableSessionItem.findUniqueOrThrow({ where: { id: firstItem.id } })).createdByName, 'Garcom A')
+      assert.notEqual(secondItem.id, firstItem.id)
+      assert.equal(secondItem.productId, firstItem.productId)
+      assert.equal(secondItem.quantity, 2)
       assert.equal(await prisma.order.count({ where: { storeId: storeA } }), 2)
       assert.equal(await prisma.printJob.count({ where: { storeId: storeA, jobType: 'ORDER_ADDITION' } }), 1)
 
