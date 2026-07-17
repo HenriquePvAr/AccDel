@@ -80,7 +80,7 @@ export function CustomersPage() {
     <PageShell>
       <SectionHeader
         title="Clientes"
-        description="Busca por nome ou WhatsApp, historico recente e edicao rapida com API real."
+        description="Busque por nome ou WhatsApp, consulte o historico e atualize o cadastro."
         actions={
           <Button onClick={() => navigate('/orders/new')}>
             <ShoppingCart className="h-4 w-4" />
@@ -120,7 +120,7 @@ export function CustomersPage() {
         <EmptyState
           icon={<UserRound className="h-5 w-5" />}
           title="Falha ao carregar clientes"
-          description="A API nao retornou a base de clientes agora."
+          description="A base de clientes ainda nao esta disponivel."
         />
       ) : customers.length ? (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -383,7 +383,7 @@ function CustomerDrawer({
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nenhum pedido recente retornado pela API.</p>
+                  <p className="text-sm text-muted-foreground">Nenhum pedido recente encontrado.</p>
                 )}
               </CardContent>
             </Card>

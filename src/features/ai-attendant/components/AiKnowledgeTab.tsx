@@ -373,7 +373,7 @@ export function AiKnowledgeTab() {
                   Base de conhecimento
                 </CardTitle>
                 <CardDescription>
-                  {entries.length} entrada(s) cadastrada(s) na API.
+                  {entries.length === 1 ? '1 orientacao cadastrada.' : `${entries.length} orientacoes cadastradas.`}
                 </CardDescription>
               </div>
               <Badge variant={entries.some((entry) => entry.isActive) ? 'success' : 'warning'}>
@@ -518,8 +518,8 @@ export function AiKnowledgeTab() {
         title="Excluir entrada da base?"
         description={
           entryToDelete
-            ? `A entrada "${entryToDelete.title}" sera removida da API.`
-            : 'A entrada sera removida da API.'
+            ? `A orientacao "${entryToDelete.title}" sera removida.`
+            : 'A orientacao sera removida.'
         }
         confirmLabel="Excluir"
         onConfirm={handleDelete}

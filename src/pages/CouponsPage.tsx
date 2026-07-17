@@ -384,7 +384,7 @@ export function CouponsPage() {
           <SheetHeader>
             <SheetTitle>{editingCoupon?.id ? 'Editar cupom' : 'Novo cupom'}</SheetTitle>
             <SheetDescription>
-              Configure o cupom em blocos simples. Os canais salvos aqui sao os mesmos usados pela validacao da API.
+              Configure o cupom em blocos simples. Os canais salvos aqui serao usados ao validar o desconto.
             </SheetDescription>
           </SheetHeader>
 

@@ -247,7 +247,7 @@ export function useSavePromotionMutation() {
       queryClient.invalidateQueries({ queryKey: ['catalog'] })
       useToastStore.getState().pushToast({
         title: 'Promocao salva',
-        description: 'A promocao foi persistida pela API real.',
+        description: 'A promocao ja esta disponivel na operacao.',
         variant: 'success',
       })
     },
@@ -279,7 +279,7 @@ export function useSaveCouponMutation() {
       queryClient.invalidateQueries({ queryKey: ['catalog'] })
       useToastStore.getState().pushToast({
         title: 'Cupom salvo',
-        description: 'O cupom foi persistido pela API real.',
+        description: 'O cupom ja esta disponivel na operacao.',
         variant: 'success',
       })
     },

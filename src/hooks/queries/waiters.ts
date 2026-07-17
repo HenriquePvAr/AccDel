@@ -30,7 +30,7 @@ export function useSaveWaiterMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.waiters.detail(response.data.id) })
       useToastStore.getState().pushToast({
         title: 'Garcom salvo',
-        description: 'Cadastro operacional sincronizado com a API.',
+        description: 'Cadastro atualizado na operacao da loja.',
         variant: 'success',
       })
     },

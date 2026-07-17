@@ -34,7 +34,14 @@ const featureLabels: Record<string, string> = {
 export function OperationalReadinessPage() {
   usePageTitle('Estado dos servicos')
   const readinessQuery = useReadinessQuery()
-  const snapshot = readinessQuery.data
+  const responseSnapshot = readinessQuery.data
+  const snapshot =
+    responseSnapshot?.database &&
+    responseSnapshot.migrations &&
+    responseSnapshot.metrics &&
+    responseSnapshot.features
+      ? responseSnapshot
+      : null
 
   return (
     <PageShell>
@@ -70,6 +77,20 @@ export function OperationalReadinessPage() {
         </Card>
       ) : null}
 
+      {!readinessQuery.isPending && !readinessQuery.isError && !snapshot ? (
+        <Card>
+          <CardContent className="flex items-start gap-3 p-5">
+            <CircleOff className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-semibold text-foreground">Estado ainda nao disponivel</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Atualize a tela antes de liberar a operacao do piloto.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {snapshot ? (
         <>
           <ReadinessBanner snapshot={snapshot} />
@@ -82,29 +103,39 @@ export function OperationalReadinessPage() {
                 ? `${snapshot.migrations.applied}/${snapshot.migrations.expected}`
                 : 'Indisponivel'}
               detail={snapshot.migrations.failed
-                ? `${snapshot.migrations.failed} migracao(oes) incompleta(s)`
-                : 'Sem migracao incompleta detectada'}
+                ? snapshot.migrations.failed === 1
+                  ? '1 atualizacao incompleta'
+                  : `${snapshot.migrations.failed} atualizacoes incompletas`
+                : 'Sem atualizacao incompleta detectada'}
               danger={!snapshot.database.reachable || snapshot.migrations.applied !== snapshot.migrations.expected || Boolean(snapshot.migrations.failed)}
             />
             <SignalCard
               icon={<MessagesSquare className="h-5 w-5" />}
-              title="Mensageria"
-              value={`${snapshot.queues?.outbound.pending ?? 0} pendente(s)`}
-              detail={`${snapshot.queues?.outbound.failed ?? 0} falha(s); ${snapshot.operation?.waitingHuman ?? 0} aguardando humano`}
+              title="Atendimento"
+              value={(snapshot.queues?.outbound.pending ?? 0) === 1 ? '1 mensagem pendente' : `${snapshot.queues?.outbound.pending ?? 0} mensagens pendentes`}
+              detail={`${snapshot.queues?.outbound.failed ?? 0} ${(snapshot.queues?.outbound.failed ?? 0) === 1 ? 'falha' : 'falhas'}; ${snapshot.operation?.waitingHuman ?? 0} aguardando atendente`}
               danger={Boolean(snapshot.queues?.outbound.failed)}
             />
             <SignalCard
               icon={<Printer className="h-5 w-5" />}
               title="Impressao"
-              value={`${snapshot.printingAgents?.online ?? 0} computador(es) conectado(s)`}
-              detail={`${snapshot.printingAgents?.offline ?? 0} desconectado(s); ${snapshot.queues?.printing.failed ?? 0} impressao(oes) com falha`}
+              value={
+                (snapshot.printingAgents?.online ?? 0) === 1
+                  ? '1 computador conectado'
+                  : `${snapshot.printingAgents?.online ?? 0} computadores conectados`
+              }
+              detail={`${snapshot.printingAgents?.offline ?? 0} ${
+                (snapshot.printingAgents?.offline ?? 0) === 1 ? 'desconectado' : 'desconectados'
+              }; ${snapshot.queues?.printing.failed ?? 0} ${
+                (snapshot.queues?.printing.failed ?? 0) === 1 ? 'impressao com falha' : 'impressoes com falha'
+              }`}
               danger={Boolean((snapshot.printingAgents?.offline ?? 0) + (snapshot.queues?.printing.failed ?? 0))}
             />
             <SignalCard
               icon={<Clock3 className="h-5 w-5" />}
               title="Operacao"
-              value={`${snapshot.operation?.delayedOrders ?? 0} atrasado(s)`}
-              detail={`${snapshot.metrics.activeRealtimeConnections} conexao(oes) ao vivo neste painel`}
+              value={(snapshot.operation?.delayedOrders ?? 0) === 1 ? '1 pedido atrasado' : `${snapshot.operation?.delayedOrders ?? 0} pedidos atrasados`}
+              detail={snapshot.metrics.activeRealtimeConnections === 1 ? '1 conexao ao vivo neste painel' : `${snapshot.metrics.activeRealtimeConnections} conexoes ao vivo neste painel`}
               danger={Boolean(snapshot.operation?.delayedOrders)}
             />
           </div>
@@ -129,16 +160,16 @@ export function OperationalReadinessPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Detalhes tecnicos do servico</CardTitle>
+                <CardTitle>Sinais do servico</CardTitle>
                 <CardDescription>
-                  Metricas em memoria; em mais de uma replica, cada processo deve ser observado separadamente.
+                  Indicadores para ajudar a equipe a identificar instabilidade.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-3">
                 <ProcessMetric label="Requisicoes" value={snapshot.metrics.requests} />
-                <ProcessMetric label="Falhas HTTP" value={snapshot.metrics.failures} />
+                <ProcessMetric label="Falhas" value={snapshot.metrics.failures} />
                 <ProcessMetric label="Conflitos" value={snapshot.metrics.conflicts} />
-                <ProcessMetric label="Latencia media" value={`${snapshot.metrics.averageDurationMs} ms`} />
+                <ProcessMetric label="Tempo medio" value={`${snapshot.metrics.averageDurationMs} ms`} />
               </CardContent>
             </Card>
           </div>

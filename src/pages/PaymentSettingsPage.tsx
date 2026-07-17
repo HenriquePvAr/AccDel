@@ -133,7 +133,7 @@ export function PaymentSettingsPage() {
         <EmptyState
           icon={<CreditCard className="h-5 w-5" />}
           title="Falha ao carregar pagamentos"
-          description="A API nao retornou as formas de pagamento da loja."
+          description="Nenhuma forma de pagamento esta disponivel para a loja."
         />
       ) : sortedMethods.length ? (
         <Card>

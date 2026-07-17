@@ -94,8 +94,8 @@ export function DigitalMenuPage() {
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null)
   const [publicTrackingUrl, setPublicTrackingUrl] = useState('')
   const [prefillWarning, setPrefillWarning] = useState<string | null>(null)
-  const whatsappNumber = source?.store.publicWhatsapp?.replace(/\D/g, '') ?? ''
-  const effectiveOrderMode = resolveEffectiveOrderMode(orderMode, source?.checkout.channels ?? null)
+  const whatsappNumber = source?.store?.publicWhatsapp?.replace(/\D/g, '') ?? ''
+  const effectiveOrderMode = resolveEffectiveOrderMode(orderMode, source?.checkout?.channels ?? null)
   const selectedCategory =
     categories.find((category) => category.id === selectedCategoryId) ?? categories[0] ?? null
   const products = useMemo(() => {
@@ -111,8 +111,8 @@ export function DigitalMenuPage() {
     )
   }, [search, selectedCategory?.products])
   const paymentMethods = useMemo(
-    () => source?.checkout.paymentMethods ?? [],
-    [source?.checkout.paymentMethods],
+    () => source?.checkout?.paymentMethods ?? [],
+    [source?.checkout?.paymentMethods],
   )
   const availablePaymentMethods = useMemo(
     () => paymentMethods.filter((method) => method.availableForCheckout),
@@ -123,7 +123,7 @@ export function DigitalMenuPage() {
     paymentMethods.find((method) => method.id === effectivePaymentMethodId) ?? null
   const prefill = useMemo(() => (source ? readPrefillFromUrl(source) : null), [source])
   const selectedNeighborhood = useMemo(() => {
-    const delivery = source?.checkout.delivery
+    const delivery = source?.checkout?.delivery
     const normalized = normalizeText(customer.neighborhood)
 
     if (!delivery || !normalized) {
@@ -135,19 +135,19 @@ export function DigitalMenuPage() {
         (zone) => normalizeText(zone.neighborhood) === normalized,
       ) ?? null
     )
-  }, [customer.neighborhood, source?.checkout.delivery])
+  }, [customer.neighborhood, source?.checkout?.delivery])
   const deliveryFee =
     effectiveOrderMode === 'delivery'
       ? selectedNeighborhood?.fee ??
-        (source?.checkout.delivery.requiresKnownNeighborhood
+        (source?.checkout?.delivery.requiresKnownNeighborhood
           ? 0
-          : source?.checkout.delivery.defaultFee ?? 0)
+          : source?.checkout?.delivery.defaultFee ?? 0)
       : 0
   const deliveryEtaMinutes =
     effectiveOrderMode === 'delivery'
       ? selectedNeighborhood?.estimatedDeliveryTimeMinutes ??
-        source?.store.estimatedDeliveryTimeMinutes
-      : source?.store.estimatedPickupTimeMinutes
+        source?.store?.estimatedDeliveryTimeMinutes
+      : source?.store?.estimatedPickupTimeMinutes
   const subtotal = cartItems.reduce(
     (sum, item) => sum + (item.unitPrice + getOptionsTotal(item.options)) * item.quantity,
     0,
@@ -158,9 +158,9 @@ export function DigitalMenuPage() {
     customer,
     orderMode: effectiveOrderMode,
     selectedPaymentMethod,
-    checkoutChannels: source?.checkout.channels ?? null,
+    checkoutChannels: source?.checkout?.channels ?? null,
     subtotal,
-    deliveryRequiresKnownNeighborhood: Boolean(source?.checkout.delivery.requiresKnownNeighborhood),
+    deliveryRequiresKnownNeighborhood: Boolean(source?.checkout?.delivery.requiresKnownNeighborhood),
     selectedNeighborhoodFound: Boolean(selectedNeighborhood),
   })
   const whatsappFollowUrl =
@@ -294,7 +294,7 @@ export function DigitalMenuPage() {
             <div>
               <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-200">
                 <Store className="h-4 w-4" />
-                {source?.store.tradeName ?? 'Cain Delivery'}
+                {source?.store?.tradeName ?? 'Cain Delivery'}
               </div>
               <h1 className="mt-2 text-3xl font-black tracking-normal text-white sm:text-4xl">
                 Cardapio digital
@@ -302,7 +302,7 @@ export function DigitalMenuPage() {
               <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-400">
                 <span className="flex items-center gap-1 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-emerald-100">
                   <Clock3 className="h-3.5 w-3.5" />
-                  {deliveryEtaMinutes ?? source?.store.estimatedDeliveryTimeMinutes ?? 90} min
+                  {deliveryEtaMinutes ?? source?.store?.estimatedDeliveryTimeMinutes ?? 90} min
                 </span>
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
                   Pedido direto no Cain Delivery
@@ -341,7 +341,7 @@ export function DigitalMenuPage() {
               description={prefillWarning}
             />
           ) : null}
-          {source?.checkout.channels.digitalMenuEnabled === false ? (
+          {source?.checkout?.channels.digitalMenuEnabled === false ? (
             <HonestNotice
               tone="warning"
               title="Cardapio digital pausado"
@@ -361,7 +361,7 @@ export function DigitalMenuPage() {
             <EmptyState
               icon={<AlertTriangle className="h-5 w-5" />}
               title="Cardapio indisponivel"
-              description="Nao foi possivel carregar o catalogo publico da API."
+              description="Nao foi possivel carregar o catalogo publico agora."
             />
           ) : categories.length ? (
             <>
@@ -397,7 +397,7 @@ export function DigitalMenuPage() {
             <EmptyState
               icon={<AlertTriangle className="h-5 w-5" />}
               title="Cardapio indisponivel"
-              description="Nenhuma categoria vendavel foi retornada pela API do catalogo."
+              description="Nenhuma categoria disponivel para venda foi encontrada."
             />
           )}
         </div>
@@ -453,7 +453,7 @@ export function DigitalMenuPage() {
           </Button>
 
           <p className="text-xs leading-5 text-slate-500">
-            O pedido e revalidado no backend antes de entrar na operacao. Produto, opcao,
+            O pedido e conferido novamente antes de entrar na operacao. Produto, opcao,
             disponibilidade, taxa e pagamento passam pelo banco real.
           </p>
         </aside>
@@ -645,8 +645,8 @@ function CheckoutForm({
   onOrderModeChange: (value: DigitalOrderMode) => void
   onPaymentMethodChange: (value: string) => void
 }) {
-  const delivery = source?.checkout.delivery
-  const channels = source?.checkout.channels
+  const delivery = source?.checkout?.delivery
+  const channels = source?.checkout?.channels
   const neighborhoodMissing =
     orderMode === 'delivery' &&
     Boolean(customer.neighborhood.trim()) &&

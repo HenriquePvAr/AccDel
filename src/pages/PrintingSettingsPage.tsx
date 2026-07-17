@@ -543,7 +543,7 @@ function QueuePanel({
 
   return (
     <Card>
-      <CardHeader className="gap-4 sm:flex-row sm:items-end sm:justify-between"><div><CardTitle>Fila de impressoes</CardTitle><CardDescription>{total} impressao(oes) no filtro atual; a lista atualiza automaticamente.</CardDescription></div><select className={`${controlClass} sm:w-64`} value={status} onChange={(event) => setStatus(event.target.value as PrintJobStatus | 'all')}>{statuses.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select></CardHeader>
+      <CardHeader className="gap-4 sm:flex-row sm:items-end sm:justify-between"><div><CardTitle>Fila de impressoes</CardTitle><CardDescription>{total === 1 ? '1 impressao no filtro atual' : `${total} impressoes no filtro atual`}; a lista atualiza automaticamente.</CardDescription></div><select className={`${controlClass} sm:w-64`} value={status} onChange={(event) => setStatus(event.target.value as PrintJobStatus | 'all')}>{statuses.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select></CardHeader>
       <CardContent className="space-y-3">
         {error ? <Alert variant="danger"><AlertTitle>Falha ao carregar fila</AlertTitle><AlertDescription>{errorMessage(error)}</AlertDescription></Alert> : null}
         {loading && !jobs.length ? <p className="py-6 text-center text-sm text-slate-400">Carregando impressoes...</p> : null}

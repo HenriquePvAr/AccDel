@@ -108,7 +108,7 @@ export function useUpdateDriverLocationMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.drivers.route(request.driverId) })
       useToastStore.getState().pushToast({
         title: 'Localizacao atualizada',
-        description: 'O tracking refletiu a nova posicao e a rota sera recalculada.',
+        description: 'A nova posicao foi registrada e a rota sera recalculada.',
         variant: 'success',
       })
     },

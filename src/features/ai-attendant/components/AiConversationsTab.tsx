@@ -240,7 +240,9 @@ function ConversationList({
           <MessageSquare className="h-5 w-5 text-primary" />
           Conversas do WhatsApp
         </CardTitle>
-        <CardDescription>{totalConversations} conversa(s) no atendimento.</CardDescription>
+        <CardDescription>
+          {totalConversations === 1 ? '1 conversa no atendimento.' : `${totalConversations} conversas no atendimento.`}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 px-3 pb-3">
         <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">

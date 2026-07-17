@@ -91,7 +91,7 @@ export function WaitersPage() {
         <EmptyState
           icon={<Users className="h-5 w-5" />}
           title="Falha ao carregar garcons"
-          description="Nao foi possivel buscar a equipe de salao na API. Tente atualizar novamente."
+          description="Nao foi possivel buscar a equipe de salao. Tente atualizar novamente."
         />
       ) : waiters.length ? (
         <div className="grid gap-5 xl:grid-cols-2">

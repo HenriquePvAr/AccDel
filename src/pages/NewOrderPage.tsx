@@ -1311,7 +1311,7 @@ export function NewOrderPage() {
                 {selectedTable.status === 'reserved' ? (
                   <div className="rounded-2xl border border-violet-300/20 bg-violet-400/10 p-4 text-sm text-violet-100">
                     {selectedTable.notes ||
-                      'Reserva marcada na mesa, mas o backend ainda nao possui entidade detalhada de reserva.'}
+                      'Reserva marcada na mesa; os detalhes complementares ainda nao estao disponiveis.'}
                   </div>
                 ) : null}
 

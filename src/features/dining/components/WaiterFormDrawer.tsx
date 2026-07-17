@@ -52,7 +52,7 @@ export function WaiterFormDrawer({
         <SheetHeader>
           <SheetTitle>{waiter ? 'Editar garcom' : 'Novo garcom'}</SheetTitle>
           <SheetDescription>
-            Cadastro operacional integrado ao backend real do admin.
+            Cadastro integrado a operacao da loja.
           </SheetDescription>
         </SheetHeader>
 

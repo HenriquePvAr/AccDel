@@ -80,7 +80,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           Nao foi possivel carregar a visao geral
         </AlertTitle>
         <AlertDescription>
-          Verifique se a API esta rodando e se o usuario possui permissao para o Atendente IA.
+          Verifique a conexao e se o usuario possui permissao para o atendimento automatico.
         </AlertDescription>
       </Alert>
     )
@@ -120,7 +120,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
           icon={<Zap className="h-5 w-5" />}
           label="Modo atual"
           value={aiModeLabels[overview.mode]}
-          detail={overview.mode === 'off' ? 'Fluxo automatico desligado.' : 'Comportamento salvo na API.'}
+          detail={overview.mode === 'off' ? 'Resposta automatica desligada.' : 'Comportamento salvo.'}
           tone={overview.mode === 'off' ? 'muted' : 'success'}
         />
         <MetricTile
@@ -190,7 +190,7 @@ export function AiAttendantOverviewTab({ onNavigate }: AiAttendantOverviewTabPro
               Integracao com erro
             </AlertTitle>
             <AlertDescription>
-              Abra WhatsApp ou Teste para ver o erro retornado pela API real.
+              Abra WhatsApp ou Teste para consultar o motivo e tentar novamente.
             </AlertDescription>
           </Alert>
         ) : null}

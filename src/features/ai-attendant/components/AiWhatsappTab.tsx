@@ -103,26 +103,26 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
             ) : (
               <Loader2 className="h-4 w-4 animate-spin" />
             )}
-            Meta WhatsApp Cloud API
+            WhatsApp oficial
           </AlertTitle>
           <AlertDescription>
             {active
               ? 'Conta oficial vinculada e eventos assinados da Meta ja foram recebidos.'
-              : 'Configuracao carregada. A integracao sera ativada quando o primeiro webhook assinado da Meta for validado.'}
+              : 'Configuracao carregada. A conexao sera ativada assim que a primeira mensagem oficial for confirmada.'}
           </AlertDescription>
         </Alert>
         <Card>
           <CardHeader>
-            <CardTitle>Integracao oficial sem QR Code</CardTitle>
+            <CardTitle>Conexao oficial sem QR Code</CardTitle>
             <CardDescription>
-              Token, App Secret e identificadores ficam somente no ambiente da API. Vinculo e webhook sao administrados no Meta Business.
+              As credenciais ficam protegidas. O vinculo da conta e administrado no Meta Business.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center gap-3">
             <Badge variant={active ? 'success' : 'warning'}>
-              {active ? 'Webhook ativo' : 'Aguardando webhook'}
+              {active ? 'Conexao ativa' : 'Aguardando confirmacao'}
             </Badge>
-            <Badge variant="default">Cloud API oficial</Badge>
+            <Badge variant="default">Conta oficial</Badge>
             <Button onClick={onOpenConversations} disabled={!active}>
               <MessageCircle className="h-4 w-4" />
               Abrir conversas
@@ -221,7 +221,7 @@ export function AiWhatsappTab({ onOpenConversations }: AiWhatsappTabProps) {
               <p className="text-center text-sm leading-6 text-slate-400">
                 {qrExpiresAt && qrSecondsLeft !== null
                   ? `Expira em ${qrSecondsLeft}s (${formatDateTime(qrExpiresAt)}).`
-                  : 'A API nao informou tempo de expiracao para este QR.'}
+                  : 'O servico nao informou o tempo de expiracao deste QR.'}
               </p>
             </div>
           ) : (
@@ -362,10 +362,10 @@ function IntegrationLogsPanel() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <History className="h-5 w-5 text-primary" />
-          Logs de integracao
+          Historico da conexao
         </CardTitle>
         <CardDescription>
-          Eventos recentes de webhook, envio, erro, delay e sessao sem tokens ou secrets.
+          Eventos recentes de recebimento, envio, erro, espera e conexao sem exibir credenciais.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -405,8 +405,8 @@ function IntegrationLogsPanel() {
           ))
         ) : (
           <p className="rounded-[18px] border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-400">
-            Nenhum log registrado ainda. Eventos reais aparecem quando a sessao, webhook,
-            envio manual, teste ou pipeline de IA executarem.
+            Nenhum evento registrado ainda. As atividades aparecem quando houver conexao,
+            envio, teste ou resposta automatica.
           </p>
         )}
       </CardContent>

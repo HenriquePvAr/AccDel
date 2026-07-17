@@ -16,7 +16,7 @@ export function UsersSettingsPage() {
     <PageShell>
       <SectionHeader
         title="Usuarios"
-        description="Perfis da loja e permissoes da operacao retornados pela API."
+        description="Perfis da loja e permissoes para cada parte da operacao."
       />
       {usersQuery.isLoading ? (
         <div className="space-y-4">
@@ -28,7 +28,7 @@ export function UsersSettingsPage() {
         <EmptyState
           icon={<Users className="h-5 w-5" />}
           title="Usuarios indisponiveis"
-          description="Nao foi possivel carregar os perfis pela API."
+          description="Nao foi possivel carregar os perfis agora."
         />
       ) : users.length ? (
         <div className="space-y-4">
@@ -52,7 +52,7 @@ export function UsersSettingsPage() {
         <EmptyState
           icon={<Users className="h-5 w-5" />}
           title="Nenhum usuario encontrado"
-          description="A API nao retornou perfis vinculados a loja atual."
+          description="Nenhum perfil esta vinculado a loja atual."
         />
       )}
     </PageShell>

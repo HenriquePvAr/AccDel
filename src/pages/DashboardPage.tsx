@@ -136,10 +136,23 @@ export function DashboardPage() {
       ? { id: 'ai-unavailable', label: 'Atendimento indisponivel', to: '/ai-attendant', tone: 'warning' as const }
       : null,
     printingFailures
-      ? { id: 'printing-failures', label: `${printingFailures} impressao(oes) pedem revisao`, to: '/settings/printing', tone: 'danger' as const }
+      ? {
+          id: 'printing-failures',
+          label: printingFailures === 1 ? '1 impressao pede revisao' : `${printingFailures} impressoes pedem revisao`,
+          to: '/settings/printing',
+          tone: 'danger' as const,
+        }
       : null,
     conversationsWaiting
-      ? { id: 'conversations-waiting', label: `${conversationsWaiting} conversa(s) aguardando atendente`, to: '/ai-attendant', tone: 'warning' as const }
+      ? {
+          id: 'conversations-waiting',
+          label:
+            conversationsWaiting === 1
+              ? '1 conversa aguarda atendente'
+              : `${conversationsWaiting} conversas aguardam atendente`,
+          to: '/ai-attendant',
+          tone: 'warning' as const,
+        }
       : null,
   ].filter((alert): alert is NonNullable<typeof alert> => Boolean(alert))
 

@@ -271,7 +271,7 @@ export function DiningTablesPage() {
               <EmptyState
                 icon={<LayoutGrid className="h-5 w-5" />}
                 title="Falha ao carregar o salao"
-                description="A API nao retornou mesas e sessoes. Tente novamente para continuar a operacao."
+                description="Mesas e sessoes ainda nao estao disponiveis. Atualize para continuar a operacao."
               />
             </div>
           ) : filteredTables.length ? (
