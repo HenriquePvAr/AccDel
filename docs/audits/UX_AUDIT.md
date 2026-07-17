@@ -1,6 +1,6 @@
 # Auditoria de UX — operação Cain Delivery
 
-Data: 14/07/2026  
+Data: 14/07/2026
 Escopo principal: pedidos, cozinha, expedição e navegação operacional.
 
 ## Resumo executivo
@@ -156,7 +156,7 @@ O redesign inicial pode alterar rótulo/ordem e adicionar atalhos contextuais se
 
 ### Proposta
 
-**Modo Preparo:** Em análise → Em produção → Pronto.  
+**Modo Preparo:** Em análise → Em produção → Pronto.
 **Modo Expedição:** Pronto → Em rota → Concluído recente.
 
 O pedido pronto aparece em ambos os modos por ser o handoff entre equipes. Isso é uma projeção visual, não duplicação de dados. O modo deve permanecer no URL ou estado local previsível; em mobile, cada status vira tab com contagem.

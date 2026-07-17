@@ -1,7 +1,7 @@
 # Auditoria técnica — Cain Delivery
 
-Data da auditoria: 14/07/2026  
-Branch: `audit-ux-operational-redesign`  
+Data da auditoria: 14/07/2026
+Branch: `audit-ux-operational-redesign`
 Base auditada: `a01b2508a0387c99de781f410521208795a90f6a`
 
 ## Resumo executivo

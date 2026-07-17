@@ -1,7 +1,7 @@
 # Plano de redesign operacional
 
-Data: 14/07/2026  
-Foco: Central de Pedidos, preparo, cozinha e expedição.  
+Data: 14/07/2026
+Foco: Central de Pedidos, preparo, cozinha e expedição.
 Restrição: evolução incremental, sem mudança destrutiva de banco/API e sem trocar a stack.
 
 ## Resultado pretendido

@@ -1,6 +1,6 @@
 # Arquitetura atual de mensagens e IA
 
-Data do inventario: 14/07/2026  
+Data do inventario: 14/07/2026
 Base: `f04b335` (`security/critical-operational-hardening`)
 
 Este documento registra o fluxo existente antes da integracao com a WhatsApp Cloud API e a NVIDIA. O objetivo e preservar comportamento real, identificar acoplamentos e tornar a migracao gradual e reversivel.

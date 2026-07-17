@@ -1,6 +1,6 @@
 # Roadmap de implementação
 
-Data: 14/07/2026  
+Data: 14/07/2026
 Estratégia: lotes pequenos, compatíveis e reversíveis; segurança e domínio antes de expansão funcional.
 
 ## Sequência recomendada

@@ -1,6 +1,6 @@
 # Design system operacional
 
-Versão inicial: 14/07/2026  
+Versão inicial: 14/07/2026
 Objetivo: dar semântica consistente ao shell escuro e às superfícies de pedidos, cozinha e expedição.
 
 ## Fundamentos

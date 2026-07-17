@@ -1,6 +1,6 @@
 # Auditoria de segurança — Cain Delivery
 
-Data: 14/07/2026  
+Data: 14/07/2026
 Base: `a01b2508a0387c99de781f410521208795a90f6a`
 
 ## Conclusão

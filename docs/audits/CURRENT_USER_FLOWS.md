@@ -1,6 +1,6 @@
 # Fluxos atuais e metas de eficiência
 
-Data: 14/07/2026  
+Data: 14/07/2026
 Contagem: ações intencionais de clique/toque após o operador já estar autenticado; digitação e seleção de conteúdo são indicadas separadamente quando relevantes.
 
 ## Visão geral
@@ -103,4 +103,3 @@ O board atual não renderiza `out_for_delivery`. A operação troca para Localiz
 - toda decisão financeira e de autorização é validada pelo servidor;
 - atalhos mantêm teclado, leitor de tela e alvo de toque adequado;
 - nenhum ganho depende de alterar ou apagar dados existentes.
-
