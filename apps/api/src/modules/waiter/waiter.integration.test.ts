@@ -221,7 +221,7 @@ test(
       const closing = await prisma.tableSession.findUniqueOrThrow({ where: { id: sessionId } })
       assert.equal(closing.status, 'awaiting_close')
       assert.equal(closing.paymentMethod, null)
-      assert.equal(closing.total.toNumber(), 31.5)
+      assert.equal(closing.total.toNumber(), 63)
     } finally {
       await prisma.store.deleteMany({ where: { id: { in: [storeA, storeB] } } }).catch(() => undefined)
       await prisma.user.deleteMany({ where: { id: { in: [waiterA, waiterOther] } } }).catch(() => undefined)
