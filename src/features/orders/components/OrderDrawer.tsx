@@ -120,7 +120,7 @@ export function OrderDrawer({
               </div>
               <SheetTitle className="text-xl">Pedido {order.number}</SheetTitle>
               <SheetDescription className="mt-1">
-                {channelLabelMap[order.source]} recebido em {formatDateTime(order.createdAt)}
+                {channelLabelMap[order.source]} · recebido em {formatDateTime(order.createdAt)}
               </SheetDescription>
             </div>
             <div className="shrink-0 text-right">
