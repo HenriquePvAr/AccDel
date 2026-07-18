@@ -409,42 +409,43 @@ enum AiOrderDraftStatus {
 }
 
 model Store {
-  id                           String   @id @default(uuid())
-  name                         String
-  tradeName                    String   @map("trade_name")
-  timezone                     String   @default("America/Manaus")
-  city                         String
-  state                        String
-  brandAccent                  String   @map("brand_accent")
-  logoUrl                      String?  @map("logo_url")
-  phone                        String?
-  publicWhatsapp               String?  @map("public_whatsapp")
-  addressLine                  String?  @map("address_line")
-  neighborhood                 String?
-  businessHours                String?  @map("business_hours")
-  businessDays                 String[] @default(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]) @map("business_days")
-  greetingMessage              String?  @map("greeting_message")
-  outOfHoursMessage            String?  @map("out_of_hours_message")
-  cancellationPolicy           String?  @map("cancellation_policy")
-  generalNotes                 String?  @map("general_notes")
-  latitude                     Decimal  @default(-3.1019000) @db.Decimal(10, 7)
-  longitude                    Decimal  @default(-60.0217000) @db.Decimal(10, 7)
-  defaultDeliveryFee           Decimal  @default(0) @map("default_delivery_fee") @db.Decimal(10, 2)
-  minimumOrderAmount           Decimal  @default(0) @map("minimum_order_amount") @db.Decimal(10, 2)
-  deliveryEnabled              Boolean  @default(true) @map("delivery_enabled")
-  pickupEnabled                Boolean  @default(true) @map("pickup_enabled")
-  counterEnabled               Boolean  @default(true) @map("counter_enabled")
-  dineInEnabled                Boolean  @default(true) @map("dine_in_enabled")
-  digitalMenuEnabled           Boolean  @default(true) @map("digital_menu_enabled")
-  whatsappAiEnabled            Boolean  @default(true) @map("whatsapp_ai_enabled")
-  autoAcceptEnabled            Boolean  @default(false) @map("auto_accept_enabled")
-  estimatedPrepTimeMinutes     Int      @default(30) @map("estimated_prep_time_minutes")
-  estimatedDeliveryTimeMinutes Int      @default(90) @map("estimated_delivery_time_minutes")
-  estimatedDineInTimeMinutes   Int      @default(50) @map("estimated_dine_in_time_minutes")
-  estimatedCounterTimeMinutes  Int      @default(25) @map("estimated_counter_time_minutes")
-  estimatedPickupTimeMinutes   Int      @default(30) @map("estimated_pickup_time_minutes")
-  createdAt                    DateTime @default(now()) @map("created_at")
-  updatedAt                    DateTime @updatedAt @map("updated_at")
+  id                              String   @id @default(uuid())
+  name                            String
+  tradeName                       String   @map("trade_name")
+  timezone                        String   @default("America/Manaus")
+  city                            String
+  state                           String
+  brandAccent                     String   @map("brand_accent")
+  logoUrl                         String?  @map("logo_url")
+  phone                           String?
+  publicWhatsapp                  String?  @map("public_whatsapp")
+  addressLine                     String?  @map("address_line")
+  neighborhood                    String?
+  businessHours                   String?  @map("business_hours")
+  businessDays                    String[] @default(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]) @map("business_days")
+  greetingMessage                 String?  @map("greeting_message")
+  outOfHoursMessage               String?  @map("out_of_hours_message")
+  cancellationPolicy              String?  @map("cancellation_policy")
+  generalNotes                    String?  @map("general_notes")
+  latitude                        Decimal  @default(-3.1019000) @db.Decimal(10, 7)
+  longitude                       Decimal  @default(-60.0217000) @db.Decimal(10, 7)
+  defaultDeliveryFee              Decimal  @default(0) @map("default_delivery_fee") @db.Decimal(10, 2)
+  minimumOrderAmount              Decimal  @default(0) @map("minimum_order_amount") @db.Decimal(10, 2)
+  cashWithdrawalApprovalThreshold Decimal? @map("cash_withdrawal_approval_threshold") @db.Decimal(10, 2)
+  deliveryEnabled                 Boolean  @default(true) @map("delivery_enabled")
+  pickupEnabled                   Boolean  @default(true) @map("pickup_enabled")
+  counterEnabled                  Boolean  @default(true) @map("counter_enabled")
+  dineInEnabled                   Boolean  @default(true) @map("dine_in_enabled")
+  digitalMenuEnabled              Boolean  @default(true) @map("digital_menu_enabled")
+  whatsappAiEnabled               Boolean  @default(true) @map("whatsapp_ai_enabled")
+  autoAcceptEnabled               Boolean  @default(false) @map("auto_accept_enabled")
+  estimatedPrepTimeMinutes        Int      @default(30) @map("estimated_prep_time_minutes")
+  estimatedDeliveryTimeMinutes    Int      @default(90) @map("estimated_delivery_time_minutes")
+  estimatedDineInTimeMinutes      Int      @default(50) @map("estimated_dine_in_time_minutes")
+  estimatedCounterTimeMinutes     Int      @default(25) @map("estimated_counter_time_minutes")
+  estimatedPickupTimeMinutes      Int      @default(30) @map("estimated_pickup_time_minutes")
+  createdAt                       DateTime @default(now()) @map("created_at")
+  updatedAt                       DateTime @updatedAt @map("updated_at")
 
   customers               Customer[]
   categories              Category[]
@@ -507,22 +508,22 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  stores              StoreUser[]
-  driverOrders        Order[]              @relation("DriverOrders")
-  driverLocations     DriverLocation[]     @relation("DriverLocations")
-  deliveryAssignments DeliveryAssignment[] @relation("DriverAssignments")
-  etaSnapshots        EtaSnapshot[]        @relation("DriverEtaSnapshots")
-  assignedTables      DiningTable[]        @relation("TableWaiter")
-  waiterSessions      TableSession[]       @relation("SessionWaiter")
-  closedTableSessions TableSession[]       @relation("SessionCloser")
-  cancelledTableItems TableSessionItem[]   @relation("TableSessionItemCancelledBy")
-  deliveredTableItems TableSessionItem[]   @relation("TableSessionItemDeliveredBy")
-  openedCashRegisters CashRegister[]        @relation("CashRegisterOpenedBy")
-  closedCashRegisters CashRegister[]        @relation("CashRegisterClosedBy")
-  operatedCashMovements CashMovement[]      @relation("CashMovementOperator")
-  approvedCashMovements CashMovement[]      @relation("CashMovementApprover")
-  cashAuditLogs      CashAuditLog[]         @relation("CashAuditActor")
-  approvedCashAuditLogs CashAuditLog[]      @relation("CashAuditApprover")
+  stores                StoreUser[]
+  driverOrders          Order[]              @relation("DriverOrders")
+  driverLocations       DriverLocation[]     @relation("DriverLocations")
+  deliveryAssignments   DeliveryAssignment[] @relation("DriverAssignments")
+  etaSnapshots          EtaSnapshot[]        @relation("DriverEtaSnapshots")
+  assignedTables        DiningTable[]        @relation("TableWaiter")
+  waiterSessions        TableSession[]       @relation("SessionWaiter")
+  closedTableSessions   TableSession[]       @relation("SessionCloser")
+  cancelledTableItems   TableSessionItem[]   @relation("TableSessionItemCancelledBy")
+  deliveredTableItems   TableSessionItem[]   @relation("TableSessionItemDeliveredBy")
+  openedCashRegisters   CashRegister[]       @relation("CashRegisterOpenedBy")
+  closedCashRegisters   CashRegister[]       @relation("CashRegisterClosedBy")
+  operatedCashMovements CashMovement[]       @relation("CashMovementOperator")
+  approvedCashMovements CashMovement[]       @relation("CashMovementApprover")
+  cashAuditLogs         CashAuditLog[]       @relation("CashAuditActor")
+  approvedCashAuditLogs CashAuditLog[]       @relation("CashAuditApprover")
 
   @@index([status, createdAt])
   @@map("users")
@@ -1370,13 +1371,16 @@ model PaymentAudit {
   actorId           String?       @map("actor_id")
   actorName         String        @map("actor_name")
   externalReference String?       @map("external_reference")
+  cashRegisterId    String?       @map("cash_register_id")
   createdAt         DateTime      @default(now()) @map("created_at")
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  cashRegister  CashRegister?  @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
   cashMovements CashMovement[]
 
   @@index([storeId, orderId, createdAt])
+  @@index([cashRegisterId, status, method, createdAt])
   @@index([externalReference])
   @@map("payment_audits")
 }
@@ -1422,12 +1426,14 @@ model CashRegister {
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
-  store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  terminal  CashTerminal?  @relation(fields: [terminalId], references: [id], onDelete: Restrict)
-  openedBy  User?          @relation("CashRegisterOpenedBy", fields: [openedByUserId], references: [id], onDelete: SetNull)
-  closedBy  User?          @relation("CashRegisterClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
-  movements CashMovement[]
-  auditLogs CashAuditLog[]
+  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  terminal      CashTerminal?  @relation(fields: [terminalId], references: [id], onDelete: Restrict)
+  openedBy      User?          @relation("CashRegisterOpenedBy", fields: [openedByUserId], references: [id], onDelete: SetNull)
+  closedBy      User?          @relation("CashRegisterClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  movements     CashMovement[]
+  auditLogs     CashAuditLog[]
+  paymentAudits PaymentAudit[]
+  tableSessions TableSession[]
 
   @@index([storeId, status, openedAt])
   @@index([terminalId, status, openedAt])
@@ -1437,61 +1443,64 @@ model CashRegister {
 }
 
 model CashMovement {
-  id             String           @id @default(uuid())
-  storeId        String           @map("store_id")
-  cashRegisterId String           @map("cash_register_id")
-  type           CashMovementType
-  method         PaymentMethod?
-  amount         Decimal          @db.Decimal(10, 2)
-  label          String
-  reason         String?
-  userName       String           @map("user_name")
-  operatorUserId String?          @map("operator_user_id")
-  operatorName   String?          @map("operator_name")
-  approvedByUserId String?        @map("approved_by_user_id")
-  approvedByName String?          @map("approved_by_name")
-  balanceBefore  Decimal?         @map("balance_before") @db.Decimal(10, 2)
-  balanceAfter   Decimal?         @map("balance_after") @db.Decimal(10, 2)
-  idempotencyKey String?          @map("idempotency_key")
-  orderId        String?          @map("order_id")
-  paymentAuditId String?          @map("payment_audit_id")
-  originalMovementId String?      @map("original_movement_id")
-  immutable      Boolean          @default(true)
-  createdAt      DateTime         @default(now()) @map("created_at")
+  id                 String           @id @default(uuid())
+  storeId            String           @map("store_id")
+  cashRegisterId     String           @map("cash_register_id")
+  type               CashMovementType
+  method             PaymentMethod?
+  amount             Decimal          @db.Decimal(10, 2)
+  label              String
+  reason             String?
+  userName           String           @map("user_name")
+  operatorUserId     String?          @map("operator_user_id")
+  operatorName       String?          @map("operator_name")
+  approvedByUserId   String?          @map("approved_by_user_id")
+  approvedByName     String?          @map("approved_by_name")
+  balanceBefore      Decimal?         @map("balance_before") @db.Decimal(10, 2)
+  balanceAfter       Decimal?         @map("balance_after") @db.Decimal(10, 2)
+  idempotencyKey     String?          @map("idempotency_key")
+  orderId            String?          @map("order_id")
+  paymentAuditId     String?          @map("payment_audit_id")
+  tableSessionId     String?          @map("table_session_id")
+  originalMovementId String?          @map("original_movement_id")
+  immutable          Boolean          @default(true)
+  createdAt          DateTime         @default(now()) @map("created_at")
 
-  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
-  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  operator     User?        @relation("CashMovementOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
-  approver     User?        @relation("CashMovementApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  order        Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  paymentAudit PaymentAudit? @relation(fields: [paymentAuditId], references: [id], onDelete: SetNull)
-  originalMovement CashMovement? @relation("CashMovementCorrection", fields: [originalMovementId], references: [id], onDelete: Restrict)
-  corrections       CashMovement[] @relation("CashMovementCorrection")
-  auditLogs     CashAuditLog[]
+  cashRegister     CashRegister   @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+  store            Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  operator         User?          @relation("CashMovementOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
+  approver         User?          @relation("CashMovementApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  order            Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  paymentAudit     PaymentAudit?  @relation(fields: [paymentAuditId], references: [id], onDelete: SetNull)
+  tableSession     TableSession?  @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  originalMovement CashMovement?  @relation("CashMovementCorrection", fields: [originalMovementId], references: [id], onDelete: Restrict)
+  corrections      CashMovement[] @relation("CashMovementCorrection")
+  auditLogs        CashAuditLog[]
 
   @@index([cashRegisterId, createdAt])
   @@index([storeId, type, createdAt])
   @@index([operatorUserId, createdAt])
   @@index([orderId])
   @@index([paymentAuditId])
+  @@index([tableSessionId])
   @@index([originalMovementId])
   @@index([type, method])
   @@map("cash_movements")
 }
 
 model CashAuditLog {
-  id             String   @id @default(uuid())
-  storeId        String   @map("store_id")
-  cashRegisterId String?  @map("cash_register_id")
-  cashMovementId String?  @map("cash_movement_id")
-  action         String
-  actorUserId    String?  @map("actor_user_id")
-  actorName      String   @map("actor_name")
-  approvedByUserId String? @map("approved_by_user_id")
-  approvedByName String? @map("approved_by_name")
-  idempotencyKey String? @map("idempotency_key")
-  metadata       Json?
-  createdAt      DateTime @default(now()) @map("created_at")
+  id               String   @id @default(uuid())
+  storeId          String   @map("store_id")
+  cashRegisterId   String?  @map("cash_register_id")
+  cashMovementId   String?  @map("cash_movement_id")
+  action           String
+  actorUserId      String?  @map("actor_user_id")
+  actorName        String   @map("actor_name")
+  approvedByUserId String?  @map("approved_by_user_id")
+  approvedByName   String?  @map("approved_by_name")
+  idempotencyKey   String?  @map("idempotency_key")
+  metadata         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
 
   store        Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
   cashRegister CashRegister? @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
@@ -1550,36 +1559,40 @@ model DiningTable {
 }
 
 model TableSession {
-  id            String             @id @default(uuid())
-  storeId       String             @map("store_id")
-  tableId       String             @map("table_id")
-  waiterId      String?            @map("waiter_id")
-  closedById    String?            @map("closed_by_id")
-  guestCount    Int                @default(1) @map("guest_count")
-  subtotal      Decimal            @default(0) @db.Decimal(10, 2)
-  discount      Decimal            @default(0) @db.Decimal(10, 2)
-  serviceFee    Decimal            @default(0) @map("service_fee") @db.Decimal(10, 2)
-  total         Decimal            @default(0) @db.Decimal(10, 2)
-  paymentMethod PaymentMethod?     @map("payment_method")
-  status        TableSessionStatus @default(open)
-  version       Int                @default(1)
-  notes         String?
-  openedAt      DateTime           @default(now()) @map("opened_at")
-  closedAt      DateTime?          @map("closed_at")
-  createdAt     DateTime           @default(now()) @map("created_at")
-  updatedAt     DateTime           @updatedAt @map("updated_at")
+  id             String             @id @default(uuid())
+  storeId        String             @map("store_id")
+  tableId        String             @map("table_id")
+  waiterId       String?            @map("waiter_id")
+  closedById     String?            @map("closed_by_id")
+  guestCount     Int                @default(1) @map("guest_count")
+  subtotal       Decimal            @default(0) @db.Decimal(10, 2)
+  discount       Decimal            @default(0) @db.Decimal(10, 2)
+  serviceFee     Decimal            @default(0) @map("service_fee") @db.Decimal(10, 2)
+  total          Decimal            @default(0) @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod?     @map("payment_method")
+  cashRegisterId String?            @map("cash_register_id")
+  status         TableSessionStatus @default(open)
+  version        Int                @default(1)
+  notes          String?
+  openedAt       DateTime           @default(now()) @map("opened_at")
+  closedAt       DateTime?          @map("closed_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
 
   store           Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
   table           DiningTable         @relation("TableSessions", fields: [tableId], references: [id], onDelete: Cascade)
   waiter          User?               @relation("SessionWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
   closedBy        User?               @relation("SessionCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  cashRegister    CashRegister?       @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
   currentForTable DiningTable?        @relation("CurrentTableSession")
   items           TableSessionItem[]
   events          TableSessionEvent[]
+  cashMovements   CashMovement[]
 
   @@index([storeId, status, openedAt])
   @@index([tableId, status])
   @@index([waiterId, openedAt])
+  @@index([cashRegisterId, status, paymentMethod, closedAt])
   @@map("table_sessions")
 }
 

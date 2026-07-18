@@ -6,12 +6,12 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
-import type {
-  OrderChannel,
+import {
+  Prisma,
+  type OrderChannel,
   OrderItem,
   OrderNotificationType,
   OrderStatus,
-  Prisma,
   ProductChannel,
 } from '@prisma/client'
 
@@ -1127,15 +1127,6 @@ export class OrdersService {
     }
 
     if (current.paymentStatus === payload.status) {
-      if (payload.status === 'paid') {
-        await this.registerSaleMovement(
-          current.id,
-          current.number,
-          current.total.toNumber(),
-          current.paymentMethod,
-        )
-      }
-
       return { data: mapOrder(current) }
     }
 
@@ -1161,6 +1152,26 @@ export class OrdersService {
         throw new ConflictException('O pagamento foi atualizado por outra requisicao.')
       }
 
+      const cashRegister = await transaction.cashRegister.findFirst({
+        where: {
+          storeId: getCurrentStoreId(),
+          status: 'open',
+        },
+        orderBy: {
+          openedAt: 'desc',
+        },
+      })
+
+      if (
+        current.paymentMethod === 'cash' &&
+        (payload.status === 'paid' || payload.status === 'refunded') &&
+        !cashRegister
+      ) {
+        throw new ConflictException(
+          'Abra um caixa antes de confirmar pagamento ou reembolso em dinheiro.',
+        )
+      }
+
       await transaction.paymentAudit.create({
         data: {
           id: paymentEventId,
@@ -1173,6 +1184,7 @@ export class OrdersService {
           actorId: authUser.sub,
           actorName: this.cleanDatabaseText(authUser.name),
           externalReference: payload.externalReference,
+          cashRegisterId: cashRegister?.id,
         },
       })
 
@@ -1202,18 +1214,30 @@ export class OrdersService {
         })
       }
 
-      return updatedOrder
-    })
+      if (payload.status === 'paid' && cashRegister) {
+        await this.registerSaleMovement(transaction, cashRegister, {
+          orderId: current.id,
+          orderNumber: current.number,
+          amount: current.total,
+          method: current.paymentMethod,
+          paymentAuditId: paymentEventId,
+          actor: authUser,
+        })
+      }
 
-    if (payload.status === 'paid') {
-      await this.registerSaleMovement(
-        current.id,
-        current.number,
-        current.total.toNumber(),
-        current.paymentMethod,
-        paymentEventId,
-      )
-    }
+      if (payload.status === 'refunded' && current.paymentMethod === 'cash' && cashRegister) {
+        await this.registerRefundMovement(transaction, cashRegister, {
+          orderId: current.id,
+          orderNumber: current.number,
+          amount: current.total,
+          paymentAuditId: paymentEventId,
+          reason: payload.reason ?? '',
+          actor: authUser,
+        })
+      }
+
+      return updatedOrder
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
     return { data: mapOrder(order) }
   }
@@ -1969,35 +1993,28 @@ export class OrdersService {
   }
 
   private async registerSaleMovement(
-    orderId: string,
-    orderNumber: string,
-    amount: number,
-    method: CreateOrderPayload['paymentMethod'],
-    paymentAuditId?: string,
+    transaction: Prisma.TransactionClient,
+    register: Prisma.CashRegisterGetPayload<Record<string, never>>,
+    input: {
+      orderId: string
+      orderNumber: string
+      amount: Prisma.Decimal
+      method: CreateOrderPayload['paymentMethod']
+      paymentAuditId: string
+      actor: AuthenticatedRequestUser
+    },
   ) {
-    if (method !== 'cash') {
+    if (input.method !== 'cash') {
       return
     }
 
-    const register = await this.prisma.cashRegister.findFirst({
-      where: {
-        storeId: getCurrentStoreId(),
-        status: 'open',
-      },
-      orderBy: {
-        openedAt: 'desc',
-      },
-    })
-
-    if (!register) {
-      return
-    }
-
-    const label = `Pedido ${orderNumber}`
-    const existingMovement = await this.prisma.cashMovement.findFirst({
+    const idempotencyKey = `cash-sale:${input.orderId}`
+    const existingMovement = await transaction.cashMovement.findFirst({
       where: {
         cashRegisterId: register.id,
-        idempotencyKey: `cash-sale:${orderId}`,
+        storeId: getCurrentStoreId(),
+        orderId: input.orderId,
+        type: 'CASH_SALE',
       },
     })
 
@@ -2005,30 +2022,146 @@ export class OrdersService {
       return
     }
 
-    await this.prisma.cashRegister.update({
+    const changed = await transaction.cashRegister.updateMany({
       where: {
         id: register.id,
+        storeId: getCurrentStoreId(),
+        status: 'open',
+        expectedAmount: register.expectedAmount,
       },
       data: {
         expectedAmount: {
-          increment: amount,
+          increment: input.amount,
         },
-        movements: {
-          create: {
-            storeId: getCurrentStoreId(),
-            type: 'CASH_SALE',
-            method: 'cash',
-            amount,
-            label: `Venda em dinheiro - ${label}`,
-            reason: `Pagamento em dinheiro confirmado para ${label}`,
-            userName: 'Sistema',
-            operatorName: 'Sistema',
-            balanceBefore: register.expectedAmount,
-            balanceAfter: register.expectedAmount.plus(amount),
-            idempotencyKey: `cash-sale:${orderId}`,
-            orderId,
-            paymentAuditId,
-          },
+      },
+    })
+
+    if (changed.count !== 1) {
+      throw new ConflictException('O caixa foi alterado durante a confirmacao do pagamento.')
+    }
+
+    const movement = await transaction.cashMovement.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        cashRegisterId: register.id,
+        type: 'CASH_SALE',
+        method: 'cash',
+        amount: input.amount,
+        label: `Venda em dinheiro - Pedido ${input.orderNumber}`,
+        reason: `Pagamento em dinheiro confirmado para o pedido ${input.orderNumber}`,
+        userName: this.cleanDatabaseText(input.actor.name),
+        operatorUserId: input.actor.sub,
+        operatorName: this.cleanDatabaseText(input.actor.name),
+        balanceBefore: register.expectedAmount,
+        balanceAfter: register.expectedAmount.plus(input.amount),
+        idempotencyKey,
+        orderId: input.orderId,
+        paymentAuditId: input.paymentAuditId,
+      },
+    })
+
+    await transaction.cashAuditLog.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        cashRegisterId: register.id,
+        cashMovementId: movement.id,
+        action: 'cash_movement.sale',
+        actorUserId: input.actor.sub,
+        actorName: this.cleanDatabaseText(input.actor.name),
+        idempotencyKey,
+        metadata: {
+          orderId: input.orderId,
+          paymentAuditId: input.paymentAuditId,
+          amount: input.amount.toString(),
+        },
+      },
+    })
+  }
+
+  private async registerRefundMovement(
+    transaction: Prisma.TransactionClient,
+    register: Prisma.CashRegisterGetPayload<Record<string, never>>,
+    input: {
+      orderId: string
+      orderNumber: string
+      amount: Prisma.Decimal
+      paymentAuditId: string
+      reason: string
+      actor: AuthenticatedRequestUser
+    },
+  ) {
+    if (!input.reason.trim()) {
+      throw new BadRequestException('Informe o motivo do reembolso em dinheiro.')
+    }
+
+    const previousRefunds = await transaction.cashMovement.aggregate({
+      where: {
+        storeId: getCurrentStoreId(),
+        orderId: input.orderId,
+        type: 'CASH_REFUND',
+      },
+      _sum: { amount: true },
+    })
+
+    if (new Prisma.Decimal(previousRefunds._sum.amount ?? 0).plus(input.amount).greaterThan(input.amount)) {
+      throw new BadRequestException('Reembolso excede o valor recebido em dinheiro.')
+    }
+
+    if (register.expectedAmount.lessThan(input.amount)) {
+      throw new BadRequestException('Saldo esperado insuficiente para o reembolso em dinheiro.')
+    }
+
+    const changed = await transaction.cashRegister.updateMany({
+      where: {
+        id: register.id,
+        storeId: getCurrentStoreId(),
+        status: 'open',
+        expectedAmount: register.expectedAmount,
+      },
+      data: {
+        expectedAmount: { decrement: input.amount },
+      },
+    })
+
+    if (changed.count !== 1) {
+      throw new ConflictException('O caixa foi alterado durante o reembolso.')
+    }
+
+    const idempotencyKey = `cash-refund:${input.orderId}`
+    const movement = await transaction.cashMovement.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        cashRegisterId: register.id,
+        type: 'CASH_REFUND',
+        method: 'cash',
+        amount: input.amount,
+        label: `Reembolso em dinheiro - Pedido ${input.orderNumber}`,
+        reason: input.reason.trim(),
+        userName: this.cleanDatabaseText(input.actor.name),
+        operatorUserId: input.actor.sub,
+        operatorName: this.cleanDatabaseText(input.actor.name),
+        balanceBefore: register.expectedAmount,
+        balanceAfter: register.expectedAmount.minus(input.amount),
+        idempotencyKey,
+        orderId: input.orderId,
+        paymentAuditId: input.paymentAuditId,
+      },
+    })
+
+    await transaction.cashAuditLog.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        cashRegisterId: register.id,
+        cashMovementId: movement.id,
+        action: 'cash_movement.refund',
+        actorUserId: input.actor.sub,
+        actorName: this.cleanDatabaseText(input.actor.name),
+        idempotencyKey,
+        metadata: {
+          orderId: input.orderId,
+          paymentAuditId: input.paymentAuditId,
+          amount: input.amount.toString(),
+          reason: input.reason.trim(),
         },
       },
     })

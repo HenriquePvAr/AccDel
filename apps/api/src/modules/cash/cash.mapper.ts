@@ -6,6 +6,8 @@ type CashRegisterWithMovements = Prisma.CashRegisterGetPayload<{
   include: {
     terminal: true
     movements: true
+    paymentAudits: true
+    tableSessions: true
   }
 }>
 
@@ -21,8 +23,23 @@ const paymentMethods = [
 export function mapCashRegister(register: CashRegisterWithMovements) {
   const entriesByMethod = Object.fromEntries(paymentMethods.map((method) => [method, 0]))
 
+  for (const payment of register.paymentAudits) {
+    entriesByMethod[payment.method] += toNumber(payment.amount)
+  }
+
+  for (const session of register.tableSessions) {
+    if (session.paymentMethod) {
+      entriesByMethod[session.paymentMethod] += toNumber(session.total)
+    }
+  }
+
   for (const movement of register.movements) {
-    if (!isSaleMovement(movement.type) || !movement.method) {
+    if (
+      !isSaleMovement(movement.type) ||
+      !movement.method ||
+      movement.paymentAuditId ||
+      movement.tableSessionId
+    ) {
       continue
     }
 

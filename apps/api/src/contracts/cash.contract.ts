@@ -41,7 +41,6 @@ export const supplyCashRegisterSchema = z.object({
 export const withdrawCashRegisterSchema = z.object({
   amount: z.number().positive(),
   reason: requiredReasonSchema,
-  approvedByUserId: z.string().trim().min(1).max(120).optional(),
 })
 
 export const adjustCashMovementSchema = z.object({
@@ -55,6 +54,8 @@ export const cashRegisterHistoryQuerySchema = z.object({
   status: z.enum(['open', 'closing', 'closed', 'all']).optional(),
   terminalId: z.string().trim().min(1).max(120).optional(),
   operatorId: z.string().trim().min(1).max(120).optional(),
+  operator: z.string().trim().min(2).max(120).optional(),
+  difference: z.enum(['all', 'with', 'without']).optional(),
   from: z.string().trim().min(1).max(40).optional(),
   to: z.string().trim().min(1).max(40).optional(),
 })

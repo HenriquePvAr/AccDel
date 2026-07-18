@@ -127,10 +127,21 @@ export const repeatOrderSchema = z.object({
   paymentMethod: paymentMethodSchema,
 })
 
-export const confirmOrderPaymentSchema = z.object({
-  status: z.enum(['paid', 'failed', 'cancelled', 'refunded']),
-  externalReference: z.string().trim().min(3).max(160).optional(),
-})
+export const confirmOrderPaymentSchema = z
+  .object({
+    status: z.enum(['paid', 'failed', 'cancelled', 'refunded']),
+    externalReference: z.string().trim().min(3).max(160).optional(),
+    reason: z.string().trim().min(2).max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.status === 'refunded' && !value.reason) {
+      context.addIssue({
+        code: 'custom',
+        path: ['reason'],
+        message: 'Informe o motivo do reembolso.',
+      })
+    }
+  })
 
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>
 export type CreateOrderPayload = z.infer<typeof createOrderSchema>

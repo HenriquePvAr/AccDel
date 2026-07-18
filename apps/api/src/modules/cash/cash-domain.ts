@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common'
 
-import type { CashMovementType, PaymentMethod } from '@prisma/client'
+import { Prisma, type CashMovementType, type PaymentMethod } from '@prisma/client'
 
 export const physicalCashMovementTypes = new Set<CashMovementType>([
   'OPENING_BALANCE',
@@ -27,20 +27,29 @@ export function cashDelta(input: {
     throw new BadRequestException('Valor monetario invalido.')
   }
 
+  return cashDeltaSign(input) * input.amount
+}
+
+export function cashDeltaSign(input: {
+  type: CashMovementType
+  method?: PaymentMethod | null
+  adjustmentDirection?: 'increase' | 'decrease'
+}) {
+
   if (input.type === 'CASH_SALE' || input.type === 'sale') {
-    return input.method === 'cash' ? input.amount : 0
+    return input.method === 'cash' ? 1 : 0
   }
 
   if (input.type === 'OPENING_BALANCE' || input.type === 'CASH_SUPPLY' || input.type === 'supply') {
-    return input.amount
+    return 1
   }
 
   if (input.type === 'CASH_WITHDRAWAL' || input.type === 'CASH_REFUND' || input.type === 'withdrawal' || input.type === 'refund') {
-    return -input.amount
+    return -1
   }
 
   if (input.type === 'CASH_ADJUSTMENT' || input.type === 'adjustment') {
-    return input.adjustmentDirection === 'decrease' ? -input.amount : input.amount
+    return input.adjustmentDirection === 'decrease' ? -1 : 1
   }
 
   return 0
@@ -55,7 +64,13 @@ export function calculateExpectedCashBalance(
     adjustmentDirection?: 'increase' | 'decrease'
   }>,
 ) {
-  return movements.reduce((balance, movement) => balance + cashDelta(movement), openingAmount)
+  return movements
+    .reduce(
+      (balance, movement) => balance.plus(cashDelta(movement)),
+      new Prisma.Decimal(openingAmount),
+    )
+    .toDecimalPlaces(2)
+    .toNumber()
 }
 
 export function requiresDifferenceReason(differenceAmount: number) {

@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import type { Prisma, TableSessionEventType } from '@prisma/client'
+import { Prisma, type TableSessionEventType } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
 
 import type {
@@ -851,7 +851,13 @@ export class DiningService {
         })
       }
 
-      await this.registerDiningSale(tx, session.id, session.table.code, total, payload.paymentMethod)
+      await this.registerDiningPayment(
+        tx,
+        session.id,
+        session.table.code,
+        total,
+        payload.paymentMethod,
+      )
 
       return tx.tableSession.findUniqueOrThrow({
         where: {
@@ -859,7 +865,7 @@ export class DiningService {
         },
         include: tableSessionInclude,
       })
-    })
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
     this.realtime.emit('dining.session_updated', {
       sessionId: updated.id,
@@ -1107,7 +1113,13 @@ export class DiningService {
         })
       }
 
-      await this.registerDiningSale(tx, splitSession.id, session.table.code, splitSubtotal, payload.paymentMethod)
+      await this.registerDiningPayment(
+        tx,
+        splitSession.id,
+        session.table.code,
+        splitSubtotal,
+        payload.paymentMethod,
+      )
 
       const updatedSource = await tx.tableSession.findUniqueOrThrow({
         where: {
@@ -1120,7 +1132,7 @@ export class DiningService {
         session: updatedSource,
         splitSession,
       }
-    })
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
     return {
       data: {
@@ -1349,17 +1361,13 @@ export class DiningService {
     return `#${1001 + count}`
   }
 
-  private async registerDiningSale(
+  private async registerDiningPayment(
     tx: Prisma.TransactionClient,
     sessionKey: string,
     tableCode: string,
     amount: number,
     method: CloseTableSessionPayload['paymentMethod'],
   ) {
-    if (method !== 'cash') {
-      return
-    }
-
     const register = await tx.cashRegister.findFirst({
       where: {
         storeId: getCurrentStoreId(),
@@ -1370,7 +1378,20 @@ export class DiningService {
       },
     })
 
+    if (!register && method === 'cash') {
+      throw new ConflictException('Abra um caixa antes de confirmar pagamento em dinheiro.')
+    }
+
     if (!register) {
+      return
+    }
+
+    await tx.tableSession.update({
+      where: { id: sessionKey },
+      data: { cashRegisterId: register.id },
+    })
+
+    if (method !== 'cash') {
       return
     }
 
@@ -1386,28 +1407,54 @@ export class DiningService {
       return
     }
 
-    await tx.cashRegister.update({
+    const changed = await tx.cashRegister.updateMany({
       where: {
         id: register.id,
+        storeId: getCurrentStoreId(),
+        status: 'open',
+        expectedAmount: register.expectedAmount,
       },
       data: {
         expectedAmount: {
           increment: amount,
         },
-        movements: {
-          create: {
-            storeId: getCurrentStoreId(),
-            type: 'CASH_SALE',
-            method: 'cash',
-            amount,
-            label: `Venda em dinheiro - Mesa ${tableCode}`,
-            reason: `Pagamento em dinheiro da mesa ${tableCode}`,
-            userName: 'Salao',
-            operatorName: 'Salao',
-            balanceBefore: register.expectedAmount,
-            balanceAfter: register.expectedAmount.plus(amount),
-            idempotencyKey,
-          },
+      },
+    })
+
+    if (changed.count !== 1) {
+      throw new ConflictException('O caixa foi alterado durante o fechamento da mesa.')
+    }
+
+    const movement = await tx.cashMovement.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        cashRegisterId: register.id,
+        type: 'CASH_SALE',
+        method: 'cash',
+        amount,
+        label: `Venda em dinheiro - Mesa ${tableCode}`,
+        reason: `Pagamento em dinheiro da mesa ${tableCode}`,
+        userName: 'Salao',
+        operatorName: 'Salao',
+        balanceBefore: register.expectedAmount,
+        balanceAfter: register.expectedAmount.plus(amount),
+        idempotencyKey,
+        tableSessionId: sessionKey,
+      },
+    })
+
+    await tx.cashAuditLog.create({
+      data: {
+        storeId: getCurrentStoreId(),
+        cashRegisterId: register.id,
+        cashMovementId: movement.id,
+        action: 'cash_movement.sale',
+        actorName: 'Salao',
+        idempotencyKey,
+        metadata: {
+          tableSessionId: sessionKey,
+          tableCode,
+          amount,
         },
       },
     })

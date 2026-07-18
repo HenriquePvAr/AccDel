@@ -24,8 +24,12 @@ async function seed() {
   await prisma.etaSnapshot.deleteMany()
   await prisma.deliveryAssignment.deleteMany()
   await prisma.driverLocation.deleteMany()
-  await prisma.cashMovement.deleteMany()
-  await prisma.cashRegister.deleteMany()
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.cash_allow_mutation', 'on', true)`
+    await tx.cashAuditLog.deleteMany()
+    await tx.cashMovement.deleteMany()
+    await tx.cashRegister.deleteMany()
+  })
   await prisma.orderStatusHistory.deleteMany()
   await prisma.orderItem.deleteMany()
   await prisma.order.deleteMany()
@@ -606,6 +610,7 @@ async function seed() {
         create: [
           {
             id: 'cash_mov_1',
+            storeId,
             type: 'supply',
             method: null,
             amount: 200,
@@ -614,6 +619,7 @@ async function seed() {
           },
           {
             id: 'cash_mov_2',
+            storeId,
             type: 'sale',
             method: 'pix',
             amount: 70.3,
@@ -622,6 +628,7 @@ async function seed() {
           },
           {
             id: 'cash_mov_3',
+            storeId,
             type: 'sale',
             method: 'credit_card',
             amount: 79.9,
@@ -630,6 +637,7 @@ async function seed() {
           },
           {
             id: 'cash_mov_4',
+            storeId,
             type: 'sale',
             method: 'debit_card',
             amount: 69.8,
@@ -638,6 +646,7 @@ async function seed() {
           },
           {
             id: 'cash_mov_5',
+            storeId,
             type: 'withdrawal',
             method: null,
             amount: 35.4,
@@ -646,6 +655,7 @@ async function seed() {
           },
           {
             id: 'cash_mov_6',
+            storeId,
             type: 'sale',
             method: 'credit_card',
             amount: 53.8,

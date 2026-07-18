@@ -20,6 +20,7 @@ import type { AuthenticatedRequestUser } from '@/modules/auth/auth.types'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { getCurrentStoreId } from '@/shared/store-context'
 
+import { cashDeltaSign } from './cash-domain'
 import { mapCashRegister } from './cash.mapper'
 
 type CashTx = Prisma.TransactionClient
@@ -96,11 +97,21 @@ export class CashService {
         ...(query.status && query.status !== 'all' ? { status: query.status } : {}),
         ...(query.terminalId ? { terminalId: query.terminalId } : {}),
         ...(query.operatorId ? { openedByUserId: query.operatorId } : {}),
+        ...(query.operator
+          ? {
+              OR: [
+                { openedByName: { contains: query.operator, mode: 'insensitive' as const } },
+                { operatorName: { contains: query.operator, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
+        ...(query.difference === 'with' ? { differenceAmount: { not: 0 } } : {}),
+        ...(query.difference === 'without' ? { differenceAmount: 0 } : {}),
         ...(query.from || query.to
           ? {
               openedAt: {
                 ...(query.from ? { gte: parseDate(query.from, 'Data inicial invalida.') } : {}),
-                ...(query.to ? { lte: parseDate(query.to, 'Data final invalida.') } : {}),
+                ...(query.to ? { lte: parseEndDate(query.to, 'Data final invalida.') } : {}),
               },
             }
           : {}),
@@ -153,7 +164,7 @@ export class CashService {
             throw new ConflictException('Ja existe um caixa aberto para este terminal.')
           }
 
-          const openingAmount = toMoney(payload.openingAmount)
+          const openingAmount = toNonNegativeMoney(payload.openingAmount)
           const register = await tx.cashRegister.create({
             data: {
               storeId,
@@ -256,16 +267,8 @@ export class CashService {
     }
 
     if (type === 'CASH_REFUND') {
-      return this.recordCurrentMovement(
-        {
-          type,
-          amount: payload.amount,
-          reason: payload.reason ?? payload.label,
-          label: 'Reembolso',
-          authUser,
-          idempotencyKey,
-          deltaDirection: 'decrement',
-        },
+      throw new BadRequestException(
+        'Reembolso em dinheiro deve ser confirmado no pagamento do pedido.',
       )
     }
 
@@ -301,7 +304,6 @@ export class CashService {
       authUser,
       idempotencyKey,
       deltaDirection: 'decrement',
-      approvedByUserId: payload.approvedByUserId,
     })
   }
 
@@ -336,7 +338,6 @@ export class CashService {
       authUser,
       idempotencyKey,
       deltaDirection: 'decrement',
-      approvedByUserId: payload.approvedByUserId,
     })
   }
 
@@ -398,7 +399,7 @@ export class CashService {
             throw new NotFoundException('Nenhum caixa aberto encontrado para a loja.')
           }
 
-          const countedAmount = toMoney(payload.countedAmount)
+          const countedAmount = toNonNegativeMoney(payload.countedAmount)
           const expectedAmount = toMoney(current.expectedAmount)
           const differenceAmount = countedAmount.minus(expectedAmount).toDecimalPlaces(moneyScale)
 
@@ -485,14 +486,34 @@ export class CashService {
     amount: Prisma.Decimal | number
     method: PaymentMethod
     actorName?: string
-    paymentAuditId?: string
+    paymentAuditId: string
     idempotencyKey?: string
+    sessionId?: string
   }) {
     if (input.method !== 'cash') {
       return null
     }
 
     const storeId = getCurrentStoreId()
+    const amount = toPositiveMoney(input.amount)
+    const confirmedPayment = await this.prisma.paymentAudit.findFirst({
+      where: {
+        id: input.paymentAuditId,
+        storeId,
+        orderId: input.orderId,
+        status: 'paid',
+        method: 'cash',
+      },
+    })
+
+    if (!confirmedPayment) {
+      throw new BadRequestException('Pagamento em dinheiro confirmado nao encontrado.')
+    }
+
+    if (!confirmedPayment.amount.equals(amount)) {
+      throw new BadRequestException('Valor da venda diverge do pagamento confirmado.')
+    }
+
     const systemActor = {
       sub: 'system',
       name: input.actorName ?? 'Sistema',
@@ -502,19 +523,105 @@ export class CashService {
       permissions: [],
     }
 
-    const current = await this.findCurrentRegister({ openOnly: true }).catch(() => null)
+    const current = input.sessionId
+      ? await this.prisma.cashRegister.findFirst({
+          where: { id: input.sessionId, storeId, status: 'open' },
+          include: cashRegisterInclude,
+        })
+      : await this.findCurrentRegister({ openOnly: true }).catch(() => null)
     if (!current) {
-      return null
+      throw new ConflictException('Abra um caixa antes de confirmar pagamento em dinheiro.')
     }
 
     return this.recordMovementForRegister(current.id, {
       type: 'CASH_SALE',
-      amount: Number(input.amount),
+      amount: amount.toNumber(),
       reason: `Venda em dinheiro do pedido ${input.orderNumber}`,
       label: `Venda em dinheiro - Pedido ${input.orderNumber}`,
       authUser: systemActor,
       idempotencyKey: input.idempotencyKey ?? `cash-sale:${input.orderId}`,
       deltaDirection: 'increment',
+      orderId: input.orderId,
+      paymentAuditId: input.paymentAuditId,
+    })
+  }
+
+  async recordCashRefund(input: {
+    orderId: string
+    orderNumber: string
+    amount: Prisma.Decimal | number
+    reason: string
+    authUser: AuthenticatedRequestUser
+    paymentAuditId: string
+    idempotencyKey?: string
+    sessionId?: string
+  }) {
+    const storeId = getCurrentStoreId()
+    const amount = toPositiveMoney(input.amount)
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: input.orderId,
+        storeId,
+        paymentMethod: 'cash',
+        paymentStatus: 'refunded',
+      },
+      select: {
+        total: true,
+      },
+    })
+
+    if (!order) {
+      throw new BadRequestException('Pedido elegivel para reembolso em dinheiro nao encontrado.')
+    }
+
+    const paymentAudit = await this.prisma.paymentAudit.findFirst({
+      where: {
+        id: input.paymentAuditId,
+        storeId,
+        orderId: input.orderId,
+        method: 'cash',
+        status: 'refunded',
+      },
+    })
+
+    if (!paymentAudit) {
+      throw new BadRequestException('Confirmacao de reembolso em dinheiro nao encontrada.')
+    }
+
+    const refunded = await this.prisma.cashMovement.aggregate({
+      where: {
+        storeId,
+        orderId: input.orderId,
+        type: 'CASH_REFUND',
+      },
+      _sum: {
+        amount: true,
+      },
+    })
+
+    if (toMoney(refunded._sum.amount ?? 0).plus(amount).greaterThan(order.total)) {
+      throw new BadRequestException('Reembolso excede o valor recebido em dinheiro.')
+    }
+
+    const current = input.sessionId
+      ? await this.prisma.cashRegister.findFirst({
+          where: { id: input.sessionId, storeId, status: 'open' },
+          include: cashRegisterInclude,
+        })
+      : await this.findCurrentRegister({ openOnly: true })
+
+    if (!current) {
+      throw new ConflictException('Caixa aberto nao encontrado para o reembolso.')
+    }
+
+    return this.recordMovementForRegister(current.id, {
+      type: 'CASH_REFUND',
+      amount: amount.toNumber(),
+      reason: input.reason,
+      label: `Reembolso em dinheiro - Pedido ${input.orderNumber}`,
+      authUser: input.authUser,
+      idempotencyKey: input.idempotencyKey ?? `cash-refund:${input.orderId}`,
+      deltaDirection: 'decrement',
       orderId: input.orderId,
       paymentAuditId: input.paymentAuditId,
     })
@@ -559,20 +666,54 @@ export class CashService {
             }
           }
 
-          const amount = toMoney(input.amount)
+          const amount = toPositiveMoney(input.amount)
           const balanceBefore = toMoney(current.expectedAmount)
-          const signedDelta = input.deltaDirection === 'increment' ? amount : amount.negated()
+          const signedDelta = amount.mul(
+            cashDeltaSign({
+              type: input.type,
+              method: 'cash',
+              adjustmentDirection:
+                input.deltaDirection === 'increment' ? 'increase' : 'decrease',
+            }),
+          )
           const balanceAfter = balanceBefore.plus(signedDelta).toDecimalPlaces(moneyScale)
 
           if (balanceAfter.isNegative()) {
             throw new BadRequestException('Nao e permitido retirar acima do saldo esperado.')
           }
 
-          if (input.approvedByUserId && !canApproveCash(input.authUser)) {
-            throw new ForbiddenException('Somente gerente, supervisor, administrador ou owner pode aprovar retirada.')
+          let approvedByUserId: string | undefined
+          let approvedByName: string | undefined
+
+          if (input.type === 'CASH_WITHDRAWAL') {
+            const store = await tx.store.findUnique({
+              where: { id: storeId },
+              select: { cashWithdrawalApprovalThreshold: true },
+            })
+            const threshold = store?.cashWithdrawalApprovalThreshold
+
+            if (threshold && amount.greaterThan(threshold)) {
+              const approverMembership = await tx.storeUser.findFirst({
+                where: {
+                  storeId,
+                  userId: input.authUser.sub,
+                  active: true,
+                  role: { in: ['owner', 'manager', 'supervisor'] },
+                },
+              })
+
+              if (!approverMembership || !canApproveCash(input.authUser)) {
+                throw new ForbiddenException(
+                  'Retirada acima do limite configurado exige gerente, supervisor ou owner autenticado.',
+                )
+              }
+
+              approvedByUserId = input.authUser.sub
+              approvedByName = cleanDatabaseText(input.authUser.name)
+            }
           }
 
-          await tx.cashMovement.create({
+          const movement = await tx.cashMovement.create({
             data: {
               storeId,
               cashRegisterId: current.id,
@@ -582,10 +723,10 @@ export class CashService {
               label: input.label,
               reason: input.reason,
               userName: cleanDatabaseText(input.authUser.name),
-              operatorUserId: input.authUser.sub,
+              operatorUserId: input.authUser.sub === 'system' ? null : input.authUser.sub,
               operatorName: cleanDatabaseText(input.authUser.name),
-              approvedByUserId: input.approvedByUserId,
-              approvedByName: input.approvedByUserId ? cleanDatabaseText(input.authUser.name) : null,
+              approvedByUserId,
+              approvedByName,
               balanceBefore,
               balanceAfter,
               idempotencyKey: cleanOptionalText(input.idempotencyKey),
@@ -608,9 +749,10 @@ export class CashService {
             action: cashAuditAction(input.type),
             storeId,
             registerId: current.id,
+            movementId: movement.id,
             actor: input.authUser,
-            approvedByUserId: input.approvedByUserId,
-            approvedByName: input.approvedByUserId ? input.authUser.name : undefined,
+            approvedByUserId,
+            approvedByName,
             idempotencyKey: input.idempotencyKey,
             metadata: {
               amount: amount.toString(),
@@ -723,6 +865,16 @@ export class CashService {
 const cashRegisterInclude = {
   terminal: true,
   movements: true,
+  paymentAudits: {
+    where: {
+      status: 'paid' as const,
+    },
+  },
+  tableSessions: {
+    where: {
+      status: 'closed' as const,
+    },
+  },
 } satisfies Prisma.CashRegisterInclude
 
 interface MovementInput {
@@ -733,7 +885,6 @@ interface MovementInput {
   authUser: AuthenticatedRequestUser
   idempotencyKey?: string
   deltaDirection: 'increment' | 'decrement'
-  approvedByUserId?: string
   orderId?: string
   paymentAuditId?: string
   originalMovementId?: string
@@ -782,10 +933,37 @@ function toMoney(value: Prisma.Decimal | number | string) {
   return money
 }
 
+function toPositiveMoney(value: Prisma.Decimal | number | string) {
+  const money = toMoney(value)
+  if (!money.isPositive()) {
+    throw new BadRequestException('O valor deve ser maior que zero.')
+  }
+
+  return money
+}
+
+function toNonNegativeMoney(value: Prisma.Decimal | number | string) {
+  const money = toMoney(value)
+  if (money.isNegative()) {
+    throw new BadRequestException('O valor nao pode ser negativo.')
+  }
+
+  return money
+}
+
 function parseDate(value: string, message: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
     throw new BadRequestException(message)
+  }
+
+  return date
+}
+
+function parseEndDate(value: string, message: string) {
+  const date = parseDate(value, message)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    date.setHours(23, 59, 59, 999)
   }
 
   return date
