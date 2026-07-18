@@ -4,6 +4,7 @@ import { toNumber } from '@/shared/mappers/number'
 
 type CashRegisterWithMovements = Prisma.CashRegisterGetPayload<{
   include: {
+    terminal: true
     movements: true
   }
 }>
@@ -21,7 +22,7 @@ export function mapCashRegister(register: CashRegisterWithMovements) {
   const entriesByMethod = Object.fromEntries(paymentMethods.map((method) => [method, 0]))
 
   for (const movement of register.movements) {
-    if (movement.type !== 'sale' || !movement.method) {
+    if (!isSaleMovement(movement.type) || !movement.method) {
       continue
     }
 
@@ -32,7 +33,20 @@ export function mapCashRegister(register: CashRegisterWithMovements) {
     id: register.id,
     status: register.status,
     openedAt: register.openedAt.toISOString(),
+    closedAt: register.closedAt?.toISOString() ?? null,
+    terminal: register.terminal
+      ? {
+          id: register.terminal.id,
+          code: register.terminal.code,
+          name: register.terminal.name,
+        }
+      : null,
     operatorName: register.operatorName,
+    openedByName: register.openedByName ?? register.operatorName,
+    closedByName: register.closedByName,
+    openingNote: register.openingNote,
+    closingNote: register.closingNote,
+    differenceReason: register.differenceReason,
     openingAmount: toNumber(register.openingAmount),
     expectedAmount: toNumber(register.expectedAmount),
     countedAmount: toNumber(register.countedAmount),
@@ -47,8 +61,17 @@ export function mapCashRegister(register: CashRegisterWithMovements) {
         method: movement.method ?? 'internal',
         amount: toNumber(movement.amount),
         label: movement.label,
+        reason: movement.reason,
+        balanceBefore: toNumber(movement.balanceBefore),
+        balanceAfter: toNumber(movement.balanceAfter),
+        originalMovementId: movement.originalMovementId,
         createdAt: movement.createdAt.toISOString(),
-        userName: movement.userName,
+        userName: movement.operatorName ?? movement.userName,
+        approvedByName: movement.approvedByName,
       })),
   }
+}
+
+function isSaleMovement(type: string) {
+  return type === 'sale' || type === 'CASH_SALE'
 }

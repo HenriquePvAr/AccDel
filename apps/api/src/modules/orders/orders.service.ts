@@ -1129,6 +1129,7 @@ export class OrdersService {
     if (current.paymentStatus === payload.status) {
       if (payload.status === 'paid') {
         await this.registerSaleMovement(
+          current.id,
           current.number,
           current.total.toNumber(),
           current.paymentMethod,
@@ -1206,9 +1207,11 @@ export class OrdersService {
 
     if (payload.status === 'paid') {
       await this.registerSaleMovement(
+        current.id,
         current.number,
         current.total.toNumber(),
         current.paymentMethod,
+        paymentEventId,
       )
     }
 
@@ -1966,10 +1969,16 @@ export class OrdersService {
   }
 
   private async registerSaleMovement(
+    orderId: string,
     orderNumber: string,
     amount: number,
     method: CreateOrderPayload['paymentMethod'],
+    paymentAuditId?: string,
   ) {
+    if (method !== 'cash') {
+      return
+    }
+
     const register = await this.prisma.cashRegister.findFirst({
       where: {
         storeId: getCurrentStoreId(),
@@ -1988,8 +1997,7 @@ export class OrdersService {
     const existingMovement = await this.prisma.cashMovement.findFirst({
       where: {
         cashRegisterId: register.id,
-        type: 'sale',
-        label,
+        idempotencyKey: `cash-sale:${orderId}`,
       },
     })
 
@@ -2007,11 +2015,19 @@ export class OrdersService {
         },
         movements: {
           create: {
-            type: 'sale',
-            method,
+            storeId: getCurrentStoreId(),
+            type: 'CASH_SALE',
+            method: 'cash',
             amount,
-            label,
+            label: `Venda em dinheiro - ${label}`,
+            reason: `Pagamento em dinheiro confirmado para ${label}`,
             userName: 'Sistema',
+            operatorName: 'Sistema',
+            balanceBefore: register.expectedAmount,
+            balanceAfter: register.expectedAmount.plus(amount),
+            idempotencyKey: `cash-sale:${orderId}`,
+            orderId,
+            paymentAuditId,
           },
         },
       },

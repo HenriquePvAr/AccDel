@@ -851,7 +851,7 @@ export class DiningService {
         })
       }
 
-      await this.registerDiningSale(tx, session.table.code, total, payload.paymentMethod)
+      await this.registerDiningSale(tx, session.id, session.table.code, total, payload.paymentMethod)
 
       return tx.tableSession.findUniqueOrThrow({
         where: {
@@ -1107,7 +1107,7 @@ export class DiningService {
         })
       }
 
-      await this.registerDiningSale(tx, session.table.code, splitSubtotal, payload.paymentMethod)
+      await this.registerDiningSale(tx, splitSession.id, session.table.code, splitSubtotal, payload.paymentMethod)
 
       const updatedSource = await tx.tableSession.findUniqueOrThrow({
         where: {
@@ -1351,10 +1351,15 @@ export class DiningService {
 
   private async registerDiningSale(
     tx: Prisma.TransactionClient,
+    sessionKey: string,
     tableCode: string,
     amount: number,
     method: CloseTableSessionPayload['paymentMethod'],
   ) {
+    if (method !== 'cash') {
+      return
+    }
+
     const register = await tx.cashRegister.findFirst({
       where: {
         storeId: getCurrentStoreId(),
@@ -1369,6 +1374,18 @@ export class DiningService {
       return
     }
 
+    const idempotencyKey = `dining-cash-sale:${sessionKey}`
+    const existingMovement = await tx.cashMovement.findFirst({
+      where: {
+        cashRegisterId: register.id,
+        idempotencyKey,
+      },
+    })
+
+    if (existingMovement) {
+      return
+    }
+
     await tx.cashRegister.update({
       where: {
         id: register.id,
@@ -1379,11 +1396,17 @@ export class DiningService {
         },
         movements: {
           create: {
-            type: 'sale',
-            method,
+            storeId: getCurrentStoreId(),
+            type: 'CASH_SALE',
+            method: 'cash',
             amount,
-            label: `Mesa ${tableCode}`,
+            label: `Venda em dinheiro - Mesa ${tableCode}`,
+            reason: `Pagamento em dinheiro da mesa ${tableCode}`,
             userName: 'Salao',
+            operatorName: 'Salao',
+            balanceBefore: register.expectedAmount,
+            balanceAfter: register.expectedAmount.plus(amount),
+            idempotencyKey,
           },
         },
       },

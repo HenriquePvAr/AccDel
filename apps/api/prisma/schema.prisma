@@ -140,6 +140,13 @@ enum CashMovementType {
   supply
   adjustment
   refund
+  OPENING_BALANCE
+  CASH_SALE
+  CASH_SUPPLY
+  CASH_WITHDRAWAL
+  CASH_REFUND
+  CASH_ADJUSTMENT
+  CLOSING_DIFFERENCE
 }
 
 enum AdminRole {
@@ -443,7 +450,10 @@ model Store {
   categories              Category[]
   products                Product[]
   orders                  Order[]
+  cashTerminals           CashTerminal[]
   cashRegisters           CashRegister[]
+  cashMovements           CashMovement[]
+  cashAuditLogs           CashAuditLog[]
   users                   StoreUser[]
   diningAreas             DiningArea[]
   diningTables            DiningTable[]
@@ -507,6 +517,12 @@ model User {
   closedTableSessions TableSession[]       @relation("SessionCloser")
   cancelledTableItems TableSessionItem[]   @relation("TableSessionItemCancelledBy")
   deliveredTableItems TableSessionItem[]   @relation("TableSessionItemDeliveredBy")
+  openedCashRegisters CashRegister[]        @relation("CashRegisterOpenedBy")
+  closedCashRegisters CashRegister[]        @relation("CashRegisterClosedBy")
+  operatedCashMovements CashMovement[]      @relation("CashMovementOperator")
+  approvedCashMovements CashMovement[]      @relation("CashMovementApprover")
+  cashAuditLogs      CashAuditLog[]         @relation("CashAuditActor")
+  approvedCashAuditLogs CashAuditLog[]      @relation("CashAuditApprover")
 
   @@index([status, createdAt])
   @@map("users")
@@ -909,6 +925,7 @@ model Order {
   etaSnapshots         EtaSnapshot[]
   driverLocations      DriverLocation[]
   paymentAudits        PaymentAudit[]
+  cashMovements        CashMovement[]
   outboundMessages     OutboundMessage[]
   notifications        OrderNotification[]
   publicTrackingTokens PublicTrackingToken[]
@@ -1357,48 +1374,136 @@ model PaymentAudit {
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  cashMovements CashMovement[]
 
   @@index([storeId, orderId, createdAt])
   @@index([externalReference])
   @@map("payment_audits")
 }
 
+model CashTerminal {
+  id          String   @id @default(uuid())
+  storeId     String   @map("store_id")
+  code        String
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  registers CashRegister[]
+
+  @@unique([storeId, code])
+  @@index([storeId, active, name])
+  @@map("cash_terminals")
+}
+
 model CashRegister {
   id               String             @id @default(uuid())
   storeId          String             @map("store_id")
+  terminalId       String?            @map("terminal_id")
   status           CashRegisterStatus @default(open)
   operatorName     String             @map("operator_name")
+  openedByUserId   String?            @map("opened_by_user_id")
+  openedByName     String?            @map("opened_by_name")
+  closedByUserId   String?            @map("closed_by_user_id")
+  closedByName     String?            @map("closed_by_name")
   openingAmount    Decimal            @default(0) @map("opening_amount") @db.Decimal(10, 2)
   expectedAmount   Decimal            @default(0) @map("expected_amount") @db.Decimal(10, 2)
   countedAmount    Decimal            @default(0) @map("counted_amount") @db.Decimal(10, 2)
   differenceAmount Decimal            @default(0) @map("difference_amount") @db.Decimal(10, 2)
+  openingNote      String?            @map("opening_note")
+  closingNote      String?            @map("closing_note")
+  differenceReason String?            @map("difference_reason")
+  idempotencyKey   String?            @map("idempotency_key")
   openedAt         DateTime           @default(now()) @map("opened_at")
   closedAt         DateTime?          @map("closed_at")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
   store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  terminal  CashTerminal?  @relation(fields: [terminalId], references: [id], onDelete: Restrict)
+  openedBy  User?          @relation("CashRegisterOpenedBy", fields: [openedByUserId], references: [id], onDelete: SetNull)
+  closedBy  User?          @relation("CashRegisterClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
   movements CashMovement[]
+  auditLogs CashAuditLog[]
 
   @@index([storeId, status, openedAt])
+  @@index([terminalId, status, openedAt])
+  @@index([openedByUserId, openedAt])
+  @@index([closedByUserId, closedAt])
   @@map("cash_registers")
 }
 
 model CashMovement {
   id             String           @id @default(uuid())
+  storeId        String           @map("store_id")
   cashRegisterId String           @map("cash_register_id")
   type           CashMovementType
   method         PaymentMethod?
   amount         Decimal          @db.Decimal(10, 2)
   label          String
+  reason         String?
   userName       String           @map("user_name")
+  operatorUserId String?          @map("operator_user_id")
+  operatorName   String?          @map("operator_name")
+  approvedByUserId String?        @map("approved_by_user_id")
+  approvedByName String?          @map("approved_by_name")
+  balanceBefore  Decimal?         @map("balance_before") @db.Decimal(10, 2)
+  balanceAfter   Decimal?         @map("balance_after") @db.Decimal(10, 2)
+  idempotencyKey String?          @map("idempotency_key")
+  orderId        String?          @map("order_id")
+  paymentAuditId String?          @map("payment_audit_id")
+  originalMovementId String?      @map("original_movement_id")
+  immutable      Boolean          @default(true)
   createdAt      DateTime         @default(now()) @map("created_at")
 
   cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  operator     User?        @relation("CashMovementOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
+  approver     User?        @relation("CashMovementApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  order        Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  paymentAudit PaymentAudit? @relation(fields: [paymentAuditId], references: [id], onDelete: SetNull)
+  originalMovement CashMovement? @relation("CashMovementCorrection", fields: [originalMovementId], references: [id], onDelete: Restrict)
+  corrections       CashMovement[] @relation("CashMovementCorrection")
+  auditLogs     CashAuditLog[]
 
   @@index([cashRegisterId, createdAt])
+  @@index([storeId, type, createdAt])
+  @@index([operatorUserId, createdAt])
+  @@index([orderId])
+  @@index([paymentAuditId])
+  @@index([originalMovementId])
   @@index([type, method])
   @@map("cash_movements")
+}
+
+model CashAuditLog {
+  id             String   @id @default(uuid())
+  storeId        String   @map("store_id")
+  cashRegisterId String?  @map("cash_register_id")
+  cashMovementId String?  @map("cash_movement_id")
+  action         String
+  actorUserId    String?  @map("actor_user_id")
+  actorName      String   @map("actor_name")
+  approvedByUserId String? @map("approved_by_user_id")
+  approvedByName String? @map("approved_by_name")
+  idempotencyKey String? @map("idempotency_key")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  store        Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  cashRegister CashRegister? @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+  cashMovement CashMovement? @relation(fields: [cashMovementId], references: [id], onDelete: Cascade)
+  actor        User?         @relation("CashAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  approver     User?         @relation("CashAuditApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, action, createdAt])
+  @@index([cashRegisterId, createdAt])
+  @@index([cashMovementId])
+  @@index([actorUserId, createdAt])
+  @@map("cash_audit_logs")
 }
 
 model DiningArea {
