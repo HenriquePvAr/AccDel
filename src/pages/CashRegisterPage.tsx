@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -20,262 +21,550 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CashSummaryCard } from '@/features/cash/components/CashSummaryCard'
 import {
+  useCashHistoryQuery,
   useCashRegisterQuery,
+  useCashTerminalsQuery,
   useCloseCashRegisterMutation,
   useOpenCashRegisterMutation,
-  useRegisterCashMovementMutation,
+  useSupplyCashMutation,
+  useWithdrawCashMutation,
 } from '@/hooks/queries'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { useCan } from '@/hooks/use-permissions'
 import { paymentLabelMap } from '@/lib/domain'
 import { formatCurrency, formatDateTime } from '@/lib/format'
-import type { CashMovementType } from '@/types'
+import type { CashMovement, CashRegister } from '@/types'
 
-const movementTypeOptions: Array<{ value: CashMovementType; label: string; description: string }> = [
-  { value: 'supply', label: 'Suprimento', description: 'Entrada manual no caixa.' },
-  { value: 'withdrawal', label: 'Sangria', description: 'Retirada manual de valor.' },
-  { value: 'adjustment', label: 'Ajuste', description: 'Registro sem alterar esperado.' },
-  { value: 'refund', label: 'Estorno', description: 'Saida por devolucao.' },
-]
+type CashDialog = 'open' | 'supply' | 'withdraw' | 'close' | null
 
 export function CashRegisterPage() {
   usePageTitle('Caixa')
   const cashQuery = useCashRegisterQuery()
+  const terminalsQuery = useCashTerminalsQuery()
+  const historyQuery = useCashHistoryQuery()
   const openRegister = useOpenCashRegisterMutation()
-  const registerMovement = useRegisterCashMovementMutation()
+  const supplyCash = useSupplyCashMutation()
+  const withdrawCash = useWithdrawCashMutation()
   const closeRegister = useCloseCashRegisterMutation()
-  const [openCashDialog, setOpenCashDialog] = useState(false)
-  const [openingAmount, setOpeningAmount] = useState('')
-  const [confirmClose, setConfirmClose] = useState(false)
-  const [movementOpen, setMovementOpen] = useState(false)
-  const [movementType, setMovementType] = useState<CashMovementType>('supply')
-  const [movementAmount, setMovementAmount] = useState('')
-  const [movementLabel, setMovementLabel] = useState('')
-  const [countedAmount, setCountedAmount] = useState('')
   const canManageCash = useCan('cash:manage')
   const register = cashQuery.data?.data
-  const canSaveMovement = Number(movementAmount) > 0 && movementLabel.trim().length >= 2
+  const terminals = terminalsQuery.data?.data ?? []
+  const history = historyQuery.data?.data ?? []
+  const [dialog, setDialog] = useState<CashDialog>(null)
 
   return (
     <PageShell>
       <SectionHeader
         title="Caixa"
-        description="Resumo parcial, entradas por forma de pagamento, movimentacoes e fechamento do caixa."
+        description="Controle auditavel do dinheiro fisico: abertura, entradas, retiradas, fechamento e diferencas."
         actions={
           canManageCash ? (
-            <>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               {!register || register.status === 'closed' ? (
-                <Button onClick={() => setOpenCashDialog(true)}>Abrir caixa</Button>
-              ) : null}
-              <Button
-                variant="secondary"
-                onClick={() => setMovementOpen(true)}
-                disabled={!register || register.status !== 'open'}
-              >
-                Registrar movimento
-              </Button>
-              <Button
-                onClick={() => setConfirmClose(true)}
-                disabled={!register || register.status !== 'open'}
-              >
-                Fechar caixa
-              </Button>
-            </>
+                <Button className="min-h-12" onClick={() => setDialog('open')}>
+                  Abrir caixa
+                </Button>
+              ) : (
+                <>
+                  <Button className="min-h-12" variant="secondary" onClick={() => setDialog('supply')}>
+                    Adicionar dinheiro
+                  </Button>
+                  <Button className="min-h-12" variant="secondary" onClick={() => setDialog('withdraw')}>
+                    Retirar dinheiro
+                  </Button>
+                  <Button className="min-h-12" onClick={() => setDialog('close')}>
+                    Fechar caixa
+                  </Button>
+                </>
+              )}
+            </div>
           ) : null
         }
       />
 
       {cashQuery.isLoading ? (
-        <Skeleton className="h-[120px] rounded-[24px]" />
-      ) : cashQuery.isError || !register ? (
-        <Card>
-          <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-lg font-black text-white">Nenhum caixa aberto</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Abra um caixa para registrar vendas, sangrias, suprimentos e fechamento do turno.
-              </p>
-            </div>
-            {canManageCash ? (
-              <Button onClick={() => setOpenCashDialog(true)}>Abrir caixa</Button>
-            ) : null}
-          </CardContent>
-        </Card>
+        <Skeleton className="h-[180px] rounded-[28px]" />
+      ) : cashQuery.isError || !register || register.status === 'closed' ? (
+        <ClosedState canManage={canManageCash} onOpen={() => setDialog('open')} />
       ) : (
-        <CashSummaryCard register={register} />
+        <OpenState register={register} />
       )}
 
-      {register ? (
-        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <h3 className="text-base font-semibold">Entradas por forma de pagamento</h3>
-              {Object.entries(register.entriesByMethod).map(([method, value]) => (
-                <div
-                  key={method}
-                  className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-3 ring-1 ring-white/10"
-                >
-                  <span className="text-sm font-medium">
-                    {method in paymentLabelMap
-                      ? paymentLabelMap[method as keyof typeof paymentLabelMap]
-                      : method}
-                  </span>
-                  <span className="font-mono font-semibold">{formatCurrency(value)}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <h3 className="text-base font-semibold">Movimentacoes do caixa</h3>
-              {register.movements.map((movement) => (
-                <div key={movement.id} className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/10">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{movement.label}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {movement.userName} - {formatDateTime(movement.createdAt)}
-                      </p>
-                    </div>
-                    <span className="font-mono font-semibold">{formatCurrency(movement.amount)}</span>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+      {register && register.status !== 'closed' ? (
+        <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+          <PaymentBreakdown register={register} />
+          <MovementList movements={register.movements} />
         </div>
       ) : null}
 
-      <Dialog open={confirmClose} onOpenChange={setConfirmClose}>
-        <DialogContent>
-          <DialogHeader className="text-left">
-            <DialogTitle>Conferencia do caixa</DialogTitle>
-            <DialogDescription>
-              Informe o valor contado fisicamente. Se deixar vazio, o sistema usa o valor esperado.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            type="number"
-            min={0}
-            value={countedAmount}
-            onChange={(event) => setCountedAmount(event.target.value)}
-            placeholder={register ? `Esperado: ${formatCurrency(register.expectedAmount)}` : 'Valor contado'}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setConfirmClose(false)}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={closeRegister.isPending}
-              onClick={() => {
-                closeRegister.mutate(countedAmount ? Number(countedAmount) : undefined)
-                setConfirmClose(false)
-              }}
-            >
-              Confirmar fechamento
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <HistoryPanel registers={history} />
 
-      <Dialog open={openCashDialog} onOpenChange={setOpenCashDialog}>
-        <DialogContent>
-          <DialogHeader className="text-left">
-            <DialogTitle>Abrir caixa</DialogTitle>
-            <DialogDescription>
-              Informe o valor inicial contado no caixa fisico. Use zero se nao houver fundo.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            type="number"
-            min={0}
-            value={openingAmount}
-            onChange={(event) => setOpeningAmount(event.target.value)}
-            placeholder="Valor inicial"
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setOpenCashDialog(false)}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={openRegister.isPending}
-              onClick={() => {
-                openRegister.mutate(Number(openingAmount || 0))
-                setOpenCashDialog(false)
-                setOpeningAmount('')
-              }}
-            >
-              Abrir caixa
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CashActionDialog
+        dialog={dialog}
+        register={register}
+        terminals={terminals}
+        busy={
+          openRegister.isPending ||
+          supplyCash.isPending ||
+          withdrawCash.isPending ||
+          closeRegister.isPending
+        }
+        onOpenChange={setDialog}
+        onOpen={(payload) => openRegister.mutate(payload, { onSuccess: () => setDialog(null) })}
+        onSupply={(payload) => {
+          if (!register) return
+          supplyCash.mutate({ registerId: register.id, ...payload }, { onSuccess: () => setDialog(null) })
+        }}
+        onWithdraw={(payload) => {
+          if (!register) return
+          withdrawCash.mutate({ registerId: register.id, ...payload }, { onSuccess: () => setDialog(null) })
+        }}
+        onClose={(payload) => {
+          if (!register) return
+          closeRegister.mutate({ registerId: register.id, ...payload }, { onSuccess: () => setDialog(null) })
+        }}
+      />
+    </PageShell>
+  )
+}
 
-      <Dialog open={movementOpen} onOpenChange={setMovementOpen}>
-        <DialogContent>
-          <DialogHeader className="text-left">
-            <DialogTitle>Registrar movimento</DialogTitle>
-            <DialogDescription>
-              Lance sangria, suprimento, estorno ou ajuste com valor real e motivo claro.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Select
-              value={movementType}
-              onValueChange={(value) => setMovementType(value as CashMovementType)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Tipo" />
+function ClosedState({ canManage, onOpen }: { canManage: boolean; onOpen: () => void }) {
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between md:p-7">
+        <div>
+          <Badge variant="warning">Caixa fechado</Badge>
+          <h3 className="mt-4 text-2xl font-black text-white">Abra o caixa para comecar</h3>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Abra o caixa para comecar a registrar vendas em dinheiro, dinheiro adicionado,
+            retiradas e fechamento do turno.
+          </p>
+        </div>
+        {canManage ? (
+          <Button className="min-h-12 w-full sm:w-auto" onClick={onOpen}>
+            Abrir caixa
+          </Button>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function OpenState({ register }: { register: CashRegister }) {
+  const cashSales = sumMovements(register.movements, ['CASH_SALE', 'sale'])
+  const supplies = sumMovements(register.movements, ['CASH_SUPPLY', 'supply'])
+  const withdrawals = sumMovements(register.movements, ['CASH_WITHDRAWAL', 'withdrawal'])
+  const refunds = sumMovements(register.movements, ['CASH_REFUND', 'refund'])
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="space-y-5 p-5 md:p-7">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <Badge variant="success">Caixa aberto</Badge>
+            <h2 className="mt-3 text-2xl font-black text-white md:text-3xl">
+              {register.terminal?.name ?? 'Caixa principal'}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Operador: {register.openedByName ?? register.operatorName} - Abertura:{' '}
+              {formatDateTime(register.openedAt)}
+            </p>
+          </div>
+          <div className="rounded-[28px] bg-emerald-500/10 p-5 ring-1 ring-emerald-300/20">
+            <p className="text-sm font-semibold text-emerald-100">Dinheiro esperado</p>
+            <p className="mt-1 font-mono text-3xl font-black text-white md:text-4xl">
+              {formatCurrency(register.expectedAmount)}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Valor inicial" value={register.openingAmount} />
+          <Metric label="Venda em dinheiro" value={cashSales} />
+          <Metric label="Dinheiro adicionado" value={supplies} />
+          <Metric label="Dinheiro retirado" value={withdrawals} tone="danger" />
+          <Metric label="Reembolsos" value={refunds} tone="danger" />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PaymentBreakdown({ register }: { register: CashRegister }) {
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-5">
+        <div>
+          <h3 className="text-base font-semibold">Vendas por metodo</h3>
+          <p className="text-sm text-muted-foreground">
+            Apenas dinheiro altera o saldo fisico esperado.
+          </p>
+        </div>
+        {Object.entries(register.entriesByMethod).map(([method, value]) => (
+          <div
+            key={method}
+            className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-3 ring-1 ring-white/10"
+          >
+            <span className="text-sm font-medium">
+              {method in paymentLabelMap
+                ? paymentLabelMap[method as keyof typeof paymentLabelMap]
+                : method}
+            </span>
+            <span className="font-mono font-semibold">{formatCurrency(value)}</span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function MovementList({ movements }: { movements: CashMovement[] }) {
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-5">
+        <div>
+          <h3 className="text-base font-semibold">Ultimas movimentacoes</h3>
+          <p className="text-sm text-muted-foreground">
+            Movimentos sao imutaveis; correcao deve ser compensatoria.
+          </p>
+        </div>
+        <div className="space-y-3">
+          {movements.map((movement) => (
+            <div key={movement.id} className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/10">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{movementLabel(movement)}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {movement.userName} - {formatDateTime(movement.createdAt)}
+                  </p>
+                  {movement.reason ? (
+                    <p className="mt-2 text-sm text-muted-foreground">{movement.reason}</p>
+                  ) : null}
+                </div>
+                <span className="font-mono font-semibold">{formatCurrency(movement.amount)}</span>
+              </div>
+              {movement.balanceAfter !== undefined ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Saldo: {formatCurrency(movement.balanceBefore ?? 0)} {'->'}{' '}
+                  {formatCurrency(movement.balanceAfter)}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function HistoryPanel({ registers }: { registers: CashRegister[] }) {
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-5">
+        <div>
+          <h3 className="text-base font-semibold">Historico recente</h3>
+          <p className="text-sm text-muted-foreground">
+            Consulta por periodo, operador, terminal, status e diferenca sera expandida no relatorio operacional.
+          </p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {registers.slice(0, 6).map((register) => (
+            <div key={register.id} className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/10">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{register.terminal?.name ?? 'Caixa principal'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDateTime(register.openedAt)}
+                    {register.closedAt ? ` - ${formatDateTime(register.closedAt)}` : ''}
+                  </p>
+                </div>
+                <Badge variant={register.status === 'open' ? 'success' : 'default'}>
+                  {register.status === 'open' ? 'Aberto' : 'Fechado'}
+                </Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                <MiniMetric label="Esperado" value={register.expectedAmount} />
+                <MiniMetric label="Contado" value={register.countedAmount} />
+                <MiniMetric label="Diferenca" value={register.differenceAmount} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CashActionDialog({
+  dialog,
+  register,
+  terminals,
+  busy,
+  onOpenChange,
+  onOpen,
+  onSupply,
+  onWithdraw,
+  onClose,
+}: {
+  dialog: CashDialog
+  register?: CashRegister
+  terminals: Array<{ id: string; name: string }>
+  busy: boolean
+  onOpenChange: (dialog: CashDialog) => void
+  onOpen: (payload: { terminalId?: string; openingAmount: number; note?: string }) => void
+  onSupply: (payload: { amount: number; reason: string }) => void
+  onWithdraw: (payload: { amount: number; reason: string }) => void
+  onClose: (payload: { countedAmount: number; note?: string; differenceReason?: string }) => void
+}) {
+  const [terminalId, setTerminalId] = useState('')
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [note, setNote] = useState('')
+  const counted = Number(amount || 0)
+  const closeDifference = useMemo(
+    () => counted - (register?.expectedAmount ?? 0),
+    [counted, register?.expectedAmount],
+  )
+
+  function reset(next: CashDialog) {
+    onOpenChange(next)
+    setTerminalId('')
+    setAmount('')
+    setReason('')
+    setNote('')
+  }
+
+  return (
+    <Dialog open={Boolean(dialog)} onOpenChange={(open) => reset(open ? dialog : null)}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[640px]">
+        {dialog === 'open' ? (
+          <DialogBody
+            title="Abrir caixa"
+            description="Informe quanto ha em dinheiro no caixa antes de comecar."
+          >
+            <Select value={terminalId} onValueChange={setTerminalId}>
+              <SelectTrigger className="min-h-12">
+                <SelectValue placeholder="Caixa ou terminal" />
               </SelectTrigger>
               <SelectContent>
-                {movementTypeOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {terminals.map((terminal) => (
+                  <SelectItem key={terminal.id} value={terminal.id}>
+                    {terminal.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-sm text-muted-foreground">
-              {movementTypeOptions.find((option) => option.value === movementType)?.description}
-            </p>
-            <Input
-              type="number"
-              min={0}
-              value={movementAmount}
-              onChange={(event) => setMovementAmount(event.target.value)}
-              placeholder="Valor"
+            <MoneyInput value={amount} onChange={setAmount} placeholder="Valor inicial" />
+            <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Observacao" />
+            <ConfirmBox
+              lines={[
+                `Operador autenticado sera registrado pela API.`,
+                `Terminal: ${terminals.find((terminal) => terminal.id === terminalId)?.name ?? 'padrao'}`,
+                `Valor inicial: ${formatCurrency(Number(amount || 0))}`,
+              ]}
             />
-            <Input
-              value={movementLabel}
-              onChange={(event) => setMovementLabel(event.target.value)}
-              placeholder="Motivo ou observacao"
+            <DialogActions
+              busy={busy}
+              disabled={Number(amount || 0) < 0}
+              confirmLabel="Confirmar abertura"
+              onCancel={() => reset(null)}
+              onConfirm={() => onOpen({ terminalId: terminalId || undefined, openingAmount: Number(amount || 0), note })}
             />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setMovementOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={!canSaveMovement || registerMovement.isPending}
-              onClick={() => {
-                registerMovement.mutate({
-                  type: movementType,
-                  amount: Number(movementAmount),
-                  label: movementLabel.trim(),
+          </DialogBody>
+        ) : null}
+
+        {dialog === 'supply' ? (
+          <DialogBody title="Adicionar dinheiro" description="Registre dinheiro fisico colocado no caixa.">
+            <MoneyInput value={amount} onChange={setAmount} placeholder="Valor" />
+            <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo obrigatorio" />
+            <DialogActions
+              busy={busy}
+              disabled={Number(amount) <= 0 || reason.trim().length < 2}
+              confirmLabel="Adicionar dinheiro"
+              onCancel={() => reset(null)}
+              onConfirm={() => onSupply({ amount: Number(amount), reason: reason.trim() })}
+            />
+          </DialogBody>
+        ) : null}
+
+        {dialog === 'withdraw' ? (
+          <DialogBody
+            title="Retirar dinheiro"
+            description="Registre retirada de dinheiro. Sangria e uma explicacao operacional, nao uma edicao do saldo."
+          >
+            <MoneyInput value={amount} onChange={setAmount} placeholder="Valor" />
+            <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo obrigatorio" />
+            <DialogActions
+              busy={busy}
+              disabled={Number(amount) <= 0 || Number(amount) > (register?.expectedAmount ?? 0) || reason.trim().length < 2}
+              confirmLabel="Retirar dinheiro"
+              onCancel={() => reset(null)}
+              onConfirm={() => onWithdraw({ amount: Number(amount), reason: reason.trim() })}
+            />
+          </DialogBody>
+        ) : null}
+
+        {dialog === 'close' ? (
+          <DialogBody title="Fechar caixa" description="Confira o dinheiro contado fisicamente.">
+            <div className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/10">
+              <p className="text-sm text-muted-foreground">Dinheiro esperado</p>
+              <p className="font-mono text-3xl font-black text-white">
+                {formatCurrency(register?.expectedAmount ?? 0)}
+              </p>
+            </div>
+            <MoneyInput value={amount} onChange={setAmount} placeholder="Dinheiro contado" />
+            <div className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/10">
+              <p className="text-sm text-muted-foreground">Diferenca</p>
+              <p className="font-mono text-2xl font-black text-white">{formatCurrency(closeDifference)}</p>
+            </div>
+            <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Observacao" />
+            {closeDifference !== 0 ? (
+              <Input
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Justificativa obrigatoria da diferenca"
+              />
+            ) : null}
+            <DialogActions
+              busy={busy}
+              disabled={counted < 0 || (closeDifference !== 0 && reason.trim().length < 2)}
+              confirmLabel="Confirmar fechamento"
+              onCancel={() => reset(null)}
+              onConfirm={() =>
+                onClose({
+                  countedAmount: counted,
+                  note: note.trim() || undefined,
+                  differenceReason: reason.trim() || undefined,
                 })
-                setMovementOpen(false)
-                setMovementAmount('')
-                setMovementLabel('')
-              }}
-            >
-              Registrar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </PageShell>
+              }
+            />
+          </DialogBody>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   )
+}
+
+function DialogBody({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description: string
+  children: React.ReactNode
+}) {
+  return (
+    <>
+      <DialogHeader className="text-left">
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 pb-[env(safe-area-inset-bottom)]">{children}</div>
+    </>
+  )
+}
+
+function DialogActions({
+  busy,
+  disabled,
+  confirmLabel,
+  onCancel,
+  onConfirm,
+}: {
+  busy: boolean
+  disabled: boolean
+  confirmLabel: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div className="sticky bottom-0 flex flex-col-reverse gap-2 bg-background/95 pt-2 sm:flex-row sm:justify-end">
+      <Button className="min-h-12" variant="ghost" onClick={onCancel}>
+        Cancelar
+      </Button>
+      <Button className="min-h-12" disabled={busy || disabled} onClick={onConfirm}>
+        {confirmLabel}
+      </Button>
+    </div>
+  )
+}
+
+function MoneyInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+}) {
+  return (
+    <Input
+      className="min-h-12 text-base"
+      type="number"
+      inputMode="decimal"
+      min={0}
+      step="0.01"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+    />
+  )
+}
+
+function ConfirmBox({ lines }: { lines: string[] }) {
+  return (
+    <div className="rounded-2xl bg-white/[0.04] p-4 text-sm text-muted-foreground ring-1 ring-white/10">
+      {lines.map((line) => (
+        <p key={line}>{line}</p>
+      ))}
+    </div>
+  )
+}
+
+function Metric({ label, value, tone }: { label: string; value: number; tone?: 'danger' }) {
+  return (
+    <div className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/10">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className={tone === 'danger' ? 'font-mono text-lg font-bold text-rose-100' : 'font-mono text-lg font-bold text-white'}>
+        {formatCurrency(value)}
+      </p>
+    </div>
+  )
+}
+
+function MiniMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-mono font-semibold">{formatCurrency(value)}</p>
+    </div>
+  )
+}
+
+function sumMovements(registerMovements: CashMovement[], types: CashMovement['type'][]) {
+  return registerMovements
+    .filter((movement) => types.includes(movement.type))
+    .reduce((total, movement) => total + movement.amount, 0)
+}
+
+function movementLabel(movement: CashMovement) {
+  const labels: Partial<Record<CashMovement['type'], string>> = {
+    OPENING_BALANCE: 'Valor inicial',
+    CASH_SALE: 'Venda em dinheiro',
+    CASH_SUPPLY: 'Dinheiro adicionado',
+    CASH_WITHDRAWAL: 'Dinheiro retirado',
+    CASH_REFUND: 'Reembolso',
+    CASH_ADJUSTMENT: 'Ajuste',
+    CLOSING_DIFFERENCE: 'Diferenca no fechamento',
+    sale: 'Venda em dinheiro',
+    supply: 'Dinheiro adicionado',
+    withdrawal: 'Dinheiro retirado',
+    refund: 'Reembolso',
+    adjustment: 'Ajuste',
+  }
+
+  return labels[movement.type] ?? movement.label
 }

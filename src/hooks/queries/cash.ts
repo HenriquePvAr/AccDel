@@ -12,11 +12,26 @@ export function useCashRegisterQuery() {
   })
 }
 
+export function useCashTerminalsQuery() {
+  return useQuery({
+    queryKey: [...queryKeys.cash.current, 'terminals'],
+    queryFn: () => cashRegisterService.listTerminals(),
+  })
+}
+
+export function useCashHistoryQuery() {
+  return useQuery({
+    queryKey: [...queryKeys.cash.current, 'history'],
+    queryFn: () => cashRegisterService.listHistory(),
+  })
+}
+
 export function useOpenCashRegisterMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (openingAmount: number) => cashRegisterService.openRegister({ openingAmount }),
+    mutationFn: (request: { terminalId?: string; openingAmount: number; note?: string }) =>
+      cashRegisterService.openRegister(request),
     onSuccess: (response) => {
       queryClient.setQueryData(queryKeys.cash.current, response)
       queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
@@ -55,11 +70,73 @@ export function useRegisterCashMovementMutation() {
   })
 }
 
+export function useSupplyCashMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      registerId,
+      amount,
+      reason,
+    }: {
+      registerId: string
+      amount: number
+      reason: string
+    }) => cashRegisterService.supply(registerId, { amount, reason }),
+    onSuccess: (response) => {
+      queryClient.setQueryData(queryKeys.cash.current, response)
+      queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.cash.current, 'history'] })
+      useToastStore.getState().pushToast({
+        title: 'Dinheiro adicionado',
+        description: 'Movimento auditavel registrado no caixa.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
+export function useWithdrawCashMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      registerId,
+      amount,
+      reason,
+    }: {
+      registerId: string
+      amount: number
+      reason: string
+    }) => cashRegisterService.withdraw(registerId, { amount, reason }),
+    onSuccess: (response) => {
+      queryClient.setQueryData(queryKeys.cash.current, response)
+      queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.cash.current, 'history'] })
+      useToastStore.getState().pushToast({
+        title: 'Dinheiro retirado',
+        description: 'Retirada registrada com saldo recalculado no backend.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
 export function useCloseCashRegisterMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (countedAmount?: number) => cashRegisterService.closeRegister({ countedAmount }),
+    mutationFn: ({
+      registerId,
+      countedAmount,
+      note,
+      differenceReason,
+    }: {
+      registerId: string
+      countedAmount: number
+      note?: string
+      differenceReason?: string
+    }) => cashRegisterService.closeRegister(registerId, { countedAmount, note, differenceReason }),
     onSuccess: (response) => {
       queryClient.setQueryData(queryKeys.cash.current, response)
       queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })

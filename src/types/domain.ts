@@ -90,7 +90,19 @@ export type ProductChannel = 'dine_in' | 'delivery' | 'digital_menu' | 'counter'
 export type DriverConnectionStatus = 'online' | 'offline'
 export type DriverAvailabilityStatus = 'available' | 'delivering' | 'paused'
 export type WaiterStatus = 'available' | 'serving' | 'paused'
-export type CashMovementType = 'sale' | 'withdrawal' | 'supply' | 'adjustment' | 'refund'
+export type CashMovementType =
+  | 'sale'
+  | 'withdrawal'
+  | 'supply'
+  | 'adjustment'
+  | 'refund'
+  | 'OPENING_BALANCE'
+  | 'CASH_SALE'
+  | 'CASH_SUPPLY'
+  | 'CASH_WITHDRAWAL'
+  | 'CASH_REFUND'
+  | 'CASH_ADJUSTMENT'
+  | 'CLOSING_DIFFERENCE'
 
 export interface StoreProfile {
   id: string
@@ -716,15 +728,33 @@ export interface CashMovement {
   method: PaymentMethod | 'internal'
   amount: number
   label: string
+  reason?: string | null
+  balanceBefore?: number
+  balanceAfter?: number
+  originalMovementId?: string | null
   createdAt: string
   userName: string
+  approvedByName?: string | null
+}
+
+export interface CashTerminal {
+  id: string
+  code: string
+  name: string
 }
 
 export interface CashRegister {
   id: string
   status: 'open' | 'closing' | 'closed'
   openedAt: string
+  closedAt?: string | null
+  terminal?: CashTerminal | null
   operatorName: string
+  openedByName?: string | null
+  closedByName?: string | null
+  openingNote?: string | null
+  closingNote?: string | null
+  differenceReason?: string | null
   openingAmount: number
   expectedAmount: number
   countedAmount: number

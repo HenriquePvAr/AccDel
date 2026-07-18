@@ -1,11 +1,25 @@
-import type { CashMovementType, CashRegister } from '@/types'
+import type { CashMovement, CashMovementType, CashRegister, CashTerminal } from '@/types'
 
 export interface GetCashRegisterResponse {
   data: CashRegister
 }
 
+export interface ListCashTerminalsResponse {
+  data: CashTerminal[]
+}
+
+export interface ListCashRegistersResponse {
+  data: CashRegister[]
+}
+
+export interface ListCashMovementsResponse {
+  data: CashMovement[]
+}
+
 export interface OpenCashRegisterRequest {
+  terminalId?: string
   openingAmount: number
+  note?: string
 }
 
 export interface OpenCashRegisterResponse {
@@ -16,6 +30,8 @@ export interface RegisterCashMovementRequest {
   type: CashMovementType
   amount: number
   label: string
+  reason?: string
+  originalMovementId?: string
 }
 
 export interface RegisterCashMovementResponse {
@@ -23,9 +39,29 @@ export interface RegisterCashMovementResponse {
 }
 
 export interface CloseCashRegisterRequest {
-  countedAmount?: number
+  countedAmount: number
+  note?: string
+  differenceReason?: string
 }
 
 export interface CloseCashRegisterResponse {
   data: CashRegister
+}
+
+export interface SupplyCashRegisterRequest {
+  amount: number
+  reason: string
+}
+
+export interface WithdrawCashRegisterRequest {
+  amount: number
+  reason: string
+  approvedByUserId?: string
+}
+
+export interface AdjustCashMovementRequest {
+  originalMovementId: string
+  amount: number
+  direction: 'increase' | 'decrease'
+  reason: string
 }
