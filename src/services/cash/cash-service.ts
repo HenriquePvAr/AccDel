@@ -1,4 +1,6 @@
 import type {
+  AdjustCashMovementRequest,
+  CashRegisterHistoryFilters,
   CloseCashRegisterRequest,
   CloseCashRegisterResponse,
   GetCashRegisterResponse,
@@ -35,9 +37,14 @@ export const cashRegisterService = {
     })
   },
 
-  async listHistory(): Promise<ListCashRegistersResponse> {
+  async listHistory(filters: CashRegisterHistoryFilters = {}): Promise<ListCashRegistersResponse> {
     if (shouldUseApi) {
-      return apiClient.get<ListCashRegistersResponse>('/cash-registers/history')
+      const query = new URLSearchParams()
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value && value !== 'all') query.set(key, value)
+      })
+      const suffix = query.size ? `?${query.toString()}` : ''
+      return apiClient.get<ListCashRegistersResponse>(`/cash-registers/history${suffix}`)
     }
 
     return simulateAsync({ data: [getDemoDatabase().cash.currentRegister] })
@@ -144,6 +151,28 @@ export const cashRegisterService = {
       amount: request.amount,
       label: 'Dinheiro retirado',
       reason: request.reason,
+    })
+  },
+
+  async adjust(
+    registerId: string,
+    request: AdjustCashMovementRequest,
+  ): Promise<RegisterCashMovementResponse> {
+    if (shouldUseApi) {
+      const response = await apiClient.post<RegisterCashMovementResponse, AdjustCashMovementRequest>(
+        `/cash-registers/${registerId}/adjust`,
+        request,
+      )
+      mockRealtimeBus.emit('cash.updated', { registerId: response.data.id })
+      return response
+    }
+
+    return this.registerMovement({
+      type: 'CASH_ADJUSTMENT',
+      amount: request.amount,
+      label: 'Ajuste',
+      reason: request.reason,
+      originalMovementId: request.originalMovementId,
     })
   },
 

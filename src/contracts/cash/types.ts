@@ -56,7 +56,15 @@ export interface SupplyCashRegisterRequest {
 export interface WithdrawCashRegisterRequest {
   amount: number
   reason: string
-  approvedByUserId?: string
+}
+
+export interface CashRegisterHistoryFilters {
+  status?: 'open' | 'closing' | 'closed' | 'all'
+  terminalId?: string
+  operator?: string
+  difference?: 'all' | 'with' | 'without'
+  from?: string
+  to?: string
 }
 
 export interface AdjustCashMovementRequest {

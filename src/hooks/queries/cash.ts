@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/hooks/queries/query-keys'
 import { cashRegisterService } from '@/services'
 import { useToastStore } from '@/stores/toast-store'
+import type { CashRegisterHistoryFilters } from '@/contracts'
 import type { CashMovementType } from '@/types'
 
 export function useCashRegisterQuery() {
@@ -19,10 +20,10 @@ export function useCashTerminalsQuery() {
   })
 }
 
-export function useCashHistoryQuery() {
+export function useCashHistoryQuery(filters: CashRegisterHistoryFilters = {}) {
   return useQuery({
-    queryKey: [...queryKeys.cash.current, 'history'],
-    queryFn: () => cashRegisterService.listHistory(),
+    queryKey: [...queryKeys.cash.current, 'history', filters],
+    queryFn: () => cashRegisterService.listHistory(filters),
   })
 }
 
@@ -116,6 +117,36 @@ export function useWithdrawCashMutation() {
       useToastStore.getState().pushToast({
         title: 'Dinheiro retirado',
         description: 'Retirada registrada com saldo recalculado no backend.',
+        variant: 'success',
+      })
+    },
+  })
+}
+
+export function useAdjustCashMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      registerId,
+      originalMovementId,
+      amount,
+      direction,
+      reason,
+    }: {
+      registerId: string
+      originalMovementId: string
+      amount: number
+      direction: 'increase' | 'decrease'
+      reason: string
+    }) => cashRegisterService.adjust(registerId, { originalMovementId, amount, direction, reason }),
+    onSuccess: (response) => {
+      queryClient.setQueryData(queryKeys.cash.current, response)
+      queryClient.invalidateQueries({ queryKey: queryKeys.cash.current })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.cash.current, 'history'] })
+      useToastStore.getState().pushToast({
+        title: 'Correcao registrada',
+        description: 'O movimento original foi preservado e um ajuste compensatorio foi criado.',
         variant: 'success',
       })
     },
