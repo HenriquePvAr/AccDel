@@ -1,23 +1,15 @@
 # Permissoes do caixa
 
-O caixa v2 reutiliza o RBAC existente.
+O caixa reutiliza o RBAC existente:
 
-## Permissoes
+- `cash:view`: caixa, movimentos e historico.
+- `cash:manage`: abrir, adicionar, retirar, corrigir e fechar.
+- `payments:confirm`: confirmar pagamento e reembolso do pedido.
 
-- `cash:view`: visualizar caixa, movimentos e historico.
-- `cash:manage`: abrir, adicionar dinheiro, retirar dinheiro, corrigir movimento e fechar.
+## Aprovacao de retirada
 
-## Aprovacao
+Nao existe limite fixo. A loja pode configurar `cashWithdrawalApprovalThreshold`; acima dele, a API exige membership ativo e papel `owner`, `manager` ou `supervisor`.
 
-Nao foi criado limite fixo de retirada. Quando existir configuracao de limite por loja, retiradas acima do limite devem exigir aprovador com papel:
+O aprovador vem da autenticacao; o frontend nao envia `approvedByUserId`. Nesta versao, o gerente/supervisor/owner autenticado executa e aprova a retirada. Nao ha fila pendente em duas etapas.
 
-- `owner`
-- `manager`
-- `supervisor`
-
-## Regras de seguranca
-
-- API valida permissao; a interface apenas oculta acoes.
-- StoreId confiavel vem da sessao/contexto.
-- Operador vem do usuario autenticado.
-- Aprovador nao deve ser aceito cegamente do frontend sem politica de limite configurada.
+Loja, operador, horario, saldo, diferenca e aprovador sao sempre definidos/validados pela API.

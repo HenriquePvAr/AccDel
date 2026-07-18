@@ -1,34 +1,11 @@
 # Conciliacao de caixa
 
-A conciliacao do caixa v2 separa dinheiro fisico de outros metodos.
+O Admin consulta por periodo, operador, terminal, status e presenca de diferenca.
 
-## Consultas
+Cada linha mostra abertura, fechamento, duracao, operador, valor inicial, vendas por metodo, adicoes, retiradas, reembolsos, esperado, contado, diferenca e status. Todas as consultas usam o tenant autenticado.
 
-A API disponibiliza historico de sessoes com filtros conceituais para:
+## Limites
 
-- periodo
-- operador
-- terminal
-- status
-- diferenca
-
-## Campos do relatorio
-
-- abertura
-- fechamento
-- duracao
-- valor inicial
-- vendas por metodo
-- dinheiro adicionado
-- dinheiro retirado
-- reembolsos
-- saldo esperado
-- saldo contado
-- diferenca
-- status
-
-## Limites atuais
-
-- Exportacao externa nao foi implementada nesta branch.
-- Painel de conciliacao ainda usa historico recente no Admin.
-- Filtros avancados podem ser expandidos sem alterar o modelo financeiro.
+- Sem exportacao nesta branch.
+- Consulta limitada a 100 sessoes; paginacao fica para evolucao posterior.
+- Pagamentos anteriores ao campo `cash_register_id` dependem dos movimentos legados disponiveis.

@@ -13,7 +13,9 @@ Branch atual de feature: `feat/cash-register-v2`
 - Idempotencia
 - Concorrencia por constraint PostgreSQL
 - Admin responsivo
-- Testes unitarios e PostgreSQL opcional
+- Testes unitarios e PostgreSQL obrigatorios no CI
+- Conciliacao por periodo, operador, terminal, status e diferenca
+- Reembolso ligado ao pagamento e aprovacao configuravel de retirada
 
 ## Fora do escopo
 

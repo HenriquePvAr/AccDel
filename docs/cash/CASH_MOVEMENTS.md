@@ -1,8 +1,8 @@
 # Movimentos de caixa
 
-Movimentos sao imutaveis e representam somente eventos financeiros de dinheiro fisico.
+Movimentos representam apenas eventos de dinheiro fisico.
 
-## Labels de operador
+## Labels do operador
 
 - Valor inicial
 - Venda em dinheiro
@@ -24,17 +24,14 @@ Movimentos sao imutaveis e representam somente eventos financeiros de dinheiro f
 
 ## Saldo esperado
 
-Formula:
-
 `valor inicial + vendas em dinheiro + dinheiro adicionado - dinheiro retirado - reembolsos em dinheiro +/- ajustes autorizados`
 
-Nao entra no saldo fisico:
+Pix, cartao, boleto e pagamentos pendentes/falhos/expirados nao entram no saldo fisico.
 
-- Pix
-- cartao
-- boleto
-- pagamentos pendentes
-- pagamentos falhos
-- pagamentos expirados
+Cada movimento grava saldo antes/depois. O banco bloqueia alteracao/exclusao direta; `CASH_ADJUSTMENT` referencia o movimento original.
 
-Cada movimento novo grava saldo antes e saldo depois.
+## Pagamentos
+
+- `CASH_SALE` exige pagamento cash confirmado e referencia pedido/pagamento.
+- `CASH_REFUND` nasce da transicao para `refunded`, exige motivo e nao excede o recebido.
+- Pix/cartao/outros sao vinculados ao caixa apenas para conciliacao.

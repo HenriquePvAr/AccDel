@@ -1,48 +1,24 @@
 # Fechamento de caixa
 
-O fechamento encerra uma sessao aberta e calcula a diferenca no backend.
+O backend encerra a sessao e calcula `diferenca = dinheiro contado - dinheiro esperado`.
 
-## Campos
+## Exibicao
 
-- dinheiro esperado
-- dinheiro contado
-- diferenca
-- observacao
-- justificativa de diferenca quando aplicavel
-- operador autenticado
-- horario do servidor
-
-## Formula
-
-`diferenca = dinheiro contado - dinheiro esperado`
+- valor inicial e vendas por metodo
+- dinheiro adicionado, retirado e reembolsado
+- dinheiro esperado, contado e diferenca
+- observacao, justificativa, operador e horario
 
 ## Regras
 
-- Apenas caixa aberto pode ser fechado.
+- Somente caixa aberto pode fechar.
 - Valor contado nao pode ser negativo.
-- Fechamento usa transacao.
-- Fechamento duplicado e bloqueado por status/idempotencia.
-- Movimentos apos fechamento sao bloqueados.
-- Diferenca diferente de zero exige justificativa enquanto nao existir tolerancia configuravel.
+- Transacao usa isolamento `Serializable`.
+- Retry e fechamento duplicado sao idempotentes/bloqueados.
+- Movimento posterior ao fechamento e bloqueado.
+- Diferenca nao zero exige justificativa enquanto nao houver tolerancia configurada.
+- Venda, retirada e fechamento concorrentes usam status, saldo observado, constraint e retry.
 
-## Cenarios de homologacao
+## Homologacao ficticia
 
-Base ficticia:
-
-- Loja: Restaurante Laboratorio
-- Terminal: Caixa principal
-- Operadora: Sara Vale
-- Abertura: R$ 150,00
-- Venda em dinheiro: R$ 80,00
-- Venda Pix: R$ 45,00
-- Dinheiro adicionado: R$ 50,00
-- Dinheiro retirado: R$ 30,00
-- Reembolso em dinheiro: R$ 10,00
-
-Saldo esperado: R$ 240,00.
-
-Fechamentos a validar:
-
-- R$ 240,00: diferenca zero
-- R$ 235,00: diferenca negativa
-- R$ 250,00: diferenca positiva
+Restaurante Laboratorio, Caixa principal, Sara Vale: abertura R$ 150,00; venda cash R$ 80,00; Pix R$ 45,00; adicao R$ 50,00; retirada R$ 30,00; reembolso R$ 10,00; esperado R$ 240,00. Fechar com R$ 240,00, R$ 235,00 e R$ 250,00.
