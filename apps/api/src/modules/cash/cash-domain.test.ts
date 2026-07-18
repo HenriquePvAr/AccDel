@@ -3,6 +3,13 @@ import test from 'node:test'
 
 import { BadRequestException } from '@nestjs/common'
 
+import {
+  openCashRegisterSchema,
+  supplyCashRegisterSchema,
+  withdrawCashRegisterSchema,
+} from '@/contracts/cash.contract'
+import { confirmOrderPaymentSchema } from '@/contracts/orders.contract'
+
 import { calculateExpectedCashBalance, cashDelta, requiresDifferenceReason } from './cash-domain'
 
 test('calcula saldo esperado usando apenas dinheiro fisico', () => {
@@ -45,4 +52,30 @@ test('diferenca de fechamento exige justificativa quando diferente de zero', () 
   assert.equal(requiresDifferenceReason(0), false)
   assert.equal(requiresDifferenceReason(-5), true)
   assert.equal(requiresDifferenceReason(10), true)
+})
+
+test('abertura aceita zero e rejeita valor negativo', () => {
+  assert.equal(openCashRegisterSchema.safeParse({ openingAmount: 0 }).success, true)
+  assert.equal(openCashRegisterSchema.safeParse({ openingAmount: -0.01 }).success, false)
+})
+
+test('adicao e retirada exigem valor positivo e motivo', () => {
+  assert.equal(supplyCashRegisterSchema.safeParse({ amount: 10, reason: 'Troco' }).success, true)
+  assert.equal(supplyCashRegisterSchema.safeParse({ amount: 0, reason: 'Troco' }).success, false)
+  assert.equal(withdrawCashRegisterSchema.safeParse({ amount: 10, reason: '' }).success, false)
+})
+
+test('reembolso confirmado exige motivo explicito', () => {
+  assert.equal(confirmOrderPaymentSchema.safeParse({ status: 'refunded' }).success, false)
+  assert.equal(
+    confirmOrderPaymentSchema.safeParse({ status: 'refunded', reason: 'Cliente desistiu' }).success,
+    true,
+  )
+})
+
+test('calculo monetario preserva centavos', () => {
+  assert.equal(
+    calculateExpectedCashBalance(0.1, [{ type: 'CASH_SUPPLY', amount: 0.2 }]),
+    0.3,
+  )
 })
