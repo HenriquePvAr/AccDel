@@ -3,6 +3,44 @@
 Atualizado em: 2026-07-15
 Objetivo: este arquivo deve permitir que qualquer IA entenda o sistema, continue o trabalho com seguranca e evite reabrir decisoes ja tomadas.
 
+## Atualizacao RC3 - caixa auditavel v2
+
+Em 2026-07-17 foi iniciada a branch `feat/cash-register-v2` a partir de `integration/commerce-communications-v1`.
+
+Escopo desta branch:
+
+- caixa auditavel;
+- terminal por loja;
+- sessao de caixa;
+- movimentos imutaveis;
+- saldo esperado calculado no backend;
+- fechamento com diferenca;
+- idempotencia;
+- constraint PostgreSQL para uma sessao aberta por terminal;
+- interface Admin responsiva;
+- testes unitarios e teste PostgreSQL opcional.
+
+Fora do escopo:
+
+- provider de pagamento real;
+- WhatsApp;
+- IA;
+- Meta;
+- NVIDIA;
+- deploy;
+- merge em `main`.
+
+Documentacao nova:
+
+- `docs/cash/CASH_REGISTER_CURRENT_STATE.md`
+- `docs/cash/CASH_REGISTER.md`
+- `docs/cash/CASH_MOVEMENTS.md`
+- `docs/cash/CASH_CLOSING.md`
+- `docs/cash/CASH_RECONCILIATION.md`
+- `docs/cash/CASH_PERMISSIONS.md`
+- `docs/cash/CASH_REGISTER_TEST_PLAN.md`
+- `docs/releases/RC3_PLAN.md`
+
 ## 1. Resumo executivo
 
 Cain Delivery e uma plataforma operacional para restaurantes e delivery.
