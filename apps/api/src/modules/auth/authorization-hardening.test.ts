@@ -66,6 +66,20 @@ test('caixa fecha sessao sem receber permissao ampla de edicao do salao', () => 
   assert.equal(permissions.includes('dining:update'), false)
 })
 
+test('usuario sem cash manage nao abre nem movimenta caixa', () => {
+  const permissions = getPermissionsForRole('attendant')
+  const reflector = {
+    getAllAndOverride: (key: string) => (key === 'isPublic' ? false : ['cash:manage']),
+  } as unknown as Reflector
+  const guard = new PermissionsGuard(reflector)
+
+  assert.equal(permissions.includes('cash:manage'), false)
+  assert.throws(
+    () => guard.canActivate(buildContext({ authUser: { permissions } })),
+    ForbiddenException,
+  )
+})
+
 test('PWA invalida imediatamente vinculo desativado ou papel alterado', async () => {
   const prisma = {
     storeUser: {

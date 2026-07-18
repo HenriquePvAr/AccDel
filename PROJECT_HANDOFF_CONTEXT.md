@@ -3,6 +3,44 @@
 Atualizado em: 2026-07-15
 Objetivo: este arquivo deve permitir que qualquer IA entenda o sistema, continue o trabalho com seguranca e evite reabrir decisoes ja tomadas.
 
+## Atualizacao RC3 - caixa auditavel v2
+
+Em 2026-07-17 foi iniciada a branch `feat/cash-register-v2` a partir de `integration/commerce-communications-v1`.
+
+Escopo desta branch:
+
+- caixa auditavel;
+- terminal por loja;
+- sessao de caixa;
+- movimentos imutaveis;
+- saldo esperado calculado no backend;
+- fechamento com diferenca;
+- idempotencia;
+- constraint PostgreSQL para uma sessao aberta por terminal;
+- interface Admin responsiva;
+- testes unitarios e teste PostgreSQL opcional.
+
+Fora do escopo:
+
+- provider de pagamento real;
+- WhatsApp;
+- IA;
+- Meta;
+- NVIDIA;
+- deploy;
+- merge em `main`.
+
+Documentacao nova:
+
+- `docs/cash/CASH_REGISTER_CURRENT_STATE.md`
+- `docs/cash/CASH_REGISTER.md`
+- `docs/cash/CASH_MOVEMENTS.md`
+- `docs/cash/CASH_CLOSING.md`
+- `docs/cash/CASH_RECONCILIATION.md`
+- `docs/cash/CASH_PERMISSIONS.md`
+- `docs/cash/CASH_REGISTER_TEST_PLAN.md`
+- `docs/releases/RC3_PLAN.md`
+
 ## 1. Resumo executivo
 
 Cain Delivery e uma plataforma operacional para restaurantes e delivery.
@@ -1228,4 +1266,16 @@ Documentação canônica:
 - `docs/ci/GITHUB_ACTIONS.md`
 - `docs/ci/CI_MATRIX.md`
 - `docs/ci/TROUBLESHOOTING.md`
+
+## 33. Caixa auditavel v2 (17/07/2026)
+
+Branch `feat/cash-register-v2`, baseada em `integration/commerce-communications-v1` (`b7b9f372`). Draft PR #4 aponta exclusivamente para a integracao.
+
+O caixa separa terminal, sessao, movimento fisico, pagamento e pedido. Abertura, suprimento, retirada, venda cash, reembolso, ajuste compensatorio e fechamento usam saldo do backend, tenant autenticado, idempotencia e transacoes. Pix/cartao aparecem na conciliacao sem alterar o dinheiro esperado.
+
+As migrations `20260717190000_cash_register_v2` e `20260717203000_cash_register_v2_hardening` sao aditivas. O hardening reforca tenant, vincula pagamentos/mesas, cria limite opcional de aprovacao e bloqueia update/delete no ledger/auditoria.
+
+Validacao local: 76 testes unitarios, 14 testes PostgreSQL (incluindo 35 cenarios de caixa), cadeia vazia de 25 migrations e incremental 23 + 2. O banco temporario usou loopback/porta 55439; nenhuma integracao real, hardware, deploy ou banco de producao foi acessado.
+
+Limitacoes: aprovacao e executada pelo gerente autenticado, sem fila em duas etapas; relatorio limita 100 sessoes e nao exporta; dados antigos sem `cash_register_id` dependem do ledger legado; revisao visual humana segue como gate do Draft PR.
 

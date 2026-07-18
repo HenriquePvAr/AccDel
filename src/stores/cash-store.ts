@@ -9,11 +9,18 @@ interface CashState {
 }
 
 const movementMethod: Record<CashMovementType, CashMovement['method']> = {
-  sale: 'pix',
+  sale: 'cash',
   withdrawal: 'internal',
   supply: 'internal',
   adjustment: 'internal',
-  refund: 'pix',
+  refund: 'cash',
+  OPENING_BALANCE: 'cash',
+  CASH_SALE: 'cash',
+  CASH_SUPPLY: 'internal',
+  CASH_WITHDRAWAL: 'internal',
+  CASH_REFUND: 'cash',
+  CASH_ADJUSTMENT: 'internal',
+  CLOSING_DIFFERENCE: 'internal',
 }
 
 export const useCashStore = create<CashState>((set) => ({
